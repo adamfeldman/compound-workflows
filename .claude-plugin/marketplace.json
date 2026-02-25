@@ -1,0 +1,23 @@
+{
+  "name": "compound-workflows-marketplace",
+  "owner": {
+    "name": "Adam Feldman",
+    "url": "https://github.com/adamf"
+  },
+  "metadata": {
+    "description": "Plugin marketplace for compound-workflows",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "compound-workflows",
+      "description": "Context-safe compound engineering workflows with disk-persisted agents, red-team challenges, beads integration, and subagent dispatch. 8 commands, 1 agent, 1 skill.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Adam Feldman"
+      },
+      "tags": ["compound-engineering", "workflow", "disk-persistence", "red-team", "beads", "knowledge-management"],
+      "source": "./plugins/compound-workflows"
+    }
+  ]
+}
