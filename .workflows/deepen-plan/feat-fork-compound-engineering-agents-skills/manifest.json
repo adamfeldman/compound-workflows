@@ -1,0 +1,22 @@
+{
+  "plan_path": "docs/plans/2026-02-25-feat-fork-compound-engineering-agents-skills-plan.md",
+  "plan_stem": "feat-fork-compound-engineering-agents-skills",
+  "origin_brainstorm": "docs/brainstorms/2026-02-25-port-gaps-compound-engineering-brainstorm.md",
+  "started_at": "2026-02-25T13:10:00Z",
+  "status": "synthesized",
+  "run": 1,
+  "agents": [
+    {"name": "source-verification", "type": "research", "file": "agents/run-1/research--source-verification.md", "status": "completed"},
+    {"name": "genericization-audit", "type": "research", "file": "agents/run-1/research--genericization-audit.md", "status": "completed"},
+    {"name": "command-analysis", "type": "research", "file": "agents/run-1/research--command-analysis.md", "status": "completed"},
+    {"name": "orchestrating-swarms-audit", "type": "research", "file": "agents/run-1/research--orchestrating-swarms-audit.md", "status": "completed"},
+    {"name": "setup-skill-audit", "type": "research", "file": "agents/run-1/research--setup-skill-audit.md", "status": "completed"},
+    {"name": "version-diff", "type": "research", "file": "agents/run-1/research--version-diff.md", "status": "completed"},
+    {"name": "architecture-strategist", "type": "review", "file": "agents/run-1/review--architecture-strategist.md", "status": "completed"},
+    {"name": "code-simplicity-reviewer", "type": "review", "file": "agents/run-1/review--code-simplicity-reviewer.md", "status": "completed"},
+    {"name": "security-sentinel", "type": "review", "file": "agents/run-1/review--security-sentinel.md", "status": "completed"},
+    {"name": "red-team-gemini", "type": "red-team", "file": "agents/run-1/red-team--critique.md", "status": "completed"},
+    {"name": "red-team-gpt5", "type": "red-team", "file": "agents/run-1/red-team--gpt5.md", "status": "completed"},
+    {"name": "red-team-opus", "type": "red-team", "file": "agents/run-1/red-team--opus.md", "status": "completed"}
+  ]
+}
