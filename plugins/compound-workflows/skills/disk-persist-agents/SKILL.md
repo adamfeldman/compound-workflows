@@ -84,8 +84,8 @@ All workflow outputs go under `.workflows/` in the project root:
 
 Derive a short stem from the task context:
 - **Brainstorm:** From the feature description (e.g., `claude-code-cursor-dual-tool`)
-- **Plan:** From the plan filename (e.g., `intellect-v6-pricing`)
-- **Review:** From the branch name or PR number (e.g., `feat-cash-management-ui`, `pr-123`)
+- **Plan:** From the plan filename (e.g., `api-rate-limiting`)
+- **Review:** From the branch name or PR number (e.g., `feat-user-dashboard-redesign`, `pr-123`)
 - **Compound:** From the problem/finding (e.g., `bq-cost-measurement`)
 
 Use lowercase, hyphens, 3-6 words max.
