@@ -27,7 +27,7 @@ Adam's `/aworkflows:*` commands are enhanced versions of compound-engineering's 
 
 ## Decisions (Confirmed)
 
-- **Plugin name:** `compound-workflows` → commands register as `/compound-workflows:brainstorm`, etc.
+- **Plugin name:** `compound-workflows` → commands register as `/compound:brainstorm`, etc.
 - **Distribution:** Own marketplace repo with standard `marketplace.json` wrapper
 - **Beads:** Preferred but optional. Work/work-agents detect `bd` at startup; if missing, fall back to TodoWrite for task tracking. Beads path retains compaction-safe persistence; TodoWrite path is functional but loses state on compaction.
 - **compound-engineering:** Documented peer dependency. Agents referenced by name with inline role descriptions for graceful `general-purpose` fallback.
@@ -76,9 +76,9 @@ compound-workflows-marketplace/          # Git repo root = marketplace
 
 ### Phase 0.5: Create setup command
 
-**Target:** `plugins/compound-workflows/commands/compound-workflows/setup.md`
+**Target:** `plugins/compound-workflows/commands/compound/setup.md`
 
-`/compound-workflows:setup` — runs on first use or on demand. Detects environment and tells the user what's available vs. what they could add:
+`/compound:setup` — runs on first use or on demand. Detects environment and tells the user what's available vs. what they could add:
 
 1. **Detect installed enhancements:**
    - `bd version 2>/dev/null` → beads available?
@@ -100,12 +100,12 @@ compound-workflows-marketplace/          # Git repo root = marketplace
 ### Phase 1: Port 7 commands
 
 **Source:** `~/.claude/commands/aworkflows/*.md`
-**Target:** `plugins/compound-workflows/commands/compound-workflows/`
+**Target:** `plugins/compound-workflows/commands/compound/`
 
 Per-file changes:
-1. YAML `name:` — `aworkflows:X` → `compound-workflows:X`
+1. YAML `name:` — `aworkflows:X` → `compound:X`
 2. Hardcoded "2026" → "the current year" (brainstorm, plan, deepen-plan)
-3. Internal cross-refs — `/aworkflows:plan` → `/compound-workflows:plan` (all files)
+3. Internal cross-refs — `/aworkflows:plan` → `/compound:plan` (all files)
 4. Task dispatches — add inline role description to each agent name so `general-purpose` fallback works
 5. PAL references — add detection + fallback: try PAL `chat` for red-team; if PAL unavailable, dispatch a Claude `general-purpose` subagent with the same red-team prompt
 6. Beads/TodoWrite detection — add startup check: `bd version 2>/dev/null`. If beads available, use beads. If not, fall back to TodoWrite.
@@ -156,9 +156,9 @@ Content: Extract the repeated pattern from all 7 commands into a single skill do
 ## Verification
 
 1. Install in a test project and verify all 8 commands appear in slash command list
-2. Run `/compound-workflows:setup` — verify it detects beads/PAL/compound-engineering status correctly and shows install guidance for missing items
-3. Run `/compound-workflows:brainstorm test feature` — verify dialogue flow, research agents write to `.workflows/`
-4. Run `/compound-workflows:plan` from the brainstorm — verify disk persistence and cross-references work
+2. Run `/compound:setup` — verify it detects beads/PAL/compound-engineering status correctly and shows install guidance for missing items
+3. Run `/compound:brainstorm test feature` — verify dialogue flow, research agents write to `.workflows/`
+4. Run `/compound:plan` from the brainstorm — verify disk persistence and cross-references work
 5. Test without compound-engineering installed — verify agents degrade to `general-purpose` with adequate role context
 6. Test without PAL — verify red-team falls back to Claude subagent and produces critique
 7. Test `work` without beads — verify it detects missing `bd` and falls back to TodoWrite cleanly
