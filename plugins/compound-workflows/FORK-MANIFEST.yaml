@@ -1,0 +1,175 @@
+# FORK-MANIFEST.yaml — tracks compound-engineering fork for upstream sync
+source_plugin: compound-engineering
+source_version: "2.35.2"
+fork_date: "2026-02-25"
+
+files:
+  # Agents — Research (6, 1 pre-existing)
+  - local_path: agents/research/best-practices-researcher.md
+    source_path: agents/research/best-practices-researcher.md
+    status: genericized
+    notes: "Removed references to dropped skills (dhh-rails-style, andrew-kane-gem-writer, dspy-ruby, every-style-editor)"
+
+  - local_path: agents/research/context-researcher.md
+    source_path: null
+    status: pre-existing
+    notes: "Existed in compound-workflows v1.0.0; not from compound-engineering"
+
+  - local_path: agents/research/framework-docs-researcher.md
+    source_path: agents/research/framework-docs-researcher.md
+    status: unmodified
+
+  - local_path: agents/research/git-history-analyzer.md
+    source_path: agents/research/git-history-analyzer.md
+    status: genericized
+    notes: "Replaced compound-engineering with compound-workflows"
+
+  - local_path: agents/research/learnings-researcher.md
+    source_path: agents/research/learnings-researcher.md
+    status: genericized
+    notes: "BriefSystem->AuthService, EmailProcessing->PaymentProcessor, updated command namespace references"
+
+  - local_path: agents/research/repo-research-analyst.md
+    source_path: agents/research/repo-research-analyst.md
+    status: unmodified
+
+  # Agents — Review (13)
+  - local_path: agents/review/agent-native-reviewer.md
+    source_path: agents/review/agent-native-reviewer.md
+    status: unmodified
+
+  - local_path: agents/review/architecture-strategist.md
+    source_path: agents/review/architecture-strategist.md
+    status: unmodified
+
+  - local_path: agents/review/code-simplicity-reviewer.md
+    source_path: agents/review/code-simplicity-reviewer.md
+    status: genericized
+    notes: "Replaced compound-engineering with compound-workflows"
+
+  - local_path: agents/review/data-integrity-guardian.md
+    source_path: agents/review/data-integrity-guardian.md
+    status: unmodified
+
+  - local_path: agents/review/data-migration-expert.md
+    source_path: agents/review/data-migration-expert.md
+    status: unmodified
+
+  - local_path: agents/review/deployment-verification-agent.md
+    source_path: agents/review/deployment-verification-agent.md
+    status: unmodified
+
+  - local_path: agents/review/frontend-races-reviewer.md
+    source_path: agents/review/julik-frontend-races-reviewer.md
+    status: renamed
+    notes: "Persona removed (Julik), name: field updated, cultural attribution genericized"
+
+  - local_path: agents/review/pattern-recognition-specialist.md
+    source_path: agents/review/pattern-recognition-specialist.md
+    status: unmodified
+
+  - local_path: agents/review/performance-oracle.md
+    source_path: agents/review/performance-oracle.md
+    status: unmodified
+
+  - local_path: agents/review/python-reviewer.md
+    source_path: agents/review/kieran-python-reviewer.md
+    status: renamed
+    notes: "Persona removed (Kieran), name: field updated"
+
+  - local_path: agents/review/schema-drift-detector.md
+    source_path: agents/review/schema-drift-detector.md
+    status: unmodified
+
+  - local_path: agents/review/security-sentinel.md
+    source_path: agents/review/security-sentinel.md
+    status: unmodified
+
+  - local_path: agents/review/typescript-reviewer.md
+    source_path: agents/review/kieran-typescript-reviewer.md
+    status: renamed
+    notes: "Persona removed (Kieran), name: field updated"
+
+  # Agents — Workflow (3)
+  - local_path: agents/workflow/bug-reproduction-validator.md
+    source_path: agents/workflow/bug-reproduction-validator.md
+    status: unmodified
+
+  - local_path: agents/workflow/pr-comment-resolver.md
+    source_path: agents/workflow/pr-comment-resolver.md
+    status: unmodified
+
+  - local_path: agents/workflow/spec-flow-analyzer.md
+    source_path: agents/workflow/spec-flow-analyzer.md
+    status: unmodified
+
+  # Skills (14 new + 1 pre-existing, tracked at directory level)
+  - local_path: skills/agent-browser/
+    source_path: skills/agent-browser/
+    status: unmodified
+
+  - local_path: skills/agent-native-architecture/
+    source_path: skills/agent-native-architecture/
+    status: genericized
+    notes: "Every Reader -> BookReader in 5 reference files (action-parity-discipline, architecture-patterns, dynamic-context-injection, shared-workspace-architecture, system-prompt-design); SKILL.md unmodified"
+
+  - local_path: skills/brainstorming/
+    source_path: skills/brainstorming/
+    status: genericized
+    notes: "Updated /workflows:plan references to /compound:plan"
+
+  - local_path: skills/compound-docs/
+    source_path: skills/compound-docs/
+    status: genericized
+    notes: "BriefSystem->AuthService, EmailProcessing->PaymentProcessor in SKILL.md, schema.yaml, yaml-schema.md; templates updated"
+
+  - local_path: skills/create-agent-skills/
+    source_path: skills/create-agent-skills/
+    status: genericized
+    notes: "references/skill-structure.md: dhh-rails-style -> orchestrating-swarms in example"
+
+  - local_path: skills/disk-persist-agents/
+    source_path: null
+    status: pre-existing
+    notes: "Existed in compound-workflows v1.0.0; not from compound-engineering"
+
+  - local_path: skills/document-review/
+    source_path: skills/document-review/
+    status: genericized
+    notes: "Updated /workflows:brainstorm, /workflows:plan references to compound-workflows namespace"
+
+  - local_path: skills/file-todos/
+    source_path: skills/file-todos/
+    status: genericized
+    notes: "SKILL.md: updated command references; assets/todo-template.md: unmodified"
+
+  - local_path: skills/frontend-design/
+    source_path: skills/frontend-design/
+    status: unmodified
+
+  - local_path: skills/gemini-imagegen/
+    source_path: skills/gemini-imagegen/
+    status: unmodified
+
+  - local_path: skills/git-worktree/
+    source_path: skills/git-worktree/
+    status: unmodified
+
+  - local_path: skills/orchestrating-swarms/
+    source_path: skills/orchestrating-swarms/
+    status: rewritten
+    notes: "Namespace compound-engineering->compound-workflows, 3 agent renames, 3 block removals (dropped agents/categories)"
+
+  - local_path: skills/resolve-pr-parallel/
+    source_path: skills/resolve-pr-parallel/
+    status: genericized
+    notes: "scripts/get-pr-comments: EveryInc/cora -> owner/repo; SKILL.md and resolve-pr-thread: unmodified"
+
+  - local_path: skills/setup/
+    source_path: skills/setup/
+    status: rewritten
+    notes: "Full namespace update compound-engineering->compound-workflows, Rails agents removed, conflict detection added"
+
+  - local_path: skills/skill-creator/
+    source_path: skills/skill-creator/
+    status: unmodified

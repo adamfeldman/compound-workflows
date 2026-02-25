@@ -1,18 +1,20 @@
 {
   "name": "compound-workflows",
-  "version": "1.0.0",
-  "description": "Context-safe compound engineering workflows with disk-persisted agents, red-team challenges, beads/TodoWrite task tracking, and subagent dispatch. 8 commands, 1 agent, 1 skill.",
+  "version": "1.2.0",
+  "description": "Self-contained compound engineering workflows with 22 agents, 15 skills, and 7 commands. Disk-persisted agent outputs, multi-model red-team challenges, beads/TodoWrite task tracking, and subagent dispatch.",
   "author": {
     "name": "Adam Feldman"
   },
   "license": "MIT",
   "keywords": [
-    "compound-engineering",
     "workflow",
     "disk-persistence",
     "red-team",
     "beads",
     "knowledge-management",
-    "context-safe"
+    "context-safe",
+    "agents",
+    "code-review",
+    "research"
   ]
 }
