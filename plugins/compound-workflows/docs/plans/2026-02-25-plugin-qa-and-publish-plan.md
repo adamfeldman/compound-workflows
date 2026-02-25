@@ -24,7 +24,7 @@ This plan covers the remaining work: quality review of ported commands, fixes fo
 - `git init` with 2 commits on `main`
 
 ### Phase 0.5: Setup Command — COMPLETE
-- Created `/compound-workflows:setup` command at `commands/compound-workflows/setup.md`
+- Created `/compound:setup` command at `commands/compound/setup.md`
 - Detects beads, PAL MCP, compound-engineering, GitHub CLI
 - Presents status table, shows install instructions for missing tools
 - Offers to create missing `docs/` directories
@@ -32,7 +32,7 @@ This plan covers the remaining work: quality review of ported commands, fixes fo
 
 ### Phase 1: Port 7 Commands — COMPLETE (needs QA)
 
-All 7 commands ported from `~/.claude/commands/aworkflows/` to `commands/compound-workflows/`:
+All 7 commands ported from `~/.claude/commands/aworkflows/` to `commands/compound/`:
 
 | Command | Namespace | Year refs | Cross-refs | Role descriptions | PAL fallback | Beads/TodoWrite |
 |---------|:---------:|:---------:|:----------:|:-----------------:|:------------:|:---------------:|
@@ -107,8 +107,8 @@ claude  # start a session
 
 Verify:
 - [ ] All 8 commands appear in `/` slash command autocomplete
-- [ ] `/compound-workflows:setup` runs and detects environment correctly
-- [ ] `/compound-workflows:brainstorm test idea` starts the dialogue flow
+- [ ] `/compound:setup` runs and detects environment correctly
+- [ ] `/compound:brainstorm test idea` starts the dialogue flow
 - [ ] Agent names resolve (if compound-engineering installed) or fall back gracefully
 
 ### Step 5: Update Plans
@@ -121,21 +121,21 @@ Verify:
 
 | File | Path | What to check |
 |------|------|---------------|
-| brainstorm.md | `plugins/compound-workflows/commands/compound-workflows/brainstorm.md` | Most complex — PAL fallback, context-researcher ref, skill refs |
-| work.md | `plugins/compound-workflows/commands/compound-workflows/work.md` | Beads/TodoWrite dual-path completeness |
-| work-agents.md | `plugins/compound-workflows/commands/compound-workflows/work-agents.md` | Beads/TodoWrite dual-path, subagent prompt template |
-| deepen-plan.md | `plugins/compound-workflows/commands/compound-workflows/deepen-plan.md` | PAL fallback, consensus fallback, multi-run manifest |
+| brainstorm.md | `plugins/compound-workflows/commands/compound/brainstorm.md` | Most complex — PAL fallback, context-researcher ref, skill refs |
+| work.md | `plugins/compound-workflows/commands/compound/work.md` | Beads/TodoWrite dual-path completeness |
+| work-agents.md | `plugins/compound-workflows/commands/compound/work-agents.md` | Beads/TodoWrite dual-path, subagent prompt template |
+| deepen-plan.md | `plugins/compound-workflows/commands/compound/deepen-plan.md` | PAL fallback, consensus fallback, multi-run manifest |
 | context-researcher.md | `plugins/compound-workflows/agents/research/context-researcher.md` | Generalization completeness |
 
 ## Source Files for Comparison
 
 | Original | Plugin copy |
 |----------|------------|
-| `~/.claude/commands/aworkflows/brainstorm.md` | `plugins/.../commands/compound-workflows/brainstorm.md` |
-| `~/.claude/commands/aworkflows/plan.md` | `plugins/.../commands/compound-workflows/plan.md` |
-| `~/.claude/commands/aworkflows/work.md` | `plugins/.../commands/compound-workflows/work.md` |
-| `~/.claude/commands/aworkflows/work-agents.md` | `plugins/.../commands/compound-workflows/work-agents.md` |
-| `~/.claude/commands/aworkflows/review.md` | `plugins/.../commands/compound-workflows/review.md` |
-| `~/.claude/commands/aworkflows/compound.md` | `plugins/.../commands/compound-workflows/compound.md` |
-| `~/.claude/commands/aworkflows/deepen-plan.md` | `plugins/.../commands/compound-workflows/deepen-plan.md` |
+| `~/.claude/commands/aworkflows/brainstorm.md` | `plugins/.../commands/compound/brainstorm.md` |
+| `~/.claude/commands/aworkflows/plan.md` | `plugins/.../commands/compound/plan.md` |
+| `~/.claude/commands/aworkflows/work.md` | `plugins/.../commands/compound/work.md` |
+| `~/.claude/commands/aworkflows/work-agents.md` | `plugins/.../commands/compound/work-agents.md` |
+| `~/.claude/commands/aworkflows/review.md` | `plugins/.../commands/compound/review.md` |
+| `~/.claude/commands/aworkflows/compound.md` | `plugins/.../commands/compound/compound.md` |
+| `~/.claude/commands/aworkflows/deepen-plan.md` | `plugins/.../commands/compound/deepen-plan.md` |
 | `~/.claude/agents/context-researcher.md` | `plugins/.../agents/research/context-researcher.md` |
