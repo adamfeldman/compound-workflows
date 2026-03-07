@@ -320,7 +320,7 @@ Red team the plan with ALL THREE model providers in parallel for maximum coverag
 **Provider 1 — Gemini (via PAL):**
 ```
 mcp__pal__chat:
-  model: [latest highest-end Gemini model]
+  model: [latest highest-end Gemini model, e.g. gemini-3.1-pro-preview — NOT gemini-2.5-pro]
   prompt: "You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate.
 
 Read the enhanced plan and its synthesis summary. Then identify:
@@ -350,7 +350,7 @@ Run after Gemini completes so it can read the prior critique and avoid duplicati
 
 ```
 mcp__pal__chat:
-  model: [latest highest-end OpenAI model]
+  model: [latest highest-end OpenAI model, e.g. gpt-5.4-pro — NOT gpt-5.4 or gpt-5.2-pro]
   prompt: "You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate.
 
 IMPORTANT: A Gemini model has already reviewed this plan. Read their critique first to avoid duplicating findings. Focus on what they MISSED.
