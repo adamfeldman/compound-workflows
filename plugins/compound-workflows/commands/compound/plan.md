@@ -51,6 +51,7 @@ Use **AskUserQuestion** to ask which brainstorm to use, or whether to proceed wi
 
 Use **AskUserQuestion tool** to ask questions one at a time:
 - Purpose, constraints, success criteria
+- **Record the user's reasoning, not just their answer.** When the user explains *why* they want something or *why* they chose one approach over another, capture that rationale in the plan. The "why" prevents future sessions from relitigating settled decisions.
 - Continue until clear OR user says "proceed"
 
 **Gather research signals:** Note user familiarity, topic risk, uncertainty level.
@@ -156,11 +157,11 @@ If research surfaced contradictions, unknowns, or open questions:
 For each, present to the user via **AskUserQuestion**:
 
 "Research found: [contradiction or unknown]. How should we handle this?"
-- **Resolve now** — make a decision and document it
-- **Defer with rationale** — carry into the plan's Open Questions section with context
+- **Resolve now** — make a decision and document it, including the user's reasoning
+- **Defer with rationale** — carry into the plan's Open Questions section with the user's stated reason for deferral
 - **Not relevant** — discard
 
-**Do not proceed to planning with unresolved research contradictions.** Every finding must be explicitly addressed.
+**Do not proceed to planning with unresolved research contradictions.** Every finding must be explicitly addressed. When recording resolutions, capture *why* the user chose that path — not just the choice itself.
 
 ### 2. Issue Planning & Structure
 
@@ -247,8 +248,8 @@ If anything was dropped, add it to the plan before proceeding.
 #### Plan Open Questions Gate
 
 If the plan has an Open Questions section, resolve each item via **AskUserQuestion**:
-- **Resolve now** — answer it and remove from Open Questions
-- **Defer with rationale** — keep in Open Questions with explicit rationale; flag at handoff
+- **Resolve now** — answer it with the user's reasoning and remove from Open Questions
+- **Defer with rationale** — keep in Open Questions with the user's explicit rationale; flag at handoff
 - **Remove** — no longer relevant
 
 **Do not hand off a plan with unresolved Open Questions** unless the user explicitly defers them.
@@ -273,5 +274,6 @@ Use **AskUserQuestion tool**:
 - **No unresolved items cross phase boundaries** — every open question, contradiction, or finding must be explicitly resolved, deferred with rationale, or removed before moving to the next phase
 - **The brainstorm is the origin document** — if a brainstorm exists, the plan must trace back to it via `origin:` frontmatter and carry forward all decisions
 - **Research informs, gates enforce** — research agents surface findings, but gates ensure nothing slips through unaddressed
+- **Record the why, not just the what** — when the user makes a decision, explains a preference, or rejects an alternative, capture their reasoning in the plan. User rationale evaporates with conversation context; the plan is the only durable record.
 
 NEVER CODE! Just research and write the plan.

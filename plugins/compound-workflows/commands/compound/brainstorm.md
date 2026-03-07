@@ -65,6 +65,7 @@ Return ONLY a 2-3 sentence summary.
 Use **AskUserQuestion** to ask questions one at a time:
 - Start broad (purpose, users) then narrow (constraints, edge cases)
 - Validate assumptions explicitly
+- **Record the user's reasoning, not just their answer.** When the user explains *why* they want something, capture that rationale in the brainstorm document. The "why" is more valuable than the "what" — it prevents future sessions from relitigating settled decisions.
 - Exit when idea is clear OR user says "proceed"
 
 Read research files when ready:
@@ -91,8 +92,8 @@ Sections: What We're Building, Why This Approach, Key Decisions, Open Questions.
 Before proceeding, check the Open Questions section of the brainstorm document. For each open question, present to the user via **AskUserQuestion**:
 
 "[Open question]. How should we resolve this?"
-- **Answer now** — resolve it and move the question + answer to a "Resolved Questions" section
-- **Defer with rationale** — move to a "Deferred Questions" section with the reason it can't be resolved yet
+- **Answer now** — resolve it and move the question + answer (including the user's reasoning) to a "Resolved Questions" section
+- **Defer with rationale** — move to a "Deferred Questions" section with the user's stated reason it can't be resolved yet
 - **Remove** — question is no longer relevant, delete it
 
 **Do not proceed to Phase 3.5 with unresolved Open Questions.** Every question must be explicitly resolved, deferred, or removed.
@@ -212,7 +213,7 @@ For each CRITICAL or SERIOUS item, present to the user via **AskUserQuestion**:
 - **Disagree — note why** (add a "Considered and Rejected" note with the counterargument)
 - **Defer — add to Open Questions** (move to Open Questions section with the red team's concern)
 
-Apply the user's decision to the brainstorm document.
+Apply the user's decision to the brainstorm document. **Include the user's stated reasoning** — not just "rejected" but *why* they rejected it (e.g., "Rejected: user noted this assumes high traffic which isn't expected for v1").
 
 **Any CRITICAL items the user defers MUST be flagged in the Phase 4 handoff.** The plan skill needs to know about unresolved challenges.
 
@@ -249,4 +250,5 @@ Options:
 - Apply YAGNI — prefer simpler approaches
 - Keep outputs concise (200-300 words per section max)
 - **No unresolved items cross phase boundaries** — every open question, concern, or finding must be explicitly resolved, deferred with rationale, or removed before moving to the next phase
+- **Record the why, not just the what** — when the user makes a decision, explains a preference, or rejects an alternative, capture their reasoning in the document. User rationale evaporates with conversation context; the document is the only durable record.
 - NEVER CODE! Just explore and document decisions.
