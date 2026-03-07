@@ -303,8 +303,8 @@ If the synthesis flagged contradictions between research agents or unresolved qu
 For each, present to the user via **AskUserQuestion**:
 
 "Synthesis found conflicting recommendations: [summary]. How should we resolve this?"
-- **Choose one** — adopt the recommended approach, note the alternative was considered
-- **Defer** — carry into the plan's Open Questions section
+- **Choose one** — adopt the recommended approach, record the user's reasoning and note the alternative was considered
+- **Defer** — carry into the plan's Open Questions section with the user's stated reason
 - **Needs more research** — flag for the red team to investigate specifically
 
 **Do not proceed to red team with unresolved contradictions.** The red team should challenge a coherent plan, not arbitrate between the synthesis's own internal conflicts.
@@ -431,7 +431,7 @@ For each CRITICAL or SERIOUS item, present to the user via **AskUserQuestion**:
 - **Disagree — note why** (add a footnote with the counterargument)
 - **Defer — flag for implementation** (add to a "Risks and Open Questions" section in the plan)
 
-Apply the user's decision to the plan file.
+Apply the user's decision to the plan file. **Include the user's stated reasoning** — not just "disagreed" but *why* (e.g., "Disagreed: user noted the plan already handles this via the retry middleware in Phase 3"). The rationale is more valuable than the verdict — it prevents future sessions from relitigating settled decisions.
 
 **Any CRITICAL items the user defers MUST appear in the Phase 6 report.** The work skill needs to know about unresolved challenges before implementation begins.
 
@@ -485,4 +485,5 @@ After synthesis and red team challenge are complete:
 - **Prefer re-running agents over skipping them.** When in doubt about whether an agent needs to run again, run it. The goal is the best possible output, not minimizing redundant work. Documents change between runs, and fresh analysis catches things prior runs missed.
 - Agents write to disk. The parent reads summaries. The synthesis agent reads from disk.
 - If context is getting heavy, compact before continuing. The manifest enables recovery.
+- **Record the why, not just the what.** When the user resolves a red team finding, synthesis contradiction, or open question, capture their stated reasoning in the plan — not just the verdict. User rationale evaporates with conversation context; the plan is the only durable record.
 - NEVER CODE. This command only researches and enhances plans.
