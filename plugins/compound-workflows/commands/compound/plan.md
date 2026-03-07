@@ -252,16 +252,23 @@ If the plan has an Open Questions section, resolve each item via **AskUserQuesti
 - **Defer with rationale** — keep in Open Questions with the user's explicit rationale; flag at handoff
 - **Remove** — no longer relevant
 
-**Do not hand off a plan with unresolved Open Questions** unless the user explicitly defers them.
+**The goal is zero untriaged items at handoff.** Every question must be explicitly resolved, deferred by the user, or removed. Nothing should remain open by accident — if it's in the plan, the user has seen it and made a call. Deferred items are fine when the user consciously chooses to defer, but flag them clearly so `/compound:work` knows what's unresolved.
 
 ### 7. Post-Generation Options
 
-**If any items were deferred (from research gate, brainstorm cross-check, or Open Questions gate):**
-Flag them explicitly: "Note: N deferred items remain in the plan's Open Questions section. `/compound:work` will verify these before execution."
+**If any items were deferred:**
+Flag them explicitly: "Note: N deferred items remain in the plan. `/compound:work` will surface these before execution — the orchestrator may need to pause and ask you to resolve them."
+
+**Work readiness note:** Before presenting options, assess whether the plan's steps are well-sized for `/compound:work` (subagent dispatch). Flag if:
+- Any step has 20+ checkboxes or heavy inline specs — suggest splitting during work setup
+- Steps share large reference data — note that the orchestrator should point subagents to the file path, not inline the data
+- Steps can run in parallel (touch separate files with no dependencies) — note the opportunity
+
+Include any flags in the handoff message.
 
 Use **AskUserQuestion tool**:
 
-**Question:** "Plan ready at `[plan_path]`. What would you like to do next?"
+**Question:** "Plan ready at `[plan_path]`. [Any work-readiness flags, e.g., 'Note: Steps 7-8 are large — the `/compound:work` orchestrator should split them into smaller issues.'] What would you like to do next?"
 
 **Options:**
 1. **Run `/compound:deepen-plan`** — Enhance with parallel research agents
@@ -271,7 +278,7 @@ Use **AskUserQuestion tool**:
 
 ## Key Principles
 
-- **No unresolved items cross phase boundaries** — every open question, contradiction, or finding must be explicitly resolved, deferred with rationale, or removed before moving to the next phase
+- **Zero untriaged items at handoff** — every open question, contradiction, or finding must be explicitly resolved, deferred by the user, or removed. Nothing slips through unseen. Deferred items are acceptable when the user consciously chooses to defer — but they must be flagged clearly so `/compound:work` knows what's unresolved.
 - **The brainstorm is the origin document** — if a brainstorm exists, the plan must trace back to it via `origin:` frontmatter and carry forward all decisions
 - **Research informs, gates enforce** — research agents surface findings, but gates ensure nothing slips through unaddressed
 - **Record the why, not just the what** — when the user makes a decision, explains a preference, or rejects an alternative, capture their reasoning in the plan. User rationale evaporates with conversation context; the plan is the only durable record.

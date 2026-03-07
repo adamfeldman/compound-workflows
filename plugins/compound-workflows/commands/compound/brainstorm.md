@@ -249,6 +249,6 @@ Options:
 - Ask one question at a time
 - Apply YAGNI — prefer simpler approaches
 - Keep outputs concise (200-300 words per section max)
-- **No unresolved items cross phase boundaries** — every open question, concern, or finding must be explicitly resolved, deferred with rationale, or removed before moving to the next phase
+- **Zero untriaged items at handoff** — every open question, concern, or finding must be explicitly resolved, deferred by the user, or removed. Nothing slips through unseen. The user must have seen and made a call on every item before proceeding.
 - **Record the why, not just the what** — when the user makes a decision, explains a preference, or rejects an alternative, capture their reasoning in the document. User rationale evaporates with conversation context; the document is the only durable record.
 - NEVER CODE! Just explore and document decisions.

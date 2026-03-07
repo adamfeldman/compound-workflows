@@ -296,16 +296,34 @@ cp .workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md .workflows/deepen-pla
 
 Update `manifest.json` status to `"synthesized"`.
 
-### Synthesis Gate: Resolve Contradictions
+### Synthesis Gate: Triage All Findings
 
-If the synthesis flagged contradictions between research agents or unresolved questions:
+After synthesis, read the synthesis summary and the enhanced plan. Collect ALL findings — not just contradictions. Present them to the user in a consolidated triage.
 
-For each, present to the user via **AskUserQuestion**:
+**Step 1: Summary.** Show the user a brief overview: "Synthesis complete. N CRITICAL, M SERIOUS, P MINOR findings from K agents. Here's the summary: [top 5 findings]."
+
+**Step 2: Contradictions first.** If agents contradicted each other, present each via **AskUserQuestion**:
 
 "Synthesis found conflicting recommendations: [summary]. How should we resolve this?"
 - **Choose one** — adopt the recommended approach, record the user's reasoning and note the alternative was considered
 - **Defer** — carry into the plan's Open Questions section with the user's stated reason
 - **Needs more research** — flag for the red team to investigate specifically
+
+**Step 3: CRITICAL and SERIOUS findings.** For each CRITICAL or SERIOUS finding that the synthesis agent wrote into the plan, present to the user:
+
+"[Finding summary — source agent(s)]. The synthesis agent applied this to the plan. How should we handle it?"
+- **Accept** — keep the change as-is
+- **Modify** — the user provides additional context or corrections; update the plan accordingly (record their reasoning)
+- **Reject** — remove the change from the plan (record why)
+- **Defer** — move to Open Questions with rationale
+
+**Step 4: MINOR findings as a batch.** Present all MINOR findings together:
+
+**AskUserQuestion:** "N MINOR findings were applied to the plan by synthesis. Review individually, or batch-accept?"
+- **Batch-accept**: Keep all. No further action.
+- **Review individually**: Present each with the same options as CRITICAL/SERIOUS.
+
+**Step 5: Apply.** Update the plan with all accepted/modified findings. Remove any rejected findings. Record the user's reasoning for all non-trivial decisions.
 
 **Do not proceed to red team with unresolved contradictions.** The red team should challenge a coherent plan, not arbitrate between the synthesis's own internal conflicts.
 
@@ -467,13 +485,14 @@ Tell the user: "Resuming deepen-plan run <N> from <timestamp>. X/Y agents comple
 After synthesis and red team challenge are complete:
 
 1. Tell the user the plan has been enhanced
-2. Show a brief summary of top findings (from the synthesis agent's return value)
-3. **If red team challenge was run and CRITICAL items were deferred:** Flag them explicitly: "Warning: N unresolved critical challenges from red team review — see Risks and Open Questions in the plan. Address these before starting `/compound:work`."
+2. Show a consolidated summary of all findings — both synthesis and red team — with final disposition (accepted, modified, rejected, deferred). **Every finding must have a disposition.** Nothing untriaged.
+3. **If any items were deferred (from synthesis OR red team):** Flag them explicitly with count by severity: "Note: N deferred items remain (X CRITICAL, Y SERIOUS, Z MINOR). `/compound:work` will surface these before execution."
 4. **Do NOT delete any working files.** All agent outputs, manifests, and synthesis files are retained.
-5. Offer options:
+5. **Work readiness check:** Flag if any steps are oversized (20+ checkboxes) or share heavy reference data — the `/compound:work` orchestrator should split them into smaller issues or point subagents to the file path.
+6. Offer options:
    - **View diff**: `git diff <plan_path>`
    - **View full synthesis**: Read `.workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md`
-   - **Start `/compound:work`**: Begin implementing
+   - **Start `/compound:work`**: Begin implementing (include any work-readiness flags)
    - **Deepen further**: Run another round on specific sections
    - **Revert**: `git checkout <plan_path>`
 

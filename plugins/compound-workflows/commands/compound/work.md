@@ -43,6 +43,14 @@ fi
 - If the plan has an `origin:` field in frontmatter, note it for beads issue descriptions and subagent context
 - **Check for unresolved items:** If the plan has an Open Questions section with deferred items, surface each to the user via **AskUserQuestion** before proceeding: "Plan has N deferred items. Resolve before implementation, or accept the risk?"
 - If anything is unclear, ask clarifying questions now
+
+**Plan structure check:** After reading the plan, assess whether the steps need adjustment for subagent dispatch:
+- **Single-file plans** (all steps write to one file): Steps must be fully sequential. No parallel dispatch. This is fine — subagent overhead per step is minor compared to the risk of context exhaustion in a single session.
+- **Large steps** (20+ checkboxes, heavy inline specs): Consider splitting into smaller beads issues during Phase 1.3. A subagent that runs out of context mid-step loses all progress for that step.
+- **Heavy shared reference data** (tables, schemas that every step needs): Extract the reference data path into each beads issue description so subagents can read it from disk rather than receiving it inline.
+
+Flag any concerns to the user before proceeding.
+
 - Get user approval to proceed
 - **Do not skip this** — the orchestrator must understand the plan before dispatching work
 
