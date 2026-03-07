@@ -25,7 +25,7 @@ agents/
 └── workflow/     # Workflow utility agents (3)
 
 commands/
-└── compound/ # All slash commands (namespaced, 7 commands)
+└── compound/ # All slash commands (namespaced, 8 commands)
 
 skills/
 ├── agent-browser/           # Browser automation for agents
