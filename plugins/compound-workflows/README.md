@@ -1,6 +1,6 @@
 # compound-workflows
 
-Self-contained compound engineering workflows for Claude Code. 22 agents, 15 skills, and 7 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
+Self-contained compound engineering workflows for Claude Code. 22 agents, 15 skills, and 8 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
 
 > **Warning:** Do not install alongside the Kieran Klaassen compound engineering plugin. This plugin bundles all agents and skills (forked from v2.35.2) and is fully self-contained. Installing both will cause agent name conflicts and unpredictable dispatch behavior. Run `/compound:setup` to detect and resolve conflicts.
 
@@ -46,6 +46,7 @@ Then run setup to detect your environment:
 | `/compound:work` | Execute plans via subagent dispatch with beads/TodoWrite tracking |
 | `/compound:review` | Multi-agent code review with disk-persisted findings |
 | `/compound:compound` | Document solved problems to build institutional knowledge |
+| `/compound:compact-prep` | Pre-compaction checklist — save memory, compound, commit, queue resume task |
 
 ## Workflow Cycle
 
