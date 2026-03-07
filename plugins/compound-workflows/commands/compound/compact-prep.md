@@ -61,9 +61,11 @@ Assess whether this session produced knowledge worth compounding:
 - Strategic/architectural decision with reusable rationale?
 - Research that surfaced reusable findings?
 
-**If yes:** Tell the user: "This session has compound-worthy knowledge — run `/compound:compound` **now, before compacting**. Compound needs the full conversation context to extract what happened; after compaction, the details are gone."
+**If yes**, use **AskUserQuestion**:
 
-**Wait for the user to run compound (or decline) before proceeding.** If they run it, compound will create new files — Step 5 handles committing those.
+"This session has compound-worthy knowledge: [1-2 sentence summary of what's worth capturing]. Run `/compound:compound` now? (Must run before compacting — compound needs the full conversation context.)"
+- **Yes — run /compound:compound now** — pause compact-prep, user runs compound, then resume at Step 5
+- **Skip** — proceed without compounding
 
 **If no:** Say "Nothing to compound" and move on.
 
