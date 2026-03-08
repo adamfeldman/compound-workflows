@@ -190,7 +190,7 @@ After writing all updates to the plan, run a verification pass using Bash and Gr
    ```
 2. For each match found, verify it exists in the updated plan file (grep the current file on disk).
 3. **Normalize before comparing:** Strip leading/trailing whitespace, collapse internal whitespace, lowercase. This handles rewrapping and minor formatting changes that don't affect meaning.
-4. If any preservation-pattern lines are missing after normalization → flag as WARNING, restore them immediately.
+4. If any preservation-pattern lines are missing after normalization → report ERROR in the consolidation report and stop further edits. The user must re-run readiness checks from a clean state. Do NOT attempt to reconstruct or restore the missing text — you may not have retained the original content accurately, especially for plans over 500 lines.
 
 #### 10b. Accretion Check
 
