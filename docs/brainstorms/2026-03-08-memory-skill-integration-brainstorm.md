@@ -13,7 +13,7 @@ Fork Anthropic's memory-management skill (from the productivity plugin) into com
 ## Scope
 
 - Fork and adapt the memory-management SKILL.md
-- Light integration: compact-prep, recover, and setup aware of memory conventions
+- Integrated memory management: compact-prep, recover, and setup aware of memory conventions
 - Document knowledge hierarchy in README and setup tutorial
 - Setup creates memory/ directory structure with templates
 - CLAUDE.md repurposed as memory hot cache; AGENTS.md becomes the project conventions file
@@ -26,7 +26,7 @@ Fork Anthropic's memory-management skill (from the productivity plugin) into com
 
 # Why This Approach
 
-## Light Integration (not standalone, not deep)
+## Integrated Memory Management (not standalone, not deep)
 
 Memory only works if commands feed it. A standalone skill that nobody invokes is useless. But deep integration (every command writes to memory/) creates confusion about where knowledge goes — brainstorm decisions already go to docs/brainstorms/, plan steps to docs/plans/. The natural boundary:
 
@@ -45,7 +45,7 @@ compound-workflows is for general workplace tooling AND engineering. The memory 
 
 # Key Decisions
 
-1. **Light integration scope** — compact-prep, recover, setup. Not brainstorm/plan/work. Rationale: natural boundary between session-lifecycle (memory) and feature-lifecycle (docs/).
+1. **Integrated memory management** — compact-prep, recover, setup. Not brainstorm/plan/work. Rationale: natural boundary between session-lifecycle (memory) and feature-lifecycle (docs/). "Integrated" because these touchpoints include tiered storage with promotion/demotion suggestions, not just simple writes.
 
 2. **CLAUDE.md = `@AGENTS.md` pointer + memory hot cache** — CLAUDE.md contains an `@AGENTS.md` reference (so conventions are auto-loaded) plus a bounded memory hot cache section (~30 items). Same pattern as GEMINI.md. Rationale: keeps CLAUDE.md auto-loading, avoids two competing hot caches, AGENTS.md holds all conventions.
 
@@ -53,7 +53,7 @@ compound-workflows is for general workplace tooling AND engineering. The memory 
 
 4. **Knowledge hierarchy documented in README + setup tutorial** — brief overview in README, detailed walkthrough in setup. Rationale: both locations serve different audiences (new users vs. active setup).
 
-5. **Fork attribution** — note in SKILL.md that it's forked from Anthropic's productivity plugin.
+5. **Fork attribution + licensing** — note in SKILL.md that it's forked from Anthropic's productivity plugin. Verify the Anthropic productivity plugin license permits forking and redistribution before publishing.
 
 6. **Remove `/productivity:start` reference** — replace with compound-workflows equivalent or remove. Setup tutorial handles initialization.
 
@@ -79,6 +79,8 @@ resources/                — External reference material
 **Trust hierarchy** (used by context-researcher):
 Solutions (validated) > Memory (reference) > Plans (actionable) > Resources (reference) > Brainstorms (exploratory)
 
+Note: this is a default ordering. Freshness matters — a stale memory entry may be less trustworthy than a recent plan. Context-researcher should weigh recency alongside source type.
+
 **Memory flow:**
 - compact-prep (Step 1) — planned save before compaction, writes to memory/ following skill conventions
 - recover (Phase 5.5) — emergency save for dead sessions, writes to memory/ following skill conventions
@@ -94,6 +96,7 @@ Solutions (validated) > Memory (reference) > Plans (actionable) > Resources (ref
 - Adapted: add fork attribution
 - Adapted: reference AGENTS.md as conventions file, CLAUDE.md as memory only
 - Keep: workplace examples, tiered lookup, glossary format, people/projects structure
+- Added: data classification guidance — personal/sensitive data → `.claude/memory/` (gitignored), project facts → `memory/` (committed). User rationale: people profiles will exist in committed memory, so the skill must guide users on what's safe to commit.
 
 ## 2. `/compound:setup` Changes
 - Create memory/ directory structure (glossary.md, context/, people/, projects/)
@@ -116,18 +119,20 @@ Solutions (validated) > Memory (reference) > Plans (actionable) > Resources (ref
 - Brief overview, not the full skill reference
 
 ## 6. Versioning
-- 15 → 16 skills
-- v1.6.0 → v1.7.0 (new skill = MINOR bump)
+- 15 skills (modifying existing memory-management skill, not adding a new one — the byte-for-byte copy already exists)
+- v1.6.0 → v1.7.0 (MINOR bump — substantial new behavior even though skill file already exists)
 
-7. **AGENTS.md migration included** — the CLAUDE.md-as-hot-cache decision requires moving project conventions from CLAUDE.md to AGENTS.md. Include this migration in the same plan. User rationale: "The CLAUDE.md-as-hot-cache decision requires the AGENTS.md migration. Do both in one plan."
+## 7. AGENTS.md Migration
+**AGENTS.md migration included** — the CLAUDE.md-as-hot-cache decision requires moving project conventions from CLAUDE.md to AGENTS.md. Include this migration in the same plan. User rationale: "The CLAUDE.md-as-hot-cache decision requires the AGENTS.md migration. Do both in one plan."
 
-8. **Keep Anthropic's memory/ structure** — glossary.md + people/ + projects/ + context/ (organizational backdrop). No renaming or simplification. User rationale: context/ is organizational backdrop, different from project conventions in AGENTS.md.
+## 8. Memory Structure
+**Keep Anthropic's memory/ structure** — glossary.md + people/ + projects/ + context/ (organizational backdrop). No renaming or simplification. User rationale: context/ is organizational backdrop, different from project conventions in AGENTS.md. `people/` tracks contributors, roles, domain ownership — relevant for both workplace and engineering use. Setup creates this template structure but users can add any top-level files alongside it (no rigid schema). Setup also suggests where existing organic files might map (e.g., `patterns.md` → `context/`). User rationale: "anything goes" + gentle migration guidance.
 
 # Resolved Questions
 
 1. **How much workplace framing to keep?** — Keep as-is. compound-workflows is general workplace tooling, not just engineering. User rationale: "these are general workplace tools."
 
-2. **Integration depth?** — Light integration (compact-prep, recover, setup). Boundary: memory = cross-cutting knowledge, docs/ = feature-specific knowledge. User rationale: agreed with the boundary and chose light integration.
+2. **Integration depth?** — Integrated memory management (compact-prep, recover, setup). Boundary: memory = cross-cutting knowledge, docs/ = feature-specific knowledge. User rationale: agreed with the boundary. Relabeled from "light" to "integrated" because the compact-prep touchpoint includes tiered storage with promotion/demotion suggestions — more than trivially "light."
 
 3. **Where to document knowledge hierarchy?** — Both README and setup tutorial. User rationale: different audiences.
 
@@ -140,3 +145,7 @@ Solutions (validated) > Memory (reference) > Plans (actionable) > Resources (ref
 7. **Curator-driven vs automatic?** — Not contradictory. "Curator-driven" means humans decide what enters memory (content creation). Auto-promotion/demotion is lifecycle management of existing entries (housekeeping). User rationale: "auto-demotion is fine — it's housekeeping, not content creation. Memory aims to be reasonably automatic."
 
 8. **Three-tier memory system?** — CLAUDE.md (`@AGENTS.md` + hot cache) serves as the auto-loaded tier. `memory/` is deep storage (committed, public). `.claude/memory/` is private preferences (gitignored). The auto-injected `~/.claude/projects/.../memory/MEMORY.md` is a Claude Code system feature — it's the *private* hot cache. CLAUDE.md's memory section is the *project* hot cache (committed, shared). No conflict — different scopes.
+
+9. **Rollback path?** — The CLAUDE.md migration is reversible: move memory hot cache entries back to memory/, restore conventions from AGENTS.md to CLAUDE.md. No one-way door — both files are version-controlled.
+
+10. **Mid-session memory writes?** — Acknowledged as a future enhancement. Currently memory is only written at session boundaries (compact-prep, recover). A mid-session `/compound:memorize <fact>` command could address the bottleneck but is out of scope for this iteration.
