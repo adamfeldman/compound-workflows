@@ -46,12 +46,16 @@ All workflow outputs go under `.workflows/` in the project root:
 │   ├── context-research.md
 │   └── red-team-critique.md
 ├── plan-research/<plan-stem>/
-│   └── agents/
-│       ├── repo-research.md
-│       ├── learnings.md
-│       ├── best-practices.md
-│       ├── framework-docs.md
-│       └── specflow.md
+│   ├── agents/
+│   │   ├── repo-research.md
+│   │   ├── learnings.md
+│   │   ├── best-practices.md
+│   │   ├── framework-docs.md
+│   │   └── specflow.md
+│   └── readiness/
+│       ├── checks/          # Individual check outputs
+│       ├── report.md        # Aggregated reviewer report
+│       └── consolidation-report.md
 ├── deepen-plan/<plan-stem>/
 │   ├── manifest.json
 │   ├── agents/
@@ -61,6 +65,11 @@ All workflow outputs go under `.workflows/` in the project root:
 │   │   │   └── red-team--critique.md
 │   │   └── run-2/
 │   │       └── ...
+│   ├── readiness/
+│   │   └── run-<N>/
+│   │       ├── checks/          # Individual check outputs
+│   │       ├── report.md        # Aggregated reviewer report
+│   │       └── consolidation-report.md
 │   ├── run-1-synthesis.md
 │   └── run-2-synthesis.md
 ├── compound-research/<topic-stem>/

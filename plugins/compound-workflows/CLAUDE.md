@@ -22,7 +22,8 @@ Also update the marketplace.json version at the repo root.
 agents/
 ├── research/     # Research and knowledge agents (6)
 ├── review/       # Code review agents (13)
-└── workflow/     # Workflow utility agents (3)
+└── workflow/     # Workflow utility agents (5)
+    └── plan-checks/  # 3 shell scripts + 1 agent-format .md file (check modules, not standalone agents)
 
 commands/
 └── compound/ # All slash commands (namespaced, 9 commands)
@@ -47,7 +48,7 @@ skills/
 
 ## Agent Registry
 
-All 22 agents with their categories, command references, and model configuration.
+All 24 agents with their categories, command references, and model configuration.
 
 | Agent | Category | Dispatched By | Model |
 |-------|----------|---------------|-------|
@@ -72,6 +73,8 @@ All 22 agents with their categories, command references, and model configuration
 | typescript-reviewer | review | review, setup | inherit |
 | bug-reproduction-validator | workflow | (standalone) | inherit |
 | pr-comment-resolver | workflow | (standalone) | inherit |
+| plan-consolidator | workflow | plan, deepen-plan | inherit |
+| plan-readiness-reviewer | workflow | plan, deepen-plan | inherit |
 | spec-flow-analyzer | workflow | plan | inherit |
 
 **Model column key:** `haiku` = cost-optimized for well-scoped tasks (Haiku model). `inherit` = uses the default model from the calling context. Override in agent YAML frontmatter if needed.
@@ -95,10 +98,11 @@ Written by `/compound:setup`. Two files:
 
 Project-level settings shared across team members.
 - `review.md` reads: review_agents
-- `plan.md` reads: plan_review_agents, depth
+- `plan.md` reads: plan_review_agents, depth, plan_readiness_* (under `## Plan Readiness` heading)
+- `deepen-plan.md` reads: plan_readiness_* (under `## Plan Readiness` heading)
 - `review.md` reads: depth
 
-Keys: stack, review_agents, plan_review_agents, depth, Workflow Instructions section (plugin-specific overrides like red team focus areas, domain constraints, review emphasis).
+Keys: stack, review_agents, plan_review_agents, depth, plan_readiness_skip_checks, plan_readiness_provenance_expiry_days, plan_readiness_verification_source_policy, Workflow Instructions section (plugin-specific overrides like red team focus areas, domain constraints, review emphasis).
 
 ### `compound-workflows.local.md` (gitignored, per-machine)
 
