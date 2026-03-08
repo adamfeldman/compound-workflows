@@ -1,6 +1,7 @@
 ---
 name: disk-persist-agents
 description: Pattern for running subagents that write complete outputs to disk, keeping the parent context lean. Use when orchestrating multiple research or review agents in parallel.
+user-invocable: false
 ---
 
 # Disk-Persisted Agent Pattern

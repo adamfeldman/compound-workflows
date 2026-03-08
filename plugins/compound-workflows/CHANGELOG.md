@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.2] - 2026-03-07
+
+### Changed
+
+- **7 reference-only skills hidden from command palette** — added `user-invocable: false` to compound-docs, setup, brainstorming, disk-persist-agents, document-review, orchestrating-swarms, and agent-native-architecture. These are reference materials loaded by commands, not standalone workflows.
+
 ## [1.4.1] - 2026-03-07
 
 ### Added
