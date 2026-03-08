@@ -254,10 +254,55 @@ If the plan has an Open Questions section, resolve each item via **AskUserQuesti
 
 **The goal is zero untriaged items at handoff.** Every question must be explicitly resolved, deferred by the user, or removed. Nothing should remain open by accident — if it's in the plan, the user has seen it and made a call. Deferred items are fine when the user consciously chooses to defer, but flag them clearly so `/compound:work` knows what's unresolved.
 
+### 6.7. Plan Readiness Check
+
+Run plan readiness checks and aggregate findings to verify the plan is work-ready. The command dispatches all checks directly (flat dispatch — no nested agent dispatch).
+
+**Dispatch:**
+
+1. Read config from compound-workflows.md under the `## Plan Readiness` heading. Read flat keys (`plan_readiness_skip_checks`, `plan_readiness_provenance_expiry_days`, `plan_readiness_verification_source_policy`) and construct the parameter objects to pass to agents. Apply skip_checks filtering.
+2. Create output directory: `mkdir -p .workflows/plan-research/<plan-stem>/readiness/checks/`
+3. Run 3 mechanical check scripts in parallel (bash):
+   - `agents/workflow/plan-checks/stale-values.sh <plan-path> <output-dir>/checks/stale-values.md`
+   - `agents/workflow/plan-checks/broken-references.sh <plan-path> <output-dir>/checks/broken-references.md`
+   - `agents/workflow/plan-checks/audit-trail-bloat.sh <plan-path> <output-dir>/checks/audit-trail-bloat.md`
+4. If all 5 semantic passes are in skip_checks, skip the semantic agent dispatch entirely. Otherwise, dispatch 1 semantic checks agent (background Task):
+   - Agent: `agents/workflow/plan-checks/semantic-checks.md`
+   - Pass: plan file path, output path (`<output-dir>/checks/semantic-checks.md`), mode (`full`), skip_checks, provenance settings
+5. Wait for all checks to complete (3-minute timeout for scripts, 5-10 minutes for semantic agent due to WebSearch latency). After timeout, remove any orphaned .tmp files: `rm -f <output-dir>/checks/*.tmp`. If rate limits are hit, retry with exponential backoff.
+6. Dispatch plan-readiness-reviewer (foreground Task):
+   - Pass: plan file path, plan stem, output directory, check output file paths, mode, config
+7. Show the reviewer's summary to the user: "Plan readiness check: [summary]"
+
+Keep Phase 6.7 focused on dispatch + response handling. The detailed analysis logic lives in the check scripts and agent files.
+
+**If issues found:**
+
+1. Dispatch plan-consolidator (foreground). Pass: plan file path, reviewer report path, consolidation report output path.
+2. Consolidator applies auto-fixes, then presents guardrailed items to user.
+3. After consolidation, re-run checks in `verify-only` mode: re-run all 3 mechanical scripts (type: mechanical), re-dispatch semantic agent with `mode: verify-only` (runs contradictions + underspecification only; skips unresolved-disputes, accretion, external-verification). Dispatch reviewer again.
+4. If verify finds new issues: present remaining findings to user directly.
+   User options: resolve now, defer to Open Questions, or dismiss.
+5. Show user: "Readiness check complete. N auto-fixes applied, M items resolved, K deferred."
+
+**If zero issues found:**
+
+Skip consolidator and re-verify. Show: "Plan readiness check: no issues found."
+
+**If reviewer fails:**
+
+Warn: "Readiness check failed — consider running /compound:deepen-plan before starting work."
+Proceed to Phase 7.
+
 ### 7. Post-Generation Options
 
 **If any items were deferred:**
 Flag them explicitly: "Note: N deferred items remain in the plan. `/compound:work` will surface these before execution — the orchestrator may need to pause and ask you to resolve them."
+
+**Plan readiness status:** Include readiness check results in the handoff message:
+- If readiness passed: "Plan readiness: all checks passed."
+- If CRITICAL findings were deferred: "Warning: CRITICAL readiness findings were deferred — review before starting work."
+- If readiness check was skipped or failed: "Note: Plan readiness check was not completed. Consider running `/compound:deepen-plan` before starting work."
 
 **Work readiness note:** Before presenting options, assess whether the plan's steps are well-sized for `/compound:work` (subagent dispatch). Flag if:
 - Any step has 20+ checkboxes or heavy inline specs — suggest splitting during work setup
@@ -268,12 +313,12 @@ Include any flags in the handoff message.
 
 Use **AskUserQuestion tool**:
 
-**Question:** "Plan ready at `[plan_path]`. [Any work-readiness flags, e.g., 'Note: Steps 7-8 are large — the `/compound:work` orchestrator should split them into smaller issues.'] What would you like to do next?"
+**Question:** "Plan ready at `[plan_path]`. [Readiness status. Any work-readiness flags, e.g., 'Note: Steps 7-8 are large — the `/compound:work` orchestrator should split them into smaller issues.'] What would you like to do next?"
 
 **Options:**
 1. **Run `/compound:deepen-plan`** — Enhance with parallel research agents
 2. **Review and refine** — Improve through structured self-review
-3. **Start `/compound:work`** — Begin implementing this plan
+3. **Start `/compound:work`** — Begin implementing this plan [If CRITICAL readiness findings were deferred, append: "— Warning: unresolved CRITICAL findings"]
 4. **Create Issue** — Create issue in project tracker (GitHub/Linear)
 
 ## Key Principles
