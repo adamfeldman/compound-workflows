@@ -2,7 +2,7 @@
 
 Self-contained compound engineering workflows for Claude Code. 22 agents, 15 skills, and 8 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
 
-> **Warning:** Do not install alongside the Kieran Klaassen compound engineering plugin. This plugin bundles all agents and skills (forked from v2.35.2) and is fully self-contained. Installing both will cause agent name conflicts and unpredictable dispatch behavior. Run `/compound:setup` to detect and resolve conflicts.
+> **Warning:** Do not install alongside Every's compound engineering plugin. This plugin bundles all agents and skills and is fully self-contained. Installing both will cause agent name conflicts and unpredictable dispatch behavior. Run `/compound:setup` to detect and resolve conflicts.
 
 ## What This Adds
 
@@ -99,7 +99,7 @@ See `skills/disk-persist-agents/SKILL.md` for the full pattern.
 
 ## Attribution
 
-This plugin includes agents and skills forked from Kieran Klaassen's compound engineering plugin v2.35.2 (MIT licensed). The brainstorm, plan, work, review, and compound cycle, agent-based review architecture, and knowledge compounding philosophy originate from that project.
+This plugin includes agents and skills forked from Every's compound engineering plugin (MIT licensed). The brainstorm, plan, work, review, and compound cycle, agent-based review architecture, and knowledge compounding philosophy originate from that project.
 
 compound-workflows extends this foundation with disk persistence, multi-model red-teaming, beads integration, subagent dispatch, and self-contained bundling of all agents and skills. See `NOTICE` for full license text and `FORK-MANIFEST.yaml` for per-file provenance.
 

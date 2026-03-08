@@ -73,7 +73,7 @@ All notable changes to this project will be documented in this file.
   - Command-referenced: brainstorming, compound-docs, orchestrating-swarms, resolve-pr-parallel, setup
   - Utility: agent-browser, agent-native-architecture, create-agent-skills, document-review, file-todos, frontend-design, gemini-imagegen, git-worktree, skill-creator
 
-- **NOTICE file** with full MIT license text and attribution to Kieran Klaassen (forked from v2.35.2)
+- **NOTICE file** with full MIT license text and attribution to Every
 
 - **FORK-MANIFEST.yaml** tracking per-file provenance from the upstream source plugin
 
@@ -116,4 +116,4 @@ All notable changes to this project will be documented in this file.
 
 - **Graceful degradation:** All commands work without beads (TodoWrite fallback), PAL (Claude subagent fallback), or bundled agents (general-purpose agent fallback)
 
-- **Acknowledgment:** Built on workflow patterns from Kieran Klaassen's compound engineering plugin (MIT)
+- **Acknowledgment:** Built on workflow patterns from Every's compound engineering plugin (MIT)
