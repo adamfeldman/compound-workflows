@@ -22,6 +22,15 @@ plan.md and deepen-plan.md handoffs assess step sizing for subagent dispatch. wo
 ## QA Process
 - AGENTS.md has 4 reusable parallel QA checks covering all 9 commands + stale refs + CLAUDE.md consistency
 - Run after ANY change to commands, agents, or skills
+- Planned: `/compound:plugin-changes-qa` command with hybrid architecture (deterministic scripts for structural checks, LLM agents for semantic analysis) + hook-based enforcement
+- See brainstorm: `docs/brainstorms/2026-03-08-context-lean-enforcement-brainstorm.md`
+
+## Context-Lean Principle
+- Canonical term: "context-lean" (not "disk-persisted" or "context-safe")
+- All commands dispatching agents MUST include OUTPUT INSTRUCTIONS blocks
+- TaskOutput is banned — poll file existence instead
+- MCP tool responses must be wrapped in subagents (empirically confirmed: Task subagents DO inherit MCP tool access)
+- Swarms skill is beta/unreviewed — broader review tracked for when swarms go GA
 
 ## Release Process
 1. Bump version in: plugin.json, marketplace.json, CHANGELOG.md, README.md, CLAUDE.md, AGENTS.md
