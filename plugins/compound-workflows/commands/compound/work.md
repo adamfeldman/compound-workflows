@@ -116,8 +116,8 @@ If issues already exist for this plan, this is a **resumed session**. Skip to Ph
 
 ```bash
 bd create --title="Set up project structure" --type=task --priority=1 \
-  --description="Plan: docs/plans/2026-02-20-feat-example-plan.md
-Origin: docs/brainstorms/2026-02-20-example-brainstorm.md
+  --description="Plan: docs/plans/YYYY-MM-DD-feat-example-plan.md
+Origin: docs/brainstorms/YYYY-MM-DD-example-brainstorm.md
 
 Tasks:
 - Create src/components/ directory structure
@@ -128,7 +128,7 @@ Test: Run existing test suite to verify no regressions.
 Commit when done with: feat(scaffold): set up project structure"
 
 bd create --title="Implement core logic" --type=task --priority=2 \
-  --description="Plan: docs/plans/2026-02-20-feat-example-plan.md
+  --description="Plan: docs/plans/YYYY-MM-DD-feat-example-plan.md
 
 Tasks:
 - Implement the FooService class following pattern in src/services/bar_service.rb
@@ -198,7 +198,7 @@ You are executing one step of a larger work plan. Your job is to implement ONLY 
 
 ## Your Task
 
-[Paste the bd issue description here — title + full description field]
+[Paste the bd issue description (or TodoWrite task description) here — title + full description]
 
 ## Context
 
@@ -206,7 +206,7 @@ You are executing one step of a larger work plan. Your job is to implement ONLY 
 - **Origin brainstorm:** [path from plan's origin: field, or "none"] — Reference for why decisions were made
 - **Working directory:** [cwd] (this may be a worktree — that's normal, treat it as the repo root)
 - **Current branch:** [branch name]
-- **Prior steps completed:** [list recent git log --oneline -5 or bd list --status=closed summary]
+- **Prior steps completed:** [list recent git log --oneline -5, or bd list --status=closed summary, or TodoWrite completed tasks]
 
 ## Instructions
 
@@ -383,9 +383,9 @@ After all issues are closed (or all TodoWrite tasks completed):
    **TodoWrite mode:** No worktree to clean up. Skip this step.
 
 5. **Notify user** with summary:
-   - Steps completed (N/N issues closed)
+   - Steps completed (N/N issues closed, or N/N tasks completed in TodoWrite mode)
    - PR link
-   - Any follow-up work (unclosed issues)
+   - Any follow-up work (unclosed issues or remaining tasks)
 
 6. **Compound Check**
 
