@@ -98,11 +98,11 @@ Written by `/compound:setup`. Two files:
 
 Project-level settings shared across team members.
 - `review.md` reads: review_agents
-- `plan.md` reads: plan_review_agents, depth, plan_readiness
-- `deepen-plan.md` reads: plan_readiness
+- `plan.md` reads: plan_review_agents, depth, plan_readiness_* (under `## Plan Readiness` heading)
+- `deepen-plan.md` reads: plan_readiness_* (under `## Plan Readiness` heading)
 - `review.md` reads: depth
 
-Keys: stack, review_agents, plan_review_agents, depth, plan_readiness, Workflow Instructions section (plugin-specific overrides like red team focus areas, domain constraints, review emphasis).
+Keys: stack, review_agents, plan_review_agents, depth, plan_readiness_skip_checks, plan_readiness_provenance_expiry_days, plan_readiness_verification_source_policy, Workflow Instructions section (plugin-specific overrides like red team focus areas, domain constraints, review emphasis).
 
 ### `compound-workflows.local.md` (gitignored, per-machine)
 

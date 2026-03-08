@@ -531,7 +531,7 @@ Set manifest status to `readiness_checking`.
    - Pass: plan file path, output path (`<output-dir>/checks/semantic-checks.md`), mode (`full`), skip_checks, provenance settings
 5. Wait for all checks to complete (3-minute timeout for scripts, 5-10 minutes for semantic agent). After timeout, remove any orphaned .tmp files: `rm -f <output-dir>/checks/*.tmp`. If rate limits are hit, retry with exponential backoff.
 6. Dispatch plan-readiness-reviewer (foreground Task):
-   - Agent: `agents/workflow/plan-checks/plan-readiness-reviewer.md`
+   - Agent: `agents/workflow/plan-readiness-reviewer.md`
    - Pass: plan file path, plan stem, output directory (run-numbered), check output file paths, mode, config
 7. Show the reviewer's summary to the user: "Plan readiness check: [summary]"
 
@@ -541,7 +541,7 @@ Keep Phase 5.5 focused on dispatch + response handling. The detailed logic lives
 
 **If issues found:**
 
-1. Dispatch plan-consolidator (foreground Task). Agent: `agents/workflow/plan-checks/plan-consolidator.md`. Pass: plan file path, reviewer report path, consolidation report output path.
+1. Dispatch plan-consolidator (foreground Task). Agent: `agents/workflow/plan-consolidator.md`. Pass: plan file path, reviewer report path, consolidation report output path.
 2. Consolidator applies auto-fixes, then presents guardrailed items to user.
 3. After consolidation, re-run checks in `verify-only` mode: re-run all 3 mechanical scripts (type: mechanical), re-dispatch semantic agent with `mode: verify-only` (runs contradictions + underspecification only; skips unresolved-disputes, accretion, external-verification). Dispatch reviewer again.
 4. If verify finds new issues: present remaining findings to user directly.

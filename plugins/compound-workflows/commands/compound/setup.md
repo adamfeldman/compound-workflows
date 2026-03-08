@@ -301,8 +301,8 @@ depth: [standard|comprehensive|minimal]
 ## Plan Readiness
 
 # Which checks to skip (comma-separated, or "none" to run all 8)
-# Available: provenance, structure, testability, risks, dependencies,
-#            security, effort, spec-trace
+# Mechanical: stale-values, broken-references, audit-trail-bloat
+# Semantic: contradictions, unresolved-disputes, underspecification, accretion, external-verification
 plan_readiness_skip_checks: (none)
 
 # How many days before a brainstorm/plan link is considered stale
