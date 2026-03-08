@@ -1,13 +1,13 @@
 # Agent Instructions — compound-workflows-marketplace
 
-This repo contains the **compound-workflows** Claude Code plugin. 22 agents, 15 skills, 9 commands under the `/compound:*` namespace.
+This repo contains the **compound-workflows** Claude Code plugin. 24 agents, 15 skills, 9 commands under the `/compound:*` namespace.
 
 ## Project Structure
 
 ```
 plugins/compound-workflows/
 ├── .claude-plugin/plugin.json    # Plugin manifest (version here)
-├── agents/{research,review,workflow}/  # 22 agent YAML files
+├── agents/{research,review,workflow}/  # 24 agent YAML files
 ├── skills/                       # 15 skill directories
 ├── commands/compound/            # 9 slash commands
 ├── CLAUDE.md                     # Plugin dev instructions
@@ -56,6 +56,7 @@ Agent: "QA review deepen-plan.md and work.md. Read each file and check:
 5. Year references — any hardcoded dates?
 6. Red team (deepen-plan) — providers independent? Both clink and pal chat? Runtime detection?
 7. TodoWrite fallback (work) — TodoWrite mode blocks at all divergence points? Step numbering sequential?
+8. Plan readiness (plan + deepen-plan) — readiness phase present? Dispatches plan-readiness-reviewer with role description? Config gate (plan_readiness)? Output paths match SKILL.md convention?
 Report: ISSUE or OK per check per file."
 ```
 
@@ -89,6 +90,14 @@ Agent: "Scan plugins/compound-workflows/ commands/, agents/, skills/ for:
 Then read CLAUDE.md and verify:
 - Config section documents TWO files (committed + gitignored)
 - Red team dispatch is runtime detection, not stored config
+- Agent count is 24 (22 original + plan-readiness-reviewer + plan-consolidator)
+- Workflow agent count is 5 (3 original + 2 new)
+- plan-checks/ noted as check modules, not standalone agents
+
+Then verify plan-checks/ integrity:
+- 3 shell scripts are executable and have #!/usr/bin/env bash
+- semantic-checks.md has agent YAML frontmatter
+- No shell scripts reference absolute paths or non-portable commands
 Report all results."
 ```
 

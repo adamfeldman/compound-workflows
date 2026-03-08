@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2026-03-08
+
+### Added
+
+- **plan-readiness-reviewer agent** — Workflow agent that aggregates and deduplicates plan readiness check outputs into a work-readiness report. Zero plan-file write authority.
+- **plan-consolidator agent** — Workflow agent that fixes plan readiness issues with evidence-based auto-fixes and guardrailed user decisions. Constrained write authority with preservation rules.
+- **3 mechanical check scripts** (`agents/workflow/plan-checks/`): `stale-values.sh`, `broken-references.sh`, `audit-trail-bloat.sh` — deterministic bash checks for stale values, broken references, and annotation bloat
+- **1 semantic checks agent** (`agents/workflow/plan-checks/semantic-checks.md`) — LLM-based check module performing 5 semantic passes: contradictions, unresolved-disputes, underspecification, accretion, external-verification (co-located with shell scripts, not a standalone registry agent)
+- **`plan_readiness` config section** in `compound-workflows.md` — 3 flat keys under `## Plan Readiness` heading: `plan_readiness_skip_checks`, `plan_readiness_provenance_expiry_days`, `plan_readiness_verification_source_policy`
+- **Phase 6.7 in plan.md** — plan readiness gate before handoff to `/compound:work`
+- **Phase 5.5 in deepen-plan.md** — plan readiness gate after triage integration
+
 ## [1.6.0] - 2026-03-08
 
 ### Added
