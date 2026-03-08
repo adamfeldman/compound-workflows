@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2026-03-08
+
+### Added
+
+- **`/compound:recover` command** — Reactive counterpart to `/compound:compact-prep`. Recovers context from dead or exhausted Claude Code sessions by parsing JSONL session logs, cross-referencing external state (beads, git, .workflows/, plans), and producing a structured recovery manifest at `.workflows/recover/<session-id>/`. Includes session picker, head+tail extraction with 50KB context budget, decision/error/subagent detection, and memory extraction for unpreserved rationale.
+
 ## [1.5.0] - 2026-03-07
 
 ### Added

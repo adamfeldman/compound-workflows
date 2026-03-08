@@ -30,36 +30,36 @@ Reactive counterpart to `/compound:compact-prep`. Recovers context from a dead o
 
 Create `plugins/compound-workflows/commands/compound/recover.md` with:
 
-- [ ] YAML frontmatter: `name: compound:recover`, `description: Recover context from a dead or exhausted Claude Code session`, `argument-hint: "[session ID or empty for picker]"`
-- [ ] Argument handling: `<session_id> #$ARGUMENTS </session_id>` with empty fallback to picker
-- [ ] Phase structure (5 phases, detailed below)
+- [x] YAML frontmatter: `name: compound:recover`, `description: Recover context from a dead or exhausted Claude Code session`, `argument-hint: "[session ID or empty for picker]"`
+- [x] Argument handling: `<session_id> #$ARGUMENTS </session_id>` with empty fallback to picker
+- [x] Phase structure (5 phases, detailed below)
 
 ### Step 2: Phase 0 — Environment Detection
 
-- [ ] Derive session log directory: `SESSION_DIR="$HOME/.claude/projects/$(echo "$(pwd)" | tr '/' '-')"`
-- [ ] Verify directory exists, error if not: "No session logs found for this project"
-- [ ] Count available `.jsonl` files
-- [ ] Detect beads availability: `which bd 2>/dev/null`
-- [ ] If session ID argument provided, skip to Phase 2
+- [x] Derive session log directory: `SESSION_DIR="$HOME/.claude/projects/$(echo "$(pwd)" | tr '/' '-')"`
+- [x] Verify directory exists, error if not: "No session logs found for this project"
+- [x] Count available `.jsonl` files
+- [x] Detect beads availability: `which bd 2>/dev/null`
+- [x] If session ID argument provided, skip to Phase 2
 
 ### Step 3: Phase 1 — Session Discovery (Picker)
 
 Build the session picker. For each of the N most recent `.jsonl` files (default 10):
 
-- [ ] Extract metadata via targeted parsing (type/timestamp only scan):
+- [x] Extract metadata via targeted parsing (type/timestamp only scan):
   - Session slug (from any entry's `slug` field)
   - First user text message (original intent preview)
   - Last user text message (recent activity preview)
   - Timestamp range (first entry → last entry)
   - Compact boundary count and last `preTokens` value
   - Whether session ended mid-assistant-turn (exhaustion heuristic)
-- [ ] Format picker entries with exhaustion flags:
+- [x] Format picker entries with exhaustion flags:
   ```
   1. [slug] — "first user message preview..." (2h ago, 3 compactions) ⚠ possible exhaustion
   2. [slug] — "first user message preview..." (5h ago, 1 compaction)
   ```
-- [ ] Present via AskUserQuestion: "Which session to recover?"
-- [ ] After presenting 10, offer "See more sessions?" via AskUserQuestion (options: 20, 50, or all)
+- [x] Present via AskUserQuestion: "Which session to recover?"
+- [x] After presenting 10, offer "See more sessions?" via AskUserQuestion (options: 20, 50, or all)
 
 **Parsing approach for picker:** Stream each JSONL file line by line. For each line, parse only the `type`, `timestamp`, `slug` fields. Collect the first `user` entry with text content (not tool_result) and the last `user` entry with text content. Count `compact_boundary` entries and note the last `preTokens`. Check if the final entry is an incomplete `assistant` turn. Do not load full message content — only extract previews (first 80 chars of text).
 
@@ -69,13 +69,13 @@ Build the session picker. For each of the N most recent `.jsonl` files (default 
 
 Parse the selected session's JSONL using head + tail strategy (see brainstorm: Resolved Question #1):
 
-- [ ] **Head extraction** — first 5 intent-bearing `user` entries (where `isMeta` is false and content is a `text` block, not `tool_result`). These capture original intent. Truncate each entry to 2KB max.
-- [ ] **Tail extraction** — last 30 intent-bearing entries from the last `compact_boundary` forward. If no compact_boundary exists, take the last 30 filtered entries from end of file. Truncate each to 2KB. Total extraction budget: 50KB of raw JSONL content.
-- [ ] **Command detection** — scan for `user` entries with `isMeta: true` or content containing `<command-name>` tags. Extract the last invoked `/compound:*` command and infer its phase from subsequent activity.
-- [ ] **Decision extraction** — find AskUserQuestion tool_use calls in `assistant` entries and their corresponding `tool_result` responses in `user` entries. These are the user's decisions.
-- [ ] **File path extraction** — find `Read`, `Write`, `Edit` tool_use calls to identify which files were being worked on.
-- [ ] **Error extraction** — find `tool_result` entries with `is_error: true` to identify failures.
-- [ ] **Subagent detection** — find `Agent` tool_use calls to identify background work.
+- [x] **Head extraction** — first 5 intent-bearing `user` entries (where `isMeta` is false and content is a `text` block, not `tool_result`). These capture original intent. Truncate each entry to 2KB max.
+- [x] **Tail extraction** — last 30 intent-bearing entries from the last `compact_boundary` forward. If no compact_boundary exists, take the last 30 filtered entries from end of file. Truncate each to 2KB. Total extraction budget: 50KB of raw JSONL content.
+- [x] **Command detection** — scan for `user` entries with `isMeta: true` or content containing `<command-name>` tags. Extract the last invoked `/compound:*` command and infer its phase from subsequent activity.
+- [x] **Decision extraction** — find AskUserQuestion tool_use calls in `assistant` entries and their corresponding `tool_result` responses in `user` entries. These are the user's decisions.
+- [x] **File path extraction** — find `Read`, `Write`, `Edit` tool_use calls to identify which files were being worked on.
+- [x] **Error extraction** — find `tool_result` entries with `is_error: true` to identify failures.
+- [x] **Subagent detection** — find `Agent` tool_use calls to identify background work.
 
 **Context safety:** Do not read the full content of large entries (tool_results with file contents, assistant entries with thinking blocks). Extract only the structured fields needed (tool name, file path, error flag, first 100 chars of text content).
 
@@ -83,39 +83,39 @@ Parse the selected session's JSONL using head + tail strategy (see brainstorm: R
 
 Check each recovery source (see brainstorm: Key Decision #5 — priority order):
 
-- [ ] **`.workflows/` artifacts:**
+- [x] **`.workflows/` artifacts:**
   ```bash
   ls -lt .workflows/brainstorm-research/ .workflows/plan-research/ .workflows/deepen-plan/ .workflows/compound-research/ .workflows/code-review/ .workflows/work-review/ 2>/dev/null
   ```
   For any directories modified within the session's time range, note the workflow type and stem.
   If a `manifest.json` exists in deepen-plan, read its `status` field.
 
-- [ ] **Beads state** (if available):
+- [x] **Beads state** (if available):
   ```bash
   bd list --status=in_progress 2>/dev/null
   bd list --status=open 2>/dev/null | head -5
   ```
 
-- [ ] **Git state:**
+- [x] **Git state:**
   ```bash
   git status --short
   git log --oneline -10
   git stash list
   ```
 
-- [ ] **Plan files:**
+- [x] **Plan files:**
   ```bash
   ls -lt docs/plans/*.md 2>/dev/null | head -5
   ```
-  For recent plans, check YAML frontmatter for `status: active` and count unchecked `- [ ]` items.
+  For recent plans, check YAML frontmatter for `status: active` and count unchecked `- [x]` items.
 
-- [ ] **Compact-prep detection:** Check if a `compact_boundary` entry exists in the JSONL with activity before and after it. If compact-prep ran, note it — memory was likely updated, work likely committed.
+- [x] **Compact-prep detection:** Check if a `compact_boundary` entry exists in the JSONL with activity before and after it. If compact-prep ran, note it — memory was likely updated, work likely committed.
 
 ### Step 6: Phase 4 — Write Recovery Manifest
 
 Write three files to `.workflows/recover/<session-id>/` (overwrite if exists — see brainstorm: Resolved Question #5):
 
-- [ ] **`summary.md`** — Human-readable recovery summary:
+- [x] **`summary.md`** — Human-readable recovery summary:
   ```markdown
   # Recovery Summary: [session slug]
 
@@ -145,7 +145,7 @@ Write three files to `.workflows/recover/<session-id>/` (overwrite if exists —
   [If clean: "No interrupted work detected"]
   ```
 
-- [ ] **`session-extract.md`** — Structured extracts from JSONL:
+- [x] **`session-extract.md`** — Structured extracts from JSONL:
   ```markdown
   # Session Extract: [session-id]
 
@@ -168,7 +168,7 @@ Write three files to `.workflows/recover/<session-id>/` (overwrite if exists —
   [Agent dispatches and their status]
   ```
 
-- [ ] **`state-snapshot.md`** — External state at recovery time:
+- [x] **`state-snapshot.md`** — External state at recovery time:
   ```markdown
   # State Snapshot: [timestamp]
 
@@ -187,8 +187,8 @@ Write three files to `.workflows/recover/<session-id>/` (overwrite if exists —
 
 ### Step 7: Phase 5 — Present Summary & Offer Resume
 
-- [ ] Present the `summary.md` content directly to the user (don't just say "file written")
-- [ ] If a `/compound:*` command was detected, output the exact command to re-run:
+- [x] Present the `summary.md` content directly to the user (don't just say "file written")
+- [x] If a `/compound:*` command was detected, output the exact command to re-run:
   ```
   "The session was running /compound:deepen-plan docs/plans/my-plan.md in Phase 3 (red team).
   To resume, run: /compound:deepen-plan docs/plans/my-plan.md
@@ -198,21 +198,21 @@ Write three files to `.workflows/recover/<session-id>/` (overwrite if exists —
   - Run the command above to resume
   - Continue manually (recovery context is loaded)
   - Done — just needed the summary
-- [ ] If interactive work (no command detected):
+- [x] If interactive work (no command detected):
   ```
   "The session was working on [topic]. Recovery manifest written to .workflows/recover/<id>/."
   ```
   AskUserQuestion: "What would you like to do?"
   - Continue from here (recovery context is loaded)
   - Done — just needed the summary
-- [ ] **Note:** Commands cannot programmatically invoke other commands. The resume offer outputs the exact command string for the user to copy-paste. For commands with built-in recovery (deepen-plan), note that they'll auto-detect the interrupted state. For commands without (brainstorm, plan), the user starts fresh with the recovery context available on disk.
+- [x] **Note:** Commands cannot programmatically invoke other commands. The resume offer outputs the exact command string for the user to copy-paste. For commands with built-in recovery (deepen-plan), note that they'll auto-detect the interrupted state. For commands without (brainstorm, plan), the user starts fresh with the recovery context available on disk.
 
 ### Step 7.5: Memory Extraction (compact-prep gap)
 
 When compact-prep doesn't run before a session dies, decisions and rationale are lost. This step fills that gap.
 
-- [ ] Scan the session extract for decision patterns: AskUserQuestion responses with rationale, explicit user preferences, corrections to prior assumptions
-- [ ] If memory-worthy content found, present via AskUserQuestion:
+- [x] Scan the session extract for decision patterns: AskUserQuestion responses with rationale, explicit user preferences, corrections to prior assumptions
+- [x] If memory-worthy content found, present via AskUserQuestion:
   ```
   "The dead session contained decisions/rationale that may be worth persisting to memory:
   - [Decision 1: brief summary]
@@ -221,7 +221,7 @@ When compact-prep doesn't run before a session dies, decisions and rationale are
   ```
   - Yes — update relevant memory files
   - Skip — don't update memory
-- [ ] If no memory-worthy content detected, skip silently
+- [x] If no memory-worthy content detected, skip silently
 
 ### Step 8: Update CLAUDE.md
 

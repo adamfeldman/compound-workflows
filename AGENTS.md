@@ -1,6 +1,6 @@
 # Agent Instructions — compound-workflows-marketplace
 
-This repo contains the **compound-workflows** Claude Code plugin. 22 agents, 15 skills, 8 commands under the `/compound:*` namespace.
+This repo contains the **compound-workflows** Claude Code plugin. 22 agents, 15 skills, 9 commands under the `/compound:*` namespace.
 
 ## Project Structure
 
@@ -9,7 +9,7 @@ plugins/compound-workflows/
 ├── .claude-plugin/plugin.json    # Plugin manifest (version here)
 ├── agents/{research,review,workflow}/  # 22 agent YAML files
 ├── skills/                       # 15 skill directories
-├── commands/compound/            # 8 slash commands
+├── commands/compound/            # 9 slash commands
 ├── CLAUDE.md                     # Plugin dev instructions
 ├── CHANGELOG.md                  # Version history
 └── README.md                     # User-facing docs
