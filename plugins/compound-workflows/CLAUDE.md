@@ -98,7 +98,7 @@ Project-level settings shared across team members.
 - `plan.md` reads: plan_review_agents, depth
 - `review.md` reads: depth
 
-Keys: stack, review_agents, plan_review_agents, depth, Project Context section.
+Keys: stack, review_agents, plan_review_agents, depth, Workflow Instructions section (plugin-specific overrides like red team focus areas, domain constraints, review emphasis).
 
 ### `compound-workflows.local.md` (gitignored, per-machine)
 
