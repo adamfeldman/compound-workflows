@@ -1,6 +1,8 @@
 # compound-workflows
 
-Self-contained compound engineering workflows for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) (February 2026) with 22 bundled agents, multi-model red team via [PAL](https://github.com/BeehiveInnovations/pal-mcp-server), and disk-persisted outputs.
+Self-contained compound engineering workflows for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) (February 2026) with 22 bundled agents, disk-persisted outputs, multi-model red team via [PAL](https://github.com/BeehiveInnovations/pal-mcp-server), session recovery after context exhaustion, and [beads](https://github.com/steveyegge/beads) task tracking.
+
+**Why fork?** Ambitious tasks in Claude Code hit three walls: agent outputs fill up context and trigger compaction, work state is lost when that happens, and plans require many iteration rounds to reach quality. compound-workflows addresses all three — disk-persisted agents keep context lean so sessions last longer, `/compact-prep` and `/recover` handle both planned and unplanned session boundaries, and beads tracking ensures progress survives across compactions. Plan-readiness checks and consolidation reduce deepen-plan iterations by catching issues earlier and preventing the fix-introduces-new-bug cycle. Red team challenges from multiple model providers catch blind spots that a single model misses.
 
 ## What's Different
 
