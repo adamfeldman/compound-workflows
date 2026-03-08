@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.1] - 2026-03-07
+
+### Added
+
+- **Git repo prerequisite check** in `/compound:setup` — fails fast if not in a git repo (worktrees, diffs, commits depend on it)
+- **Beads initialization offer** in `/compound:setup` — if `bd` is installed but not initialized in the project, offers to run `bd init`
+
+### Fixed
+
+- **Attribution** — copyright holder corrected to Every (matches upstream LICENSE), upstream URL fixed to EveryInc/compound-engineering-plugin
+- **Hallucinated fork version** `v2.35.2` removed — no such upstream release exists
+- **PAL MCP link** corrected to BeehiveInnovations/pal-mcp-server
+- **Beads link** corrected to steveyegge/beads
+
 ## [1.4.0] - 2026-03-07
 
 ### Added
