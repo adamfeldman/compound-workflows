@@ -58,13 +58,49 @@ Return ONLY a 2-3 sentence summary.
 "
 ```
 
-**2. Solution Extractor** — writes to `.workflows/compound-research/<topic-stem>/agents/solution.md`
+**2. Solution Extractor**
+```
+Task general-purpose (run_in_background: true): "
+You are a solution extractor specializing in distilling actionable knowledge from problem-solving sessions. Extract the key solution, evidence chain, alternatives considered and why they were rejected, and the decision rationale.
 
-**3. Related Docs Finder** — writes to `.workflows/compound-research/<topic-stem>/agents/related-docs.md`
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write findings to: .workflows/compound-research/<topic-stem>/agents/solution.md
+Return ONLY a 2-3 sentence summary.
+"
+```
 
-**4. Prevention Strategist** — writes to `.workflows/compound-research/<topic-stem>/agents/prevention.md`
+**3. Related Docs Finder**
+```
+Task general-purpose (run_in_background: true): "
+You are a documentation researcher specializing in connecting new findings to existing institutional knowledge. Find related brainstorms, plans, solutions, and prior analyses. Map how this finding connects to existing knowledge.
 
-**5. Category Classifier** — writes to `.workflows/compound-research/<topic-stem>/agents/category.md`
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write findings to: .workflows/compound-research/<topic-stem>/agents/related-docs.md
+Return ONLY a 2-3 sentence summary.
+"
+```
+
+**4. Prevention Strategist**
+```
+Task general-purpose (run_in_background: true): "
+You are a prevention strategist specializing in root cause analysis and recurrence prevention. Identify: How could this have been caught earlier? What systemic changes would prevent recurrence? What monitoring or tests should be added?
+
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write findings to: .workflows/compound-research/<topic-stem>/agents/prevention.md
+Return ONLY a 2-3 sentence summary.
+"
+```
+
+**5. Category Classifier**
+```
+Task general-purpose (run_in_background: true): "
+You are a knowledge classifier specializing in taxonomizing technical findings for future retrieval. Classify the problem type and determine the best category directory for the solution document.
+
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write findings to: .workflows/compound-research/<topic-stem>/agents/category.md
+Return ONLY a 2-3 sentence summary.
+"
+```
 
 Monitor completion via file existence. DO NOT call TaskOutput.
 
@@ -95,12 +131,29 @@ After all Phase 1 agents complete:
 
 ### Phase 3: Optional Enhancement
 
-Based on problem type, optionally run specialized agents:
-- performance_issue -> `performance-oracle`
-- security_issue -> `security-sentinel`
-- database_issue -> `data-integrity-guardian`
+Based on problem type, optionally run specialized review agents:
 
-Same disk-write pattern if run.
+```
+Task performance-oracle (run_in_background: true): "You are a performance specialist. Review the solution for performance implications, scalability concerns, and optimization opportunities.
+Read the solution doc at: docs/solutions/[category]/[filename].md
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write findings to: .workflows/compound-research/<topic-stem>/agents/perf-review.md
+Return ONLY a 2-3 sentence summary."
+
+Task security-sentinel (run_in_background: true): "You are a security reviewer. Review the solution for security implications, vulnerability exposure, and hardening opportunities.
+Read the solution doc at: docs/solutions/[category]/[filename].md
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write findings to: .workflows/compound-research/<topic-stem>/agents/security-review.md
+Return ONLY a 2-3 sentence summary."
+
+Task data-integrity-guardian (run_in_background: true): "You are a data integrity specialist. Review the solution for data consistency, migration safety, and schema implications.
+Read the solution doc at: docs/solutions/[category]/[filename].md
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write findings to: .workflows/compound-research/<topic-stem>/agents/data-review.md
+Return ONLY a 2-3 sentence summary."
+```
+
+Run only the agents relevant to the problem type. Read output files and incorporate significant findings into the solution doc.
 
 ### Retain Research
 

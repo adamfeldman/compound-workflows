@@ -16,7 +16,7 @@ Transform feature descriptions into well-structured plan files. Research agents 
 
 <feature_description> #$ARGUMENTS </feature_description>
 
-**If the feature description above is empty, ask the user:** "What would you like to plan? Please describe the feature, bug fix, or improvement you have in mind."
+**If the feature description above is empty**, use **AskUserQuestion**: "What would you like to plan? Please describe the feature, bug fix, or improvement you have in mind."
 
 Do not proceed until you have a clear feature description from the user.
 

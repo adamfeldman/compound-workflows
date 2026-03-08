@@ -42,7 +42,9 @@ If beads is not available, skip this step.
 
 Run `git status` to check for uncommitted work.
 
-- **If there are meaningful changes:** Ask the user if they want to commit before compacting. Don't auto-commit.
+- **If there are meaningful changes:** Use **AskUserQuestion**: "There are uncommitted changes. Commit before compacting?"
+  - **Yes** — commit (ask for message or suggest one)
+  - **No** — proceed without committing
 - **If clean:** Say "Nothing to commit" and move on.
 
 This runs before compound so that current work is saved first.
@@ -68,7 +70,9 @@ Assess whether this session produced knowledge worth compounding:
 
 If compound was run in Step 4, check `git status` again — compound creates docs that should be committed.
 
-- **If there are new changes:** Ask the user if they want to commit.
+- **If there are new changes:** Use **AskUserQuestion**: "Compound created new docs. Commit them?"
+  - **Yes** — commit
+  - **No** — proceed without committing
 - **If clean or compound was skipped:** Move on.
 
 ## Step 6: Queue Post-Compaction Task

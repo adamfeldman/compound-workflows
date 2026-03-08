@@ -27,7 +27,7 @@ Perform exhaustive code reviews using multi-agent analysis. All agent outputs ar
 
 ### 2. Create Working Directory
 
-Derive a short topic stem from the review target: use branch name for branches (e.g., `feat-user-dashboard-redesign`), `pr-NNN` for PRs, or filename stem (strip date prefix and type suffix) for document reviews (e.g., `reporting-strategy` from `2026-02-23-reporting-strategy-brainstorm.md`).
+Derive a short topic stem from the review target: use branch name for branches (e.g., `feat-user-dashboard-redesign`), `pr-NNN` for PRs, or filename stem (strip date prefix and type suffix) for document reviews (e.g., `reporting-strategy` from a brainstorm doc).
 
 ```bash
 mkdir -p .workflows/code-review/<topic-stem>/agents
@@ -63,8 +63,11 @@ Task agent-native-reviewer (run_in_background: true): "You are an agent-native r
 
 **Conditional agents (run if PR matches criteria):**
 
-- If PR has database migrations: `Task data-migration-expert` ("You are a data migration expert. Validate migrations, backfills, and production data transformations."), `Task deployment-verification-agent` ("You are a deployment verification specialist. Produce Go/No-Go checklists with SQL verification queries and rollback procedures.")
-- If PR has frontend code: `Task frontend-races-reviewer` ("You are a frontend concurrency reviewer. Check for race conditions, stale closures, unhandled promises, and UI state synchronization issues.")
+- If PR has database migrations:
+  - `Task data-migration-expert (run_in_background: true)`: "You are a data migration expert. Validate migrations, backfills, and production data transformations. [disk-write for: data-migration.md]"
+  - `Task deployment-verification-agent (run_in_background: true)`: "You are a deployment verification specialist. Produce Go/No-Go checklists with SQL verification queries and rollback procedures. [disk-write for: deployment-verification.md]"
+- If PR has frontend code:
+  - `Task frontend-races-reviewer (run_in_background: true)`: "You are a frontend concurrency reviewer. Check for race conditions, stale closures, unhandled promises, and UI state synchronization issues. [disk-write for: frontend-races.md]"
 
 **Adapt agent selection to the actual codebase.** Match conditional agents to the stack detected in the PR.
 
@@ -136,7 +139,7 @@ Present to user:
 ### Next Steps:
 1. Address P1 findings (blocks merge)
 2. Triage: `ls todos/*-pending-*.md`
-3. Work approved items: `/resolve_todo_parallel`
+3. Work approved items individually or dispatch subagents
 ```
 
 ### 8. Retain Review Outputs
@@ -145,9 +148,9 @@ Present to user:
 
 ### 9. Optional End-to-End Testing
 
-Offer appropriate testing based on project type:
-- Web: `/test-browser`
-- iOS: `/xcode-test`
+Offer appropriate testing based on project type and available tools:
+- Web: Run tests via the project's test command, or use browser testing if available
+- Mobile: Run platform-specific tests per project conventions
 
 ## Protected Artifacts
 

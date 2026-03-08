@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-03-07
+
+### Added
+
+- **`clink` support for red team reviews** — Gemini CLI and Codex CLI can now be used as red team providers via PAL `clink`, giving models direct file access in the repo for richer analysis. Falls back to `pal chat` or Claude-only if CLIs aren't available.
+- **Gemini CLI and Codex CLI detection** in `/compound:setup` — detects installed CLIs, guides users through one-time per-repo file access permission grant
+- **Full TodoWrite fallback in `/compound:work`** — TodoWrite mode blocks at all divergence points: worktree setup, issue creation, dispatch loop, result handling, recovery, quality check, and worktree cleanup. Previously only detection at the top with a "mentally replace" instruction.
+- **Full Task dispatch syntax in `/compound:compound`** — all 8 agent dispatches (5 Phase 1 + 3 Phase 3) now have complete `Task` blocks with inline role descriptions. Previously agents 2-5 were shorthand references.
+- **AGENTS.md** — project-specific agent instructions with reusable QA process (4 parallel checks covering all 8 commands, stale references, and CLAUDE.md consistency)
+
+### Changed
+
+- **Config split into two files** — `compound-workflows.md` (committed, shared project config: stack, agents, depth) and `compound-workflows.local.md` (gitignored, per-machine: tracker, gh_cli). Previously a single `compound-workflows.local.md` held everything.
+- **Red team providers run independently in parallel** — all three providers (Gemini, OpenAI, Claude Opus) now review independently with no provider reading another's critique. Previously sequential (Gemini first, then OpenAI/Opus reading prior critiques). Rationale: reading prior critiques anchors models and reduces independent insight; deduplication happens at triage.
+- **Red team provider preference is runtime-detected** — CLI and PAL availability checked each session, user asked to choose if multiple options exist. Previously stored in config (went stale across machines).
+- **PAL write-to-disk made explicit** — PAL `chat` and `clink` responses now have explicit "After receiving the response, write it to: [path]" instructions. PAL returns strings, doesn't write files.
+- **AskUserQuestion consistency** across all 8 commands — every user decision point now explicitly specifies AskUserQuestion. Fixed ~12 instances of "ask the user" or "suggest" without the tool name.
+- **Conditional review agents** in `/compound:review` now have explicit `(run_in_background: true)` and `[disk-write for:]` instructions, matching the standard agent format
+- **Batch-accept paths** in `/compound:deepen-plan` now prompt for user reasoning, consistent with "record the why" principle
+
+### Fixed
+
+- **`bd sync --flush-only` removed from `/compound:work`** — nonexistent command (same fix previously applied to compact-prep)
+- **Phase 4 step numbering** in `/compound:work` — was 1,2,3,5,6,7; now sequential 1-6
+- **`/resolve_todo_parallel`** reference removed from `/compound:review` — command doesn't exist in plugin
+- **`/test-browser` and `/xcode-test`** references removed from `/compound:review` — replaced with generic test guidance
+- **`/resolve_todo_parallel`** reference removed from `skills/file-todos/SKILL.md`
+- **Hardcoded date** `2026-02-23` removed from `/compound:review` example
+- **"work skill"** → "`/compound:work` command" in `/compound:deepen-plan`
+
 ## [1.3.0] - 2026-03-07
 
 ### Added
