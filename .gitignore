@@ -1,0 +1,13 @@
+# Beads (local runtime state)
+.beads/
+.dolt/
+*.db
+
+# Working state (disk-persisted agent outputs)
+.workflows/
+
+# Editor
+*.code-workspace
+
+# Beads scaffolding
+AGENTS.md

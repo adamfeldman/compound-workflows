@@ -30,7 +30,7 @@ Install the plugin from the local marketplace:
 
 **What:** Verify all components are discovered by Claude Code.
 
-- [ ] All 7 commands appear in `/` autocomplete:
+- [ ] All 8 commands appear in `/` autocomplete:
   - `/compound:setup`
   - `/compound:brainstorm`
   - `/compound:plan`
@@ -38,6 +38,7 @@ Install the plugin from the local marketplace:
   - `/compound:work`
   - `/compound:review`
   - `/compound:compound`
+  - `/compound:compact-prep`
 - [ ] No stale `/compound-workflows:*` commands appear
 - [ ] CLAUDE.md is loaded (ask "what agents are available?" — should list 22)
 
@@ -52,6 +53,7 @@ Install the plugin from the local marketplace:
 - [ ] Auto-detects stack (Python/TypeScript/general) based on project files
 - [ ] Presents agent configuration appropriate to detected stack
 - [ ] Creates `docs/`, `.workflows/` directories if missing
+- [ ] Warns if `.workflows/` is in `.gitignore` (recommends committing for traceability)
 - [ ] Writes `compound-workflows.local.md` with correct schema
 - [ ] Summary shows correct `/compound:*` command names (not `/compound-workflows:*`)
 
@@ -134,7 +136,21 @@ Install the plugin from the local marketplace:
 - [ ] Uses `compound-docs` skill schema
 - [ ] Dispatches `data-integrity-guardian`, `security-sentinel`, `performance-oracle` for review
 
-## Test 9: Agent Resolution
+## Test 9: `/compound:compact-prep`
+
+**What:** Pre-compaction checklist that preserves session context.
+
+- [ ] Updates memory files (reviews conversation, writes to `memory/`)
+- [ ] Checks for beads in-progress issues (`bd list --status=in_progress`) and warns if any exist
+- [ ] Skips beads steps gracefully if `bd` not available
+- [ ] Runs pre-compound commit check (`git status`)
+- [ ] Assesses session for compound-worthy knowledge
+- [ ] Uses AskUserQuestion for compound check (not free text)
+- [ ] Runs post-compound commit check if compound was run
+- [ ] Confirms post-compaction task back to user
+- [ ] Outputs summary block with all step statuses
+
+## Test 10: Agent Resolution
 
 **What:** Verify all 22 agents resolve by YAML `name:` field.
 
@@ -149,7 +165,7 @@ Test a sample across categories:
 - [ ] `Task bug-reproduction-validator` — standalone agent resolves
 - [ ] Graceful fallback when agent not found (inline role description used instead)
 
-## Test 10: Skill Loading
+## Test 11: Skill Loading
 
 **What:** Verify skills load when referenced.
 
@@ -160,7 +176,7 @@ Test a sample across categories:
 - [ ] `disk-persist-agents` skill loads when referenced
 - [ ] `compound-docs` skill loads during `/compound:compound`
 
-## Test 11: Graceful Degradation
+## Test 12: Graceful Degradation
 
 **What:** Plugin works without optional dependencies.
 
@@ -170,7 +186,7 @@ Test a sample across categories:
 - [ ] Without GitHub CLI: `/compound:setup` notes it's missing but doesn't fail
 - [ ] Without compound-engineering: no warnings, no broken references
 
-## Test 12: No Stale References
+## Test 13: No Stale References
 
 **What:** Verify the fork is clean.
 
@@ -199,7 +215,7 @@ grep -ri 'BriefSystem\|EmailProcessing\|Xiatech\|EveryInc\|Every Reader' agents/
 If time is limited, test in this order:
 1. Test 1 (registration) — gates everything else
 2. Test 2 (setup) — entry point for new users
-3. Test 12 (stale refs) — automated, catches regressions
-4. Test 9 (agent resolution) — core value prop
+3. Test 13 (stale refs) — automated, catches regressions
+4. Test 10 (agent resolution) — core value prop
 5. Test 3 (brainstorm) — most complex command
-6. Tests 4-8 (remaining commands) — as time permits
+6. Tests 4-9 (remaining commands) — as time permits

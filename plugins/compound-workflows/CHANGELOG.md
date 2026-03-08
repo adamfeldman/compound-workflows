@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-03-07
+
+### Added
+
+- **`/compound:compact-prep` command** — Pre-compaction checklist that preserves session context: memory update, beads sync, compound check (before compaction), dual commit checks, and post-compaction task queuing
+- **Rationale-capture instructions** in brainstorm, plan, and deepen-plan — commands now record *why* the user made decisions, not just what they decided. User reasoning evaporates with conversation context; documents are the only durable record.
+- **Work-readiness guidance** in plan and deepen-plan handoffs — assess step sizing for subagent dispatch, flag oversized steps, identify parallelism opportunities
+- **Zero untriaged items principle** across brainstorm, plan, and deepen-plan — every finding, question, or concern must be explicitly resolved, deferred by the user, or removed before handoff. Nothing silently applied, nothing accidentally skipped.
+- **Red team model examples** — specific model recommendations: Gemini 3.1 Pro Preview, GPT 5.4 Pro, Claude Opus via Task subagent
+
+### Changed
+
+- **Consolidated triage in deepen-plan** — synthesis findings AND red team findings now go through the same triage flow. Previously synthesis findings were silently written into the plan without user review.
+- **AskUserQuestion in compact-prep** — compound check now uses structured options instead of waiting for free text
+- **Setup creates `.workflows/` directory** and warns if it's gitignored — recommends committing for research traceability
+- **README `.workflows/` guidance** — changed from "gitignore this" to "recommend committing for traceability"
+- **Smoke test plan** — updated to 13 tests covering all 8 commands, fixed duplicate test numbering
+
 ## [1.2.0] - 2026-02-25
 
 ### Changed

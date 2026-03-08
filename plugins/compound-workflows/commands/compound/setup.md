@@ -129,10 +129,18 @@ If "Customize": list all available agents from `plugins/compound-workflows/agent
 ## Step 6: Create Directories
 
 ```bash
-mkdir -p docs/brainstorms/ docs/plans/ docs/solutions/
+mkdir -p docs/brainstorms/ docs/plans/ docs/solutions/ .workflows/
 ```
 
 Report which directories were created vs. already existed.
+
+### .workflows/ and .gitignore
+
+Recommend **committing `.workflows/`** to the repo. It contains disk-persisted agent outputs (research, reviews, red team critiques) that provide full traceability for how decisions were made. Without it, the reasoning behind plans and brainstorms is lost.
+
+If `.workflows/` is in `.gitignore`, inform the user:
+
+> **Note:** `.workflows/` is currently gitignored. We recommend tracking it — agent research outputs provide traceability for how plans and decisions were reached. Remove `.workflows/` from `.gitignore` to preserve this history.
 
 ## Step 7: Write Local Config
 

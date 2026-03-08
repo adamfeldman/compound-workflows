@@ -81,7 +81,7 @@ your-project/
 |   +-- decisions/       # Decision records (optional)
 +-- memory/              # Project memory files (optional)
 +-- Resources/           # Reference documents (optional)
-+-- .workflows/          # Working state for disk-persisted agents (gitignore this)
++-- .workflows/          # Disk-persisted agent outputs (recommend committing for traceability)
 ```
 
 Run `/compound:setup` to create missing directories.
