@@ -298,6 +298,20 @@ review_agents: [comma-separated list of configured review agents]
 plan_review_agents: [comma-separated list of research agents for plan deepening]
 depth: [standard|comprehensive|minimal]
 
+## Plan Readiness
+
+# Which checks to skip (comma-separated, or "none" to run all 8)
+# Available: provenance, structure, testability, risks, dependencies,
+#            security, effort, spec-trace
+plan_readiness_skip_checks: (none)
+
+# How many days before a brainstorm/plan link is considered stale
+plan_readiness_provenance_expiry_days: 30
+
+# Source policy for verification: conservative (require doc links),
+# moderate (allow commit refs), permissive (trust inline assertions)
+plan_readiness_verification_source_policy: conservative
+
 ## Workflow Instructions
 [Optional. Add instructions that apply to compound-workflows commands specifically.
 Examples:
