@@ -7,6 +7,17 @@ description: "Set up compound-workflows plugin for your project"
 
 Set up compound-workflows for your project. Detects your environment, identifies your stack, configures review agents, and writes a local config file.
 
+## Step 0: Prerequisites
+
+```bash
+# Must be a git repo — worktrees, diffs, and commits depend on it
+git rev-parse --is-inside-work-tree 2>/dev/null && echo "GIT=true" || echo "GIT=false"
+```
+
+**If not a git repo:** Stop setup with a clear message:
+
+> **This directory is not a git repository.** compound-workflows requires git (worktrees, diffs, commit tracking). Run `git init` first, then re-run `/compound:setup`.
+
 ## Step 1: Detect Environment
 
 Run all detection checks:
@@ -14,6 +25,9 @@ Run all detection checks:
 ```bash
 # Check for beads
 which bd 2>/dev/null && echo "BEADS=available" || echo "BEADS=not_available"
+
+# Check if beads is initialized in this project
+[ -d .beads ] && echo "BEADS_INIT=true" || echo "BEADS_INIT=false"
 
 # Check for GitHub CLI
 which gh 2>/dev/null && echo "GH=available" || echo "GH=not_available"
@@ -33,6 +47,14 @@ which codex 2>/dev/null && echo "CODEX_CLI=available" || echo "CODEX_CLI=not_ava
 ```
 
 Record results for later use.
+
+### Beads Initialization
+
+If beads is installed but not initialized (`BEADS=available` and `BEADS_INIT=false`):
+
+Use **AskUserQuestion**: "Beads is installed but not initialized in this project. Initialize now? (`bd init` sets up local task tracking.)"
+- **Yes** — run `bd init` and record `BEADS_INIT=true`
+- **Skip** — proceed with TodoWrite fallback
 
 ### CLI Activation (Gemini / Codex)
 

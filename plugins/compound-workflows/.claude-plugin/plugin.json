@@ -1,6 +1,6 @@
 {
   "name": "compound-workflows",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Self-contained compound engineering workflows with 22 agents, 15 skills, and 8 commands. Disk-persisted agent outputs, multi-model red-team challenges, beads/TodoWrite task tracking, and subagent dispatch.",
   "author": {
     "name": "Adam Feldman"
