@@ -1,7 +1,7 @@
 ---
 title: "feat: Add /compound:recover command for dead session recovery"
 type: feat
-status: active
+status: completed
 date: 2026-03-07
 origin: docs/brainstorms/2026-03-07-recover-command-brainstorm.md
 ---
