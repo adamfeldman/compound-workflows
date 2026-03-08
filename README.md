@@ -6,11 +6,14 @@ Self-contained compound engineering workflows for [Claude Code](https://docs.ant
 
 | | compound-engineering | compound-workflows |
 |---|---|---|
-| Agents | Separate plugin dependency | 22 bundled (self-contained) |
+| Agents | 22 bundled | 22 bundled (forked, self-contained) |
 | Red team | Single model | 3 providers in parallel via PAL (Gemini + OpenAI + Claude Opus) |
 | Agent outputs | In-context (fills up) | Disk-persisted to `.workflows/` |
 | Task tracking | TodoWrite only | Beads preferred, TodoWrite fallback |
 | Config | Single file | Split: committed project + gitignored machine-specific |
+| Session recovery | Manual | `/compact-prep` (proactive) + `/recover` (reactive, JSONL log parsing) |
+| Memory management | None | Adapted fork of Anthropic's memory skill with tiered storage (in progress) |
+| Plan quality | Unbounded iteration | Fewer deepen-plan runs via plan-readiness checks and consolidation (in progress) |
 
 ## Install
 
