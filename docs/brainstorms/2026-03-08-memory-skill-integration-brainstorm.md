@@ -21,7 +21,7 @@ Fork Anthropic's memory-management skill (from the productivity plugin) into com
 ## Out of Scope
 
 - Deep integration with brainstorm/plan/work (they already persist to docs/, not memory/)
-- Auto-population of memory (stays curator-driven with user approval)
+- Auto-population of memory (stays curator-driven with user approval). Note: auto-promotion/demotion of hot cache items is *not* auto-population — it's housekeeping on existing memory entries. Memory aims to be reasonably automatic; automation handles lifecycle management, humans handle content creation.
 - Beads integration with memory entries
 
 # Why This Approach
@@ -37,17 +37,17 @@ compact-prep and recover are the natural memory touchpoints because they deal wi
 
 ## CLAUDE.md as Hot Cache, AGENTS.md as Conventions
 
-The Anthropic skill uses CLAUDE.md as a "hot cache" for frequently-accessed terms. In compound-workflows projects, CLAUDE.md was previously used for project conventions. User decision: **AGENTS.md is a full replacement for CLAUDE.md** for project conventions/instructions. CLAUDE.md becomes purely a memory hot cache (~30 people/terms/projects, bounded). Rationale: clean separation of concerns, AGENTS.md is already read by Claude Code for project guidance.
+The Anthropic skill uses CLAUDE.md as a "hot cache" for frequently-accessed terms. In compound-workflows projects, CLAUDE.md was previously used for project conventions. User decision: **CLAUDE.md contains `@AGENTS.md` pointer + Memory hot cache section.** AGENTS.md holds all project conventions/instructions (full replacement for CLAUDE.md's prior role). This mirrors the existing GEMINI.md pattern — a thin pointer file that delegates to AGENTS.md. Rationale: CLAUDE.md retains its auto-loaded status in Claude Code while keeping conventions in one place (AGENTS.md).
 
-## Keep Workplace Framing
+## Dual Framing: Workplace + Engineering
 
-compound-workflows is for general workplace tooling, not just engineering. The memory skill's workplace examples (people, acronyms, projects) fit naturally. User confirmed: "these are general workplace tools."
+compound-workflows is for general workplace tooling AND engineering. The memory skill must include both workplace examples (people, acronyms, projects, meeting preferences) and engineering examples (architecture decisions, design patterns, codebase conventions, debugging insights). User rationale: "ensure the workplace examples persist, and ensure there are engineering examples as well. this will be used in engineering as well as general workplace use."
 
 # Key Decisions
 
 1. **Light integration scope** — compact-prep, recover, setup. Not brainstorm/plan/work. Rationale: natural boundary between session-lifecycle (memory) and feature-lifecycle (docs/).
 
-2. **CLAUDE.md = memory hot cache** — repurpose CLAUDE.md as bounded hot cache (~30 items). AGENTS.md takes over as the project conventions file. Rationale: user stated "AGENTS.md is a full replacement for CLAUDE.md."
+2. **CLAUDE.md = `@AGENTS.md` pointer + memory hot cache** — CLAUDE.md contains an `@AGENTS.md` reference (so conventions are auto-loaded) plus a bounded memory hot cache section (~30 items). Same pattern as GEMINI.md. Rationale: keeps CLAUDE.md auto-loading, avoids two competing hot caches, AGENTS.md holds all conventions.
 
 3. **Setup creates memory/ structure** — directory skeleton with empty templates (glossary.md, context/, etc.) created during `/compound:setup`. Rationale: users have the structure ready to populate organically.
 
@@ -62,7 +62,7 @@ compound-workflows is for general workplace tooling, not just engineering. The m
 # Knowledge Hierarchy
 
 ```
-CLAUDE.md (hot cache)     — Top ~30 people, terms, active projects. Bounded.
+CLAUDE.md (@AGENTS.md + hot cache) — Pointer to conventions + top ~30 people, terms, active projects. Bounded.
 memory/                   — Deep storage. Grows indefinitely.
   glossary.md             — Full decoder ring (terms, acronyms, people, codenames)
   context/                — Company/team/tools context
@@ -103,9 +103,8 @@ Solutions (validated) > Memory (reference) > Plans (actionable) > Resources (ref
 
 ## 3. `/compound:compact-prep` Changes
 - Step 1 references memory skill conventions for where to write
-- **Promotion:** if a term/person/project from memory/ was used frequently this session, promote to CLAUDE.md hot cache
-- **Demotion:** if a CLAUDE.md hot cache item hasn't been referenced in recent sessions, demote to memory/ only
-- **Growth check:** after updates, verify CLAUDE.md memory section stays within bounds (~30 items per category). If over, demote least-recently-used items automatically.
+- **Promotion:** if a term/person/project from memory/ was used frequently this session, *suggest* promoting to CLAUDE.md hot cache (user approves)
+- **Demotion:** if CLAUDE.md hot cache exceeds ~30 items, *suggest* demotions (user approves). No automated LRU tracking — simple count check.
 - Follows tiered storage: new items go to memory/ by default, promoted to CLAUDE.md only if frequent
 
 ## 4. `/compound:recover` Changes
@@ -134,6 +133,10 @@ Solutions (validated) > Memory (reference) > Plans (actionable) > Resources (ref
 
 4. **Setup creates structure or explains only?** — Creates structure with templates. User rationale: "users have the skeleton ready."
 
-5. **CLAUDE.md hot cache conflict?** — CLAUDE.md becomes memory-only. AGENTS.md replaces CLAUDE.md for project conventions. User rationale: "AGENTS.md is a full replacement for CLAUDE.md."
+5. **CLAUDE.md hot cache conflict?** — CLAUDE.md keeps `@AGENTS.md` pointer + memory hot cache section. Same pattern as GEMINI.md — thin pointer file that delegates to AGENTS.md for conventions. User rationale: "keep CLAUDE.md in repo with the only content being '@AGENTS.md'. same thing is done for GEMINI.md."
 
-6. **Hot cache growth management?** — Active management required. User stated: "need to ensure hot cache is actively managed to prevent unbounded growth."
+6. **Hot cache growth management?** — Active management required. Memory aims to be reasonably automatic — auto-promotion/demotion is housekeeping, not content creation. User stated: "need to ensure hot cache is actively managed to prevent unbounded growth" and "auto-demotion is fine."
+
+7. **Curator-driven vs automatic?** — Not contradictory. "Curator-driven" means humans decide what enters memory (content creation). Auto-promotion/demotion is lifecycle management of existing entries (housekeeping). User rationale: "auto-demotion is fine — it's housekeeping, not content creation. Memory aims to be reasonably automatic."
+
+8. **Three-tier memory system?** — CLAUDE.md (`@AGENTS.md` + hot cache) serves as the auto-loaded tier. `memory/` is deep storage (committed, public). `.claude/memory/` is private preferences (gitignored). The auto-injected `~/.claude/projects/.../memory/MEMORY.md` is a Claude Code system feature — it's the *private* hot cache. CLAUDE.md's memory section is the *project* hot cache (committed, shared). No conflict — different scopes.
