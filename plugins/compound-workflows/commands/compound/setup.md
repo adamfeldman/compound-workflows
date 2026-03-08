@@ -200,25 +200,38 @@ question: "Here's how compound-workflows organizes your project:"
 header: "Project Structure"
 ```
 
-Present this overview:
+Present this overview using a code block for clean terminal formatting:
 
-> **`docs/`** — Everything your team produces through the workflow:
-> - `brainstorms/` — Output from `/compound:brainstorm`. Exploratory thinking, evaluated alternatives, design decisions.
-> - `plans/` — Output from `/compound:plan`. Implementation plans with research-backed steps.
-> - `solutions/` — Output from `/compound:compound`. Verified fixes and proven patterns — your team's institutional knowledge.
-> - `decisions/` — Decision records. When a brainstorm's main output is a choice between alternatives rather than a design to implement.
->
-> **`resources/`** — External reference material you bring into the project. API docs, specs, research papers, architecture references — anything that gives Claude context. Organize however you like: folders by topic, or files at the root. The context-researcher searches this recursively.
->
-> **`memory/`** — Stable project facts that persist across sessions. Project context, glossary, key decisions. Updated over time as the project evolves.
->
-> **`.workflows/`** — Disk-persisted agent outputs (research, reviews, red team critiques). Agents write here instead of returning results into your conversation, so context stays lean and you can run 15+ agents without exhaustion. These files persist across sessions and compactions — commit them for full traceability of how decisions were made.
->
-> **Workflow:** `brainstorm → plan → [deepen-plan] → work → review → compound`
->
-> Each step produces documents that feed the next. Start with `/compound:brainstorm` to explore an idea, or `/compound:plan` if you already know what to build. Solutions from `/compound:compound` feed future brainstorms.
->
-> **Commands:** Type `/compound:` to see all available commands. The short form (e.g. `/compound:brainstorm`) works the same as the full form (`/compound-workflows:compound:brainstorm`).
+```
+Your project structure:
+
+  docs/
+    brainstorms/   Output from /compound:brainstorm
+    plans/         Output from /compound:plan
+    solutions/     Output from /compound:compound (institutional knowledge)
+    decisions/     Decision records (choices between alternatives)
+
+  resources/       External reference material you bring in (API docs,
+                   specs, research papers). Organize by topic or flat.
+                   The context-researcher searches this recursively.
+
+  memory/          Stable project facts that persist across sessions.
+
+  .workflows/      Agent outputs persisted to disk. Agents write here
+                   instead of into your conversation, so context stays
+                   lean. Recommend committing for traceability.
+
+Workflow cycle:
+
+  brainstorm → plan → [deepen-plan] → work → review → compound
+
+  Each step produces docs that feed the next. Start with
+  /compound:brainstorm to explore, or /compound:plan if you
+  know what to build. Solutions feed future brainstorms.
+
+Commands: type /compound: to see all. The short form works:
+  /compound:brainstorm = /compound-workflows:compound:brainstorm
+```
 
 Then ask:
 
@@ -226,11 +239,38 @@ Use **AskUserQuestion**: "Any questions about the structure, or ready to continu
 - **Continue** — proceed to Step 7
 - **Questions** — answer, then proceed
 
-### .workflows/ and .gitignore
+### .gitignore Check
 
-If `.workflows/` is in `.gitignore`, inform the user:
+Check `.gitignore` for issues:
 
-> **Note:** `.workflows/` is currently gitignored. We recommend committing it — agent research outputs provide traceability for how plans and decisions were reached. Remove `.workflows/` from `.gitignore` to preserve this history.
+```bash
+# Check what's gitignored that shouldn't be
+GITIGNORE_ISSUES=""
+for d in .workflows resources memory; do
+  if grep -q "^$d" .gitignore 2>/dev/null || grep -q "^/$d" .gitignore 2>/dev/null; then
+    GITIGNORE_ISSUES="$GITIGNORE_ISSUES $d"
+  fi
+done
+
+# Check what's NOT gitignored that should be
+if ! grep -q 'compound-workflows.local.md' .gitignore 2>/dev/null; then
+  echo "MISSING_GITIGNORE=compound-workflows.local.md"
+fi
+
+echo "GITIGNORE_ISSUES=$GITIGNORE_ISSUES"
+```
+
+**If any directories are gitignored**, explain and offer to fix:
+
+Use **AskUserQuestion**: "These directories are in .gitignore but should be committed for traceability: [list]. Remove them from .gitignore?"
+- **Yes** — remove the matching lines from `.gitignore`
+- **Keep gitignored** — leave as-is (agent outputs won't be tracked)
+
+**If `compound-workflows.local.md` is not in `.gitignore`**, add it silently — it contains machine-specific config that shouldn't be committed:
+
+```bash
+echo 'compound-workflows.local.md' >> .gitignore
+```
 
 ## Step 7: Write Config Files
 
@@ -277,14 +317,6 @@ gh_cli: [available|not available]
 ```
 
 Fill in based on detected environment. Red team provider preferences are NOT stored — they're detected at runtime each session (CLI availability varies by machine and may change).
-
-If `compound-workflows.local.md` is not in `.gitignore`, add it:
-
-```bash
-if ! grep -q 'compound-workflows.local.md' .gitignore 2>/dev/null; then
-  echo 'compound-workflows.local.md' >> .gitignore
-fi
-```
 
 ### 7c: Migration Check
 
