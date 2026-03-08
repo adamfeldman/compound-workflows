@@ -1,6 +1,6 @@
 # compound-workflows
 
-Self-contained compound engineering workflows for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) (February 2026) with 22 bundled agents, disk-persisted outputs, multi-model red team via [PAL](https://github.com/BeehiveInnovations/pal-mcp-server), session recovery after context exhaustion, and [beads](https://github.com/steveyegge/beads) task tracking.
+Self-contained compound engineering workflows for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) (February 2026) with 22 bundled agents, disk-persisted outputs, multi-model red team ([PAL](https://github.com/BeehiveInnovations/pal-mcp-server) + Claude subagents), session recovery after context exhaustion, and [beads](https://github.com/steveyegge/beads) task tracking.
 
 **Why fork?** Ambitious tasks in Claude Code hit walls:
 
@@ -14,7 +14,7 @@ Self-contained compound engineering workflows for [Claude Code](https://docs.ant
 | | compound-engineering | compound-workflows |
 |---|---|---|
 | Agents | 22 bundled | 22 bundled (forked, self-contained) |
-| Red team | Single model | 3 providers in parallel via PAL (Gemini + OpenAI + Claude Opus) |
+| Red team | Single model | 3 providers in parallel (Gemini + OpenAI via PAL, Claude Opus via subagent) |
 | Agent outputs | In-context (fills up) | Disk-persisted to `.workflows/` |
 | Task tracking | TodoWrite only | Beads preferred, TodoWrite fallback |
 | Config | Single file | Split: committed project + gitignored machine-specific |
