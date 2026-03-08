@@ -87,20 +87,40 @@ The setup command and setup skill coexist with distinct roles:
 
 The setup command handles the interactive UX flow. The setup skill (with disable-model-invocation: true) provides reference knowledge. The command was written by reading the skill at fork time -- it does not load the skill at runtime. If the skill is updated, the command must be manually synced.
 
-## Config Schema (compound-workflows.local.md)
+## Config Files
 
-Written by `/compound:setup`. Consumers:
-- `review.md` reads: review_agents, red_team, gh_cli
+Written by `/compound:setup`. Two files:
+
+### `compound-workflows.md` (committed, shared)
+
+Project-level settings shared across team members.
+- `review.md` reads: review_agents
 - `plan.md` reads: plan_review_agents, depth
-- `deepen-plan.md` reads: red_team
+- `review.md` reads: depth
+
+Keys: stack, review_agents, plan_review_agents, depth, Project Context section.
+
+### `compound-workflows.local.md` (gitignored, per-machine)
+
+Machine-specific environment detection.
 - `work.md` reads: tracker
-- `setup.md` writes all keys
+- `review.md` reads: gh_cli
+
+Keys: tracker, gh_cli.
+
+### Red team dispatch (runtime, not stored)
+
+Red team provider preferences are detected each session, not stored in config. CLI availability varies by machine and may change. Detection order:
+1. Check `which gemini` / `which codex` for CLI availability
+2. Check if PAL MCP tools are available
+3. If multiple options exist for a provider, ask user once per session
+4. Fallback: Claude-only Task subagent
 
 ## Command Conventions
 
 - All commands use `compound:` prefix in YAML `name:` field
 - Commands reference agents by name with inline role descriptions for graceful fallback
-- Commands detect beads/PAL at runtime and adapt behavior
+- Commands detect beads/PAL/CLI availability at runtime and adapt behavior
 - Phase gates enforce resolution of open questions before proceeding
 - Research outputs persist to `.workflows/` directories
 

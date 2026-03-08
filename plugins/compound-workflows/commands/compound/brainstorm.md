@@ -16,14 +16,16 @@ Brainstorming answers **WHAT** to build through collaborative dialogue. It prece
 
 <feature_description> #$ARGUMENTS </feature_description>
 
-**If empty, ask:** "What would you like to explore?"
+**If empty**, use **AskUserQuestion**: "What would you like to explore?"
 
 ## Execution Flow
 
 ### Phase 0: Assess Requirements Clarity
 
 If requirements are already clear (specific criteria, referenced patterns, defined scope):
-- Suggest: "Your requirements seem detailed enough for planning. Run `/compound:plan` instead?"
+- **AskUserQuestion:** "Your requirements seem detailed enough for planning. Run `/compound:plan` instead?"
+  - **Yes — switch to planning** — run `/compound:plan` with the feature description
+  - **No — brainstorm first** — continue with Phase 1
 
 ### Phase 1: Understand the Idea
 
@@ -104,22 +106,67 @@ Before proceeding, check the Open Questions section of the brainstorm document. 
 
 After capturing the design, challenge it with three different model providers in parallel. Different training data produces genuinely different blind spots — using three providers maximizes coverage of assumptions Claude wouldn't question.
 
-**Ask the user:**
-"Run a red team challenge on this brainstorm? Three different AI models will try to poke holes in the reasoning. (~2-3 min)"
+**AskUserQuestion:** "Run a red team challenge on this brainstorm? Three different AI models will try to poke holes in the reasoning. (~2-3 min)"
+- **Yes** — proceed with red team
+- **Skip** — go directly to Phase 4
 
 **If the user declines**, skip to Phase 4.
 
 #### Step 1: Launch Red Team via 3 Providers (parallel)
 
-Red team the brainstorm with ALL THREE model providers for maximum coverage:
+Launch all three providers in parallel. Each reviews independently — no provider reads another's critique. This maximizes diversity of perspective (reading prior critiques anchors models and reduces independent insight). Deduplication happens at triage.
 
-**Provider 1 — Gemini (via PAL):**
+**Runtime detection:** For Gemini and OpenAI providers, detect which dispatch method is available. Check once per session; if multiple options exist for a provider, ask the user which they prefer (e.g., `clink gemini` for direct file access, or `pal chat` with a specific model like `gemini-3.1-pro-preview`).
+
+```bash
+which gemini 2>/dev/null && echo "GEMINI_CLI=available" || echo "GEMINI_CLI=not_available"
+which codex 2>/dev/null && echo "CODEX_CLI=available" || echo "CODEX_CLI=not_available"
+# PAL: check if mcp__pal__chat is available as a tool
+```
+
+**Provider 1 — Gemini:**
+
+*If Gemini CLI is available* — use `clink` (direct file access, richer analysis):
+```
+mcp__pal__clink:
+  cli_name: gemini
+  role: codereviewer
+  prompt: "You are a red team reviewer. Your job is to find flaws, not validate.
+
+Read the brainstorm document at <brainstorm-file-path> and identify:
+1. **Unexamined assumptions** — What is taken for granted that might be wrong?
+2. **Missing alternatives** — What approaches were dismissed too quickly or not considered?
+3. **Weak arguments** — Where is the reasoning thin or based on hope rather than evidence?
+4. **Hidden risks** — What could go wrong that isn't acknowledged?
+5. **Contradictions** — Does the document contradict itself anywhere?
+
+Be specific. Quote the section you're challenging. For each challenge, rate severity:
+- CRITICAL — Blocks the approach or invalidates a key conclusion
+- SERIOUS — Should address before this becomes a plan
+- MINOR — Worth noting but not blocking"
+  absolute_file_paths: ["<brainstorm-file-path>"]
+```
+
+*If no Gemini CLI, or user prefers a specific model* — use `pal chat`:
 ```
 mcp__pal__chat:
   model: [latest highest-end Gemini model, e.g. gemini-3.1-pro-preview — NOT gemini-2.5-pro]
+  prompt: "[same prompt as above]"
+  absolute_file_paths: ["<brainstorm-file-path>"]
+```
+
+After receiving the response (from either method), write it to: `.workflows/brainstorm-research/<topic-stem>/red-team--gemini.md`
+
+**Provider 2 — OpenAI:**
+
+*If Codex CLI is available* — use `clink` (direct file access, richer analysis):
+```
+mcp__pal__clink:
+  cli_name: codex
+  role: codereviewer
   prompt: "You are a red team reviewer. Your job is to find flaws, not validate.
 
-Read this brainstorm document and identify:
+Read the brainstorm document at <brainstorm-file-path> and identify:
 1. **Unexamined assumptions** — What is taken for granted that might be wrong?
 2. **Missing alternatives** — What approaches were dismissed too quickly or not considered?
 3. **Weak arguments** — Where is the reasoning thin or based on hope rather than evidence?
@@ -129,56 +176,27 @@ Read this brainstorm document and identify:
 Be specific. Quote the section you're challenging. For each challenge, rate severity:
 - CRITICAL — Blocks the approach or invalidates a key conclusion
 - SERIOUS — Should address before this becomes a plan
-- MINOR — Worth noting but not blocking
-
-Brainstorm document:"
+- MINOR — Worth noting but not blocking"
   absolute_file_paths: ["<brainstorm-file-path>"]
 ```
-Write response to: `.workflows/brainstorm-research/<topic-stem>/red-team--gemini.md`
 
-**Provider 2 — OpenAI (via PAL):**
-
-Run after Gemini completes so it can read the prior critique and avoid duplication:
-
+*If no Codex CLI, or user prefers a specific model* — use `pal chat`:
 ```
 mcp__pal__chat:
   model: [latest highest-end OpenAI model, e.g. gpt-5.4-pro — NOT gpt-5.4 or gpt-5.2-pro]
-  prompt: "You are a red team reviewer. Your job is to find flaws, not validate.
-
-IMPORTANT: A Gemini model has already reviewed this brainstorm. Read their critique first to avoid duplicating findings. Focus on what they MISSED.
-
-Prior critique: .workflows/brainstorm-research/<topic-stem>/red-team--gemini.md
-
-Read this brainstorm document and identify:
-1. **Unexamined assumptions** — What is taken for granted that might be wrong?
-2. **Missing alternatives** — What approaches were dismissed too quickly or not considered?
-3. **Weak arguments** — Where is the reasoning thin or based on hope rather than evidence?
-4. **Hidden risks** — What could go wrong that isn't acknowledged?
-5. **Contradictions** — Does the document contradict itself anywhere?
-
-Be specific. Quote the section you're challenging. For each challenge, rate severity:
-- CRITICAL — Blocks the approach or invalidates a key conclusion
-- SERIOUS — Should address before this becomes a plan
-- MINOR — Worth noting but not blocking
-
-Brainstorm document:"
+  prompt: "[same prompt as above]"
   absolute_file_paths: ["<brainstorm-file-path>"]
 ```
-Write response to: `.workflows/brainstorm-research/<topic-stem>/red-team--openai.md`
+
+After receiving the response (from either method), write it to: `.workflows/brainstorm-research/<topic-stem>/red-team--openai.md`
 
 **Provider 3 — Claude Opus (via Task subagent, NOT PAL):**
 
-Run in parallel with OpenAI (after Gemini completes). Do NOT use PAL for Claude — use a Task subagent instead (direct file access, no token relay overhead):
+Do NOT use PAL for Claude — use a Task subagent instead (direct file access, no token relay overhead):
 
 ```
 Task general-purpose (run_in_background: true): "
 You are a red team reviewer. Your job is to find flaws, not validate.
-
-IMPORTANT: Other models have already reviewed this brainstorm. Read their critiques to avoid duplicating findings. Focus on what they MISSED.
-
-Prior critiques:
-- .workflows/brainstorm-research/<topic-stem>/red-team--gemini.md
-- .workflows/brainstorm-research/<topic-stem>/red-team--openai.md
 
 Read the brainstorm document at <brainstorm-file-path> and identify:
 1. **Unexamined assumptions** — What is taken for granted that might be wrong?
@@ -198,7 +216,7 @@ After writing the file, return ONLY a 2-3 sentence summary.
 "
 ```
 
-**Execution order:** Launch Gemini first. Once Gemini completes, launch OpenAI and Claude Opus in parallel (both can read Gemini's critique; Opus can also read OpenAI's if it finishes first).
+**Execution:** Launch all three in a single message (Gemini and OpenAI as parallel MCP calls, Opus as a background Task). Wait for all to complete before proceeding to Step 2.
 
 **If PAL MCP is not available:** Run only the Claude Opus Task subagent (Provider 3 above). The red team will have a single perspective instead of three, but this is an acceptable fallback.
 
@@ -233,7 +251,7 @@ If MINOR findings exist, present them as a batch:
 **If any items were deferred (from Open Questions gate or red team challenge):**
 Flag them explicitly: "Note: N deferred items remain — see Deferred Questions and Open Questions in the brainstorm doc. The plan must account for these."
 
-Options:
+**AskUserQuestion:** "What next?"
 1. **Review and refine** — Load `document-review` skill
 2. **Proceed to planning** — `/compound:plan`
 3. **Ask more questions** — Continue exploring before moving on

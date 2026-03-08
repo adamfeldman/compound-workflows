@@ -26,15 +26,15 @@ else
 fi
 ```
 
-**If beads (`bd`) is available:** Use `bd create`, `bd update`, `bd close`, `bd ready` for all task tracking. Progress survives context compaction.
+**If beads (`bd`) is available:** Use beads for all task tracking. Progress survives context compaction. Follow the beads paths below.
 
-**If beads is NOT available:** Use TodoWrite for task tracking instead. Same phase structure, but progress is lost if context compacts. The `bd` commands below should be mentally replaced with their TodoWrite equivalents:
-- `bd create --title="..."` → `TodoWrite: add task "..."`
-- `bd update <id> --status=in_progress` → `TodoWrite: mark in_progress`
-- `bd close <id>` → `TodoWrite: mark completed`
-- `bd ready` → `TodoWrite: list pending tasks`
+**If beads is NOT available (TodoWrite mode):** Use TodoWrite for task tracking. Same phase structure, but with these differences:
+- **No worktrees** — work on a feature branch directly (Phase 1.2 is skipped)
+- **No dependencies** — steps execute in plan order, not priority order
+- **No `bd ready`** — iterate through TodoWrite tasks sequentially
+- **Recovery is manual** — after compaction, re-read the plan file and check git log to infer progress
 
-**Note:** With TodoWrite, recovery after compaction requires re-reading the plan file and checking git log to infer progress. Beads makes this automatic.
+Each phase below includes a "**TodoWrite mode:**" block where the paths diverge.
 
 ### 1.1 Read and Clarify the Plan
 
@@ -51,7 +51,7 @@ fi
 
 Flag any concerns to the user before proceeding.
 
-- Get user approval to proceed
+- Use **AskUserQuestion** to get user approval to proceed
 - **Do not skip this** — the orchestrator must understand the plan before dispatching work
 
 ### 1.2 Setup Worktree
@@ -71,7 +71,7 @@ bd worktree info 2>/dev/null
 **If already in a worktree:** Continue working there. No setup needed.
 
 **If already on a feature branch** (not the default branch):
-- Ask: "Continue working on `[current_branch]`, or create a worktree for isolated development?"
+- **AskUserQuestion:** "Continue working on `[current_branch]`, or create a worktree for isolated development?"
 
 **If on the default branch**, create a worktree (default) or opt out:
 - **Default:** Create a worktree with `bd worktree create <name>` — provides isolated development with shared beads state. Then `cd` into the worktree path.
@@ -85,7 +85,12 @@ cd .worktrees/<descriptive-name>
 
 **Why worktrees are the default for subagent execution:** Subagents write code autonomously. If something goes wrong, you can nuke the worktree (`bd worktree remove <name>`) without touching your main working tree. No `git reset --hard`, no orphaned files.
 
-### 1.3 Create or Resume Beads Issues
+**TodoWrite mode:** Skip worktree setup. Create a feature branch instead:
+```bash
+git checkout -b feat/<descriptive-name>
+```
+
+### 1.3 Create or Resume Task Issues
 
 **Check for existing issues first:**
 
@@ -137,6 +142,8 @@ Commit when done with: feat(foo): implement core logic"
 bd dep add <phase-1-id> <phase-0-id>
 ```
 
+**TodoWrite mode:** Instead of `bd create` and `bd dep add`, use TodoWrite to create a task list from the plan steps. One task per implementation step. Include the same self-contained description content (what to build, which files to read, what tests to run, plan file path). Tasks will be executed in list order since TodoWrite has no dependency tracking.
+
 **Granularity guidance:**
 - Too coarse (1-2 issues): subagents get overwhelmed, lose focus
 - Too granular (20+ issues): orchestrator overhead dominates
@@ -165,6 +172,20 @@ while bd ready shows issues:
 **Why foreground, not background:** Steps are usually sequential (each builds on the prior commit). Background execution would cause merge conflicts and race conditions. Use foreground so each subagent sees the prior subagent's committed code.
 
 **Exception — parallel dispatch:** If `bd ready` shows multiple issues with NO dependency between them, you MAY dispatch them in parallel using `run_in_background: true`. But only if they touch completely separate files. When in doubt, run sequentially.
+
+**TodoWrite mode dispatch loop:**
+```
+for each pending TodoWrite task (in list order):
+
+  1. Read the task description
+  2. Mark it in_progress
+  3. Build the subagent prompt (see 2.2)
+  4. Dispatch subagent via Task tool (foreground)
+  5. Review the subagent's summary
+  6. If successful: mark completed, check off plan item
+  7. If failed: assess, update task description, re-dispatch
+  8. Next task
+```
 
 ### 2.2 Building the Subagent Prompt
 
@@ -234,6 +255,8 @@ After each subagent returns:
 3. Update the plan file: change `- [ ]` to `- [x]` for completed items
 4. Continue to next issue
 
+**TodoWrite mode success:** Mark the TodoWrite task as completed, check off plan items, continue to next task.
+
 **Failure path:**
 If the subagent reports it couldn't complete the task:
 1. Read the subagent's explanation
@@ -241,8 +264,10 @@ If the subagent reports it couldn't complete the task:
 3. Decide:
    - **Fixable context issue:** Update the bd issue description with more detail, re-dispatch
    - **Dependency problem:** Create a new blocking issue, update deps
-   - **Needs human input:** Ask the user with AskUserQuestion
+   - **Needs human input:** Use **AskUserQuestion** to get guidance
    - **Small remaining work:** Handle it in-orchestrator (exception to the "never code" rule — only for trivial fixes like import statements or typos)
+
+**TodoWrite mode failure:** Update the TodoWrite task description with more detail and re-dispatch. For dependency problems, add a new TodoWrite task before the current one.
 
 ### 2.4 Recovery After Compaction
 
@@ -265,15 +290,22 @@ If context compacts mid-execution, recovery is simple:
 
 **This is the whole point of the architecture.** No in-memory state to lose. bd + git + worktree info + plan file = complete recovery.
 
+**TodoWrite mode recovery:** After compaction, TodoWrite state is lost. Recover manually:
+1. Read the plan file — check which items are checked off (`[x]`)
+2. Check git log for recent commits — infer which steps completed
+3. Rebuild a TodoWrite task list for remaining unchecked items
+4. Resume dispatching from the first incomplete task
+
 ## Phase 3: Quality Check (Orchestrator)
 
-After all bd issues are closed:
+After all issues are closed (or all TodoWrite tasks completed):
 
 1. **Verify completeness:**
    ```bash
    bd list --status=open    # Should be empty for this plan
    git log --oneline -20    # Review all commits from this session
    ```
+   **TodoWrite mode:** Check that all TodoWrite tasks are marked completed. Verify plan file has all items checked off (`[x]`). Review git log for commits.
 
 2. **Run quality gates** (if the project has them):
    ```bash
@@ -330,17 +362,12 @@ After all bd issues are closed:
    )"
    ```
 
-3. **Update beads:**
-   ```bash
-   bd sync --flush-only
-   ```
-
-4. **Update plan status** (if YAML frontmatter has `status` field):
+3. **Update plan status** (if YAML frontmatter has `status` field):
    ```
    status: active  →  status: completed
    ```
 
-5. **Clean up worktree** (if applicable):
+4. **Clean up worktree** (if applicable):
 
    If working in a worktree, return to the main repo and offer cleanup:
 
@@ -353,12 +380,14 @@ After all bd issues are closed:
 
    Only remove after PR is created and pushed. If the user wants to keep the worktree (e.g., awaiting review feedback), skip this step.
 
-6. **Notify user** with summary:
+   **TodoWrite mode:** No worktree to clean up. Skip this step.
+
+5. **Notify user** with summary:
    - Steps completed (N/N issues closed)
    - PR link
    - Any follow-up work (unclosed issues)
 
-7. **Compound Check**
+6. **Compound Check**
 
    Before closing out, assess whether this session produced compound-worthy knowledge:
    - Did you solve a non-obvious problem? (debugging insight, unexpected root cause, workaround for a tool/framework limitation)
@@ -376,7 +405,7 @@ After all bd issues are closed:
 
 2. **Each subagent is disposable.** It gets a self-contained prompt, does its work, commits, and returns a summary. No shared state between subagents except the git repo.
 
-3. **bd is the source of truth.** Not conversation history, not TodoWrite, not in-memory state. After compaction, `bd ready` tells you exactly where to resume.
+3. **Persistent state is the source of truth.** With beads: `bd ready` tells you exactly where to resume after compaction. With TodoWrite: the plan file's checkboxes + git log are your recovery path. Never rely on conversation history or in-memory state.
 
 4. **No unresolved items cross phase boundaries.** Every open question, concern, or finding must be explicitly resolved, deferred with rationale, or removed before moving to the next phase.
 

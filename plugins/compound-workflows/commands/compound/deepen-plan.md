@@ -20,7 +20,7 @@ This command enhances an existing plan with parallel research, skill, and review
 
 **If the plan path above is empty:**
 1. Check for recent plans: `ls -la docs/plans/`
-2. Ask the user which plan to deepen. Do not proceed without a valid path.
+2. Use **AskUserQuestion** to ask which plan to deepen. Do not proceed without a valid path.
 
 ## Phase 0: Setup Working Directory
 
@@ -185,6 +185,7 @@ For each agent in the batch, use `Task` with `run_in_background: true`:
 
 ```
 Task [agent-type] (run_in_background: true): "
+You are a [role description — e.g., 'security reviewer focused on authentication and authorization vulnerabilities'].
 [Agent-specific instructions — what to review/research, the plan content or path to read]
 
 The plan file is at: <plan_path>
@@ -309,7 +310,7 @@ After synthesis, read the synthesis summary and the enhanced plan. Collect ALL f
 - **Defer** — carry into the plan's Open Questions section with the user's stated reason
 - **Needs more research** — flag for the red team to investigate specifically
 
-**Step 3: CRITICAL and SERIOUS findings.** For each CRITICAL or SERIOUS finding that the synthesis agent wrote into the plan, present to the user:
+**Step 3: CRITICAL and SERIOUS findings.** For each CRITICAL or SERIOUS finding that the synthesis agent wrote into the plan, use **AskUserQuestion**:
 
 "[Finding summary — source agent(s)]. The synthesis agent applied this to the plan. How should we handle it?"
 - **Accept** — keep the change as-is
@@ -320,7 +321,7 @@ After synthesis, read the synthesis summary and the enhanced plan. Collect ALL f
 **Step 4: MINOR findings as a batch.** Present all MINOR findings together:
 
 **AskUserQuestion:** "N MINOR findings were applied to the plan by synthesis. Review individually, or batch-accept?"
-- **Batch-accept**: Keep all. No further action.
+- **Batch-accept**: Keep all (record why if the user gives a reason — e.g., "all cosmetic" or "out of scope for this iteration").
 - **Review individually**: Present each with the same options as CRITICAL/SERIOUS.
 
 **Step 5: Apply.** Update the plan with all accepted/modified findings. Remove any rejected findings. Record the user's reasoning for all non-trivial decisions.
@@ -333,12 +334,65 @@ After synthesis, challenge the enhanced plan with three different model provider
 
 ### Step 1: Launch Red Team via 3 Providers (parallel)
 
-Red team the plan with ALL THREE model providers in parallel for maximum coverage:
+Launch all three providers in parallel. Each reviews independently — no provider reads another's critique. This maximizes diversity of perspective (reading prior critiques anchors models and reduces independent insight). Deduplication happens at triage.
 
-**Provider 1 — Gemini (via PAL):**
+**Runtime detection:** For Gemini and OpenAI providers, detect which dispatch method is available. Check once per session; if multiple options exist for a provider, ask the user which they prefer (e.g., `clink gemini` for direct file access, or `pal chat` with a specific model like `gemini-3.1-pro-preview`).
+
+```bash
+which gemini 2>/dev/null && echo "GEMINI_CLI=available" || echo "GEMINI_CLI=not_available"
+which codex 2>/dev/null && echo "CODEX_CLI=available" || echo "CODEX_CLI=not_available"
+# PAL: check if mcp__pal__chat is available as a tool
+```
+
+**Provider 1 — Gemini:**
+
+*If Gemini CLI is available* — use `clink` (direct file access, richer analysis):
+```
+mcp__pal__clink:
+  cli_name: gemini
+  role: codereviewer
+  prompt: "You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate.
+
+Read the enhanced plan and its synthesis summary. Then identify:
+1. **Unexamined assumptions** — What does the plan take for granted?
+2. **Architecture risks** — Where could the technical approach fail at scale or under pressure?
+3. **Missing steps** — What implementation work is implied but not planned?
+4. **Dependency risks** — What external factors could derail the plan?
+5. **Overengineering** — Where is the plan more complex than necessary?
+6. **Contradictions** — Do the research findings conflict with each other or with the plan?
+
+Be specific. Reference plan sections by name. Rate each finding:
+- CRITICAL — Plan will fail or produce wrong outcome if not addressed
+- SERIOUS — Significant risk that should be addressed before implementation
+- MINOR — Worth noting for awareness
+
+Plan file and synthesis summary:"
+  absolute_file_paths: [
+    "<plan_path>",
+    ".workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md"
+  ]
+```
+
+*If no Gemini CLI, or user prefers a specific model* — use `pal chat`:
 ```
 mcp__pal__chat:
   model: [latest highest-end Gemini model, e.g. gemini-3.1-pro-preview — NOT gemini-2.5-pro]
+  prompt: "[same prompt as above]"
+  absolute_file_paths: [
+    "<plan_path>",
+    ".workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md"
+  ]
+```
+
+After receiving the response (from either method), write it to: `.workflows/deepen-plan/<plan-stem>/agents/run-<N>/red-team--gemini.md`
+
+**Provider 2 — OpenAI:**
+
+*If Codex CLI is available* — use `clink` (direct file access, richer analysis):
+```
+mcp__pal__clink:
+  cli_name: codex
+  role: codereviewer
   prompt: "You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate.
 
 Read the enhanced plan and its synthesis summary. Then identify:
@@ -360,55 +414,27 @@ Plan file and synthesis summary:"
     ".workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md"
   ]
 ```
-Write response to: `.workflows/deepen-plan/<plan-stem>/agents/run-<N>/red-team--gemini.md`
 
-**Provider 2 — OpenAI (via PAL):**
-
-Run after Gemini completes so it can read the prior critique and avoid duplication:
-
+*If no Codex CLI, or user prefers a specific model* — use `pal chat`:
 ```
 mcp__pal__chat:
   model: [latest highest-end OpenAI model, e.g. gpt-5.4-pro — NOT gpt-5.4 or gpt-5.2-pro]
-  prompt: "You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate.
-
-IMPORTANT: A Gemini model has already reviewed this plan. Read their critique first to avoid duplicating findings. Focus on what they MISSED.
-
-Prior critique: .workflows/deepen-plan/<plan-stem>/agents/run-<N>/red-team--gemini.md
-
-Read the enhanced plan and its synthesis summary. Then identify:
-1. **Unexamined assumptions** — What does the plan take for granted?
-2. **Architecture risks** — Where could the technical approach fail at scale or under pressure?
-3. **Missing steps** — What implementation work is implied but not planned?
-4. **Dependency risks** — What external factors could derail the plan?
-5. **Overengineering** — Where is the plan more complex than necessary?
-6. **Contradictions** — Do the research findings conflict with each other or with the plan?
-
-Be specific. Reference plan sections by name. Rate each finding:
-- CRITICAL — Plan will fail or produce wrong outcome if not addressed
-- SERIOUS — Significant risk that should be addressed before implementation
-- MINOR — Worth noting for awareness
-
-Plan file and synthesis summary:"
+  prompt: "[same prompt as above]"
   absolute_file_paths: [
     "<plan_path>",
     ".workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md"
   ]
 ```
-Write response to: `.workflows/deepen-plan/<plan-stem>/agents/run-<N>/red-team--openai.md`
+
+After receiving the response (from either method), write it to: `.workflows/deepen-plan/<plan-stem>/agents/run-<N>/red-team--openai.md`
 
 **Provider 3 — Claude Opus (via Task subagent, NOT PAL):**
 
-Run in parallel with OpenAI (after Gemini completes). Do NOT use PAL for Claude — use a Task subagent instead (direct file access, no token relay overhead):
+Do NOT use PAL for Claude — use a Task subagent instead (direct file access, no token relay overhead):
 
 ```
 Task general-purpose (run_in_background: true): "
 You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate. Approach this adversarially — assume the plan has weaknesses and find them.
-
-IMPORTANT: Other models have already reviewed this plan. Read their critiques to avoid duplicating findings. Focus on what they MISSED.
-
-Prior critiques:
-- .workflows/deepen-plan/<plan-stem>/agents/run-<N>/red-team--gemini.md
-- .workflows/deepen-plan/<plan-stem>/agents/run-<N>/red-team--openai.md
 
 Read the enhanced plan at: <plan_path>
 Read the synthesis summary at: .workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md
@@ -432,7 +458,7 @@ After writing the file, return ONLY a 2-3 sentence summary.
 "
 ```
 
-**Execution order:** Launch Gemini first. Once Gemini completes, launch OpenAI and Claude Opus in parallel (both can read Gemini's critique; Opus can also read OpenAI's if it finishes first).
+**Execution:** Launch all three in a single message (Gemini and OpenAI as parallel MCP calls, Opus as a background Task). Wait for all to complete before proceeding to Step 2.
 
 **If PAL MCP is not available:** Run only the Claude Opus Task subagent (Provider 3 above). The red team will have a single perspective instead of three, but this is an acceptable fallback.
 
@@ -451,7 +477,7 @@ For each CRITICAL or SERIOUS item, present to the user via **AskUserQuestion**:
 
 Apply the user's decision to the plan file. **Include the user's stated reasoning** — not just "disagreed" but *why* (e.g., "Disagreed: user noted the plan already handles this via the retry middleware in Phase 3"). The rationale is more valuable than the verdict — it prevents future sessions from relitigating settled decisions.
 
-**Any CRITICAL items the user defers MUST appear in the Phase 6 report.** The work skill needs to know about unresolved challenges before implementation begins.
+**Any CRITICAL items the user defers MUST appear in the Phase 6 report.** The `/compound:work` command needs to know about unresolved challenges before implementation begins.
 
 ### Step 3: Surface MINOR Findings
 
@@ -461,7 +487,7 @@ If MINOR findings exist, present them as a batch:
 
 **AskUserQuestion:** "N MINOR findings remain from red team review. Review individually, or batch-accept as acknowledged?"
 
-- **Batch-accept**: Note all as "acknowledged" in the resolution summary. No plan changes needed.
+- **Batch-accept**: Note all as "acknowledged" in the resolution summary (record the user's reasoning if given). No plan changes needed.
 - **Review individually**: Present each MINOR finding via AskUserQuestion with the same options as CRITICAL/SERIOUS items.
 
 ## Phase 5: Recovery (Resume After Compaction)
