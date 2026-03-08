@@ -7,62 +7,10 @@
 # Usage: ./audit-trail-bloat.sh <plan-file-path> <output-file-path>
 
 set -euo pipefail
+source "$(dirname "$0")/lib.sh"
 
-# --- Input validation ---
-if [[ $# -ne 2 ]]; then
-  echo "status: error" >&2
-  echo "Usage: $0 <plan-file-path> <output-file-path>" >&2
-  exit 1
-fi
-
-plan_file="$1"
-output_file="$2"
-
-if [[ ! -f "$plan_file" ]]; then
-  echo "status: error" >&2
-  echo "Plan file not found: $plan_file" >&2
-  exit 1
-fi
-
-output_dir="$(cd "$(dirname "$output_file")" 2>/dev/null && pwd -P)" || {
-  echo "status: error" >&2
-  echo "Output directory does not exist: $(dirname "$output_file")" >&2
-  exit 1
-}
-output_file="$output_dir/$(basename "$output_file")"
-tmp_file="${output_file}.tmp"
-
+validate_inputs "$@"
 start_time="$(date +%s)"
-
-# --- Helper: get section heading for a line number ---
-get_section_heading() {
-  local file="$1"
-  local target_line="$2"
-  local heading=""
-  local line_num=0
-  local in_fence=false
-  while IFS= read -r line; do
-    line_num=$((line_num + 1))
-    if [[ "$line" =~ ^'```' ]]; then
-      if [[ "$in_fence" = true ]]; then
-        in_fence=false
-      else
-        in_fence=true
-      fi
-    fi
-    if [[ "$in_fence" = false ]] && [[ "$line" =~ ^#{1,6}[[:space:]] ]]; then
-      heading="$line"
-    fi
-    if [[ "$line_num" -eq "$target_line" ]]; then
-      break
-    fi
-  done < "$file"
-  if [[ -n "$heading" ]]; then
-    echo "$heading"
-  else
-    echo "(before first heading)"
-  fi
-}
 
 # --- Detection logic ---
 findings=""
@@ -316,35 +264,7 @@ elapsed=$((end_time - start_time))
   echo "- Check completed in: ${elapsed} seconds"
 } > "$tmp_file"
 
-# Truncation check: cap at 150-200 lines
-line_count="$(wc -l < "$tmp_file" | tr -d ' ')"
-if [[ "$line_count" -gt 150 ]]; then
-  # Strategy: preserve CRITICAL and SERIOUS, truncate MINOR findings
-  {
-    # Keep the header (first 4 lines: status, blank, ## Findings, blank)
-    head -n 4 "$tmp_file"
-    # Extract CRITICAL findings
-    awk '/^### \[CRITICAL\]/,/^$/' "$tmp_file"
-    # Extract SERIOUS findings
-    awk '/^### \[SERIOUS\]/,/^$/' "$tmp_file"
-    echo ""
-    echo "Output truncated at 150 lines. $minor_count MINOR findings omitted -- see full analysis for details."
-    echo ""
-    # Statistics and Summary (last ~10 lines)
-    grep -n '^## Statistics' "$tmp_file" | head -1 | while IFS=: read -r stat_line _rest; do
-      tail -n +"$stat_line" "$tmp_file"
-    done
-  } > "${tmp_file}.trunc"
-
-  trunc_count="$(wc -l < "${tmp_file}.trunc" | tr -d ' ')"
-  if [[ "$trunc_count" -gt 200 ]]; then
-    head -n 190 "${tmp_file}.trunc" > "${tmp_file}.trunc2"
-    echo "" >> "${tmp_file}.trunc2"
-    echo "Output truncated at 190 lines. Additional findings omitted." >> "${tmp_file}.trunc2"
-    mv "${tmp_file}.trunc2" "${tmp_file}.trunc"
-  fi
-  mv "${tmp_file}.trunc" "$tmp_file"
-fi
+truncate_output
 
 mv "$tmp_file" "$output_file"
 exit 0

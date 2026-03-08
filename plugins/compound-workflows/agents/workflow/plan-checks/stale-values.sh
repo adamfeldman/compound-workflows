@@ -7,63 +7,10 @@
 # Usage: ./stale-values.sh <plan-file-path> <output-file-path>
 
 set -euo pipefail
+source "$(dirname "$0")/lib.sh"
 
-# --- Input validation ---
-if [[ $# -ne 2 ]]; then
-  echo "status: error" >&2
-  echo "Usage: $0 <plan-file-path> <output-file-path>" >&2
-  exit 1
-fi
-
-plan_file="$1"
-output_file="$2"
-
-if [[ ! -f "$plan_file" ]]; then
-  echo "status: error" >&2
-  echo "Plan file not found: $plan_file" >&2
-  exit 1
-fi
-
-output_dir="$(cd "$(dirname "$output_file")" 2>/dev/null && pwd -P)" || {
-  echo "status: error" >&2
-  echo "Output directory does not exist: $(dirname "$output_file")" >&2
-  exit 1
-}
-output_file="$output_dir/$(basename "$output_file")"
-tmp_file="${output_file}.tmp"
-
+validate_inputs "$@"
 start_time="$(date +%s)"
-
-# --- Helper: get current section heading for a line number ---
-# Tracks code fences to avoid treating shell comments as markdown headings
-get_section_heading() {
-  local file="$1"
-  local target_line="$2"
-  local heading=""
-  local line_num=0
-  local in_fence=false
-  while IFS= read -r line; do
-    line_num=$((line_num + 1))
-    if [[ "$line" =~ ^'```' ]]; then
-      if [[ "$in_fence" = true ]]; then
-        in_fence=false
-      else
-        in_fence=true
-      fi
-    fi
-    if [[ "$in_fence" = false ]] && [[ "$line" =~ ^#{1,6}[[:space:]] ]]; then
-      heading="$line"
-    fi
-    if [[ "$line_num" -eq "$target_line" ]]; then
-      break
-    fi
-  done < "$file"
-  if [[ -n "$heading" ]]; then
-    echo "$heading"
-  else
-    echo "(before first heading)"
-  fi
-}
 
 # --- Detection logic ---
 findings=""
@@ -142,8 +89,9 @@ if [[ "$has_constants" = true ]]; then
       if echo "$line" | grep -Fq "$label"; then
         # Extract numbers near the label
         numbers="$(echo "$line" | grep -oE '[0-9]+' || true)"
-        for num in $numbers; do
-          if [[ "$num" != "$expected" ]] && [[ ${#num} -ge ${#expected} || ${#num} -le ${#expected} ]]; then
+        while IFS= read -r num; do
+          [[ -z "$num" ]] && continue
+          if [[ "$num" != "$expected" ]]; then
             # Only flag if the number could plausibly be the same constant
             # (same order of magnitude: both 1-3 digits, both 4+ digits, etc.)
             expected_len="${#expected}"
@@ -162,7 +110,7 @@ if [[ "$has_constants" = true ]]; then
               serious_count=$((serious_count + 1))
             fi
           fi
-        done
+        done <<< "$numbers"
       fi
     done < "$plan_file"
     idx=$((idx + 1))
@@ -210,7 +158,8 @@ else
   if [[ -s "$label_data_file" ]]; then
     # Get unique labels
     unique_labels="$(cut -f1 "$label_data_file" | sort -u)"
-    for label in $unique_labels; do
+    while IFS= read -r label; do
+      [[ -z "$label" ]] && continue
       # Get all distinct values for this label
       values="$(grep -F "	" "$label_data_file" | awk -F'\t' -v lbl="$label" '$1 == lbl { print $2 }' | sort -u)"
       value_count="$(echo "$values" | wc -l | tr -d ' ')"
@@ -248,7 +197,7 @@ else
         finding_count=$((finding_count + 1))
         serious_count=$((serious_count + 1))
       fi
-    done
+    done <<< "$unique_labels"
   fi
 fi
 
@@ -275,17 +224,7 @@ elapsed=$((end_time - start_time))
   echo "- Check completed in: ${elapsed} seconds"
 } > "$tmp_file"
 
-# Truncation check on tmp_file
-line_count="$(wc -l < "$tmp_file" | tr -d ' ')"
-if [[ "$line_count" -gt 150 ]]; then
-  # Keep header (status line + Findings header) and Summary, truncate middle
-  head -n 140 "$tmp_file" > "${tmp_file}.trunc"
-  echo "" >> "${tmp_file}.trunc"
-  echo "Output truncated at 140 lines. Additional findings omitted -- see full analysis for details." >> "${tmp_file}.trunc"
-  echo "" >> "${tmp_file}.trunc"
-  tail -n 5 "$tmp_file" >> "${tmp_file}.trunc"
-  mv "${tmp_file}.trunc" "$tmp_file"
-fi
+truncate_output
 
 mv "$tmp_file" "$output_file"
 exit 0

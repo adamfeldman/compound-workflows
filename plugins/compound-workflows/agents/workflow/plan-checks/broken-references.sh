@@ -7,30 +7,9 @@
 # Usage: ./broken-references.sh <plan-file-path> <output-file-path>
 
 set -euo pipefail
+source "$(dirname "$0")/lib.sh"
 
-# --- Input validation ---
-if [[ $# -ne 2 ]]; then
-  echo "status: error" >&2
-  echo "Usage: $0 <plan-file-path> <output-file-path>" >&2
-  exit 1
-fi
-
-plan_file="$1"
-output_file="$2"
-
-if [[ ! -f "$plan_file" ]]; then
-  echo "status: error" >&2
-  echo "Plan file not found: $plan_file" >&2
-  exit 1
-fi
-
-output_dir="$(cd "$(dirname "$output_file")" 2>/dev/null && pwd -P)" || {
-  echo "status: error" >&2
-  echo "Output directory does not exist: $(dirname "$output_file")" >&2
-  exit 1
-}
-output_file="$output_dir/$(basename "$output_file")"
-tmp_file="${output_file}.tmp"
+validate_inputs "$@"
 
 # Resolve project root (git root or plan file's directory as fallback)
 project_root="$(cd "$(dirname "$plan_file")" && git rev-parse --show-toplevel 2>/dev/null)" || {
@@ -38,37 +17,6 @@ project_root="$(cd "$(dirname "$plan_file")" && git rev-parse --show-toplevel 2>
 }
 
 start_time="$(date +%s)"
-
-# --- Helper: get section heading for a line number ---
-# Tracks code fences to avoid treating shell comments as markdown headings
-get_section_heading() {
-  local file="$1"
-  local target_line="$2"
-  local heading=""
-  local line_num=0
-  local in_fence=false
-  while IFS= read -r line; do
-    line_num=$((line_num + 1))
-    if [[ "$line" =~ ^'```' ]]; then
-      if [[ "$in_fence" = true ]]; then
-        in_fence=false
-      else
-        in_fence=true
-      fi
-    fi
-    if [[ "$in_fence" = false ]] && [[ "$line" =~ ^#{1,6}[[:space:]] ]]; then
-      heading="$line"
-    fi
-    if [[ "$line_num" -eq "$target_line" ]]; then
-      break
-    fi
-  done < "$file"
-  if [[ -n "$heading" ]]; then
-    echo "$heading"
-  else
-    echo "(before first heading)"
-  fi
-}
 
 # --- Build reference index ---
 # Collect all defined targets in the plan
@@ -243,7 +191,20 @@ while IFS= read -r line; do
       # Strip backticks
       ref_path="$(echo "$file_ref" | tr -d '`')"
       # Skip URLs, protocol references, and glob patterns
-      if echo "$ref_path" | grep -qE '(https?://|ftp://|\*|\.\./)'; then
+      if echo "$ref_path" | grep -qE '(https?://|ftp://|\*)'; then
+        continue
+      fi
+      # Flag ../ paths as suspicious instead of silently skipping
+      if echo "$ref_path" | grep -qF '../'; then
+        section="$(get_section_heading "$plan_file" "$line_num")"
+        echo "### [MINOR] Suspicious path traversal reference
+- **Check:** broken-references
+- **Location:** $section
+- **Description:** Reference contains \`../\` path traversal: \`$ref_path\`
+- **Suggested fix:** Use a path relative to the project root instead of relative parent traversal
+" >> "$findings_file"
+        finding_count=$((finding_count + 1))
+        minor_count=$((minor_count + 1))
         continue
       fi
       # Skip if it looks like a namespace or command reference (contains :)
@@ -303,33 +264,7 @@ elapsed=$((end_time - start_time))
   echo "- Check completed in: ${elapsed} seconds"
 } > "$tmp_file"
 
-# Truncation check: cap at 150 lines, preserve CRITICAL/SERIOUS
-line_count="$(wc -l < "$tmp_file" | tr -d ' ')"
-if [[ "$line_count" -gt 150 ]]; then
-  # Extract CRITICAL and SERIOUS findings, drop MINOR to fit
-  {
-    # Header: status line
-    head -n 4 "$tmp_file"
-    # All CRITICAL and SERIOUS findings
-    awk '/^### \[CRITICAL\]/,/^$/' "$tmp_file"
-    awk '/^### \[SERIOUS\]/,/^$/' "$tmp_file"
-    echo ""
-    echo "Output truncated at 150 lines. $minor_count additional MINOR findings omitted -- see full analysis for details."
-    echo ""
-    # Summary (last 4 lines)
-    tail -n 4 "$tmp_file"
-  } > "${tmp_file}.trunc"
-  # Final truncation if still too long
-  if [[ "$(wc -l < "${tmp_file}.trunc" | tr -d ' ')" -gt 200 ]]; then
-    head -n 190 "${tmp_file}.trunc" > "${tmp_file}.trunc2"
-    echo "" >> "${tmp_file}.trunc2"
-    echo "Output truncated at 190 lines. Additional findings omitted." >> "${tmp_file}.trunc2"
-    echo "" >> "${tmp_file}.trunc2"
-    tail -n 4 "$tmp_file" >> "${tmp_file}.trunc2"
-    mv "${tmp_file}.trunc2" "${tmp_file}.trunc"
-  fi
-  mv "${tmp_file}.trunc" "$tmp_file"
-fi
+truncate_output
 
 mv "$tmp_file" "$output_file"
 exit 0
