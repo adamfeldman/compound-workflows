@@ -6,6 +6,9 @@
 # Working state (disk-persisted agent outputs)
 .workflows/
 
+# Archive (pre-plugin personal commands)
+.archive/
+
 # Editor
 *.code-workspace
 
