@@ -176,11 +176,18 @@ If "Customize": list all available agents from `plugins/compound-workflows/agent
 
 ## Step 6: Create Directories
 
-```bash
-mkdir -p docs/brainstorms/ docs/plans/ docs/solutions/ docs/decisions/ resources/ memory/ .workflows/
-```
+Check and create all required directories. Report status for each one:
 
-Report which directories were created vs. already existed.
+```bash
+for d in docs/brainstorms docs/plans docs/solutions docs/decisions resources memory .workflows; do
+  if [ -d "$d" ]; then
+    echo "$d: exists"
+  else
+    mkdir -p "$d"
+    echo "$d: created"
+  fi
+done
+```
 
 ### Project Structure Walkthrough
 
