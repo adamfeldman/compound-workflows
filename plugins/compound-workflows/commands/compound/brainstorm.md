@@ -51,7 +51,7 @@ Return ONLY a 2-3 sentence summary.
 
 Task context-researcher (run_in_background: true): "
 You are a context researcher specializing in synthesizing project knowledge across documentation, solutions, brainstorms, plans, and institutional memory. Search ALL project knowledge for context related to: <feature_description>
-Search locations: docs/solutions/, docs/brainstorms/, docs/plans/, memory/, Resources/
+Search locations: docs/solutions/, docs/brainstorms/, docs/plans/, memory/, resources/
 Tag each result by source type ([SOLUTION], [BRAINSTORM], [PLAN], [MEMORY], [RESOURCE]) and validation status.
 Flag staleness risks for older documents. Note cross-references between documents.
 Highlight any prior brainstorms on the same or adjacent topics — these are especially relevant.

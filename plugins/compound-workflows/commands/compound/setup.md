@@ -82,9 +82,11 @@ ls ~/.claude/plugins/cache/*/compound-engineering 2>/dev/null
 
 **If compound-engineering is found:** Warn the user:
 
-> **Warning: compound-engineering detected.** compound-workflows supersedes it and bundles its own agents and skills. Having both installed may cause duplicate agent dispatches during reviews and plan deepening. **Recommendation:** Uninstall compound-engineering to avoid duplicate agents.
+> **Warning: compound-engineering detected.** compound-workflows supersedes it and bundles its own agents and skills. Having both installed may cause duplicate agent dispatches during reviews and plan deepening.
 
-Use **AskUserQuestion** to confirm whether the user wants to continue setup or uninstall first.
+Use **AskUserQuestion**: "compound-engineering is installed alongside compound-workflows. Uninstall it to avoid duplicate agents?"
+- **Yes** — run `/plugin uninstall compound-engineering`, then continue setup
+- **Continue anyway** — proceed with both installed (not recommended)
 
 ## Step 3: Auto-Detect Stack
 
@@ -175,18 +177,53 @@ If "Customize": list all available agents from `plugins/compound-workflows/agent
 ## Step 6: Create Directories
 
 ```bash
-mkdir -p docs/brainstorms/ docs/plans/ docs/solutions/ .workflows/
+mkdir -p docs/brainstorms/ docs/plans/ docs/solutions/ docs/decisions/ resources/ memory/ .workflows/
 ```
 
 Report which directories were created vs. already existed.
 
-### .workflows/ and .gitignore
+### Project Structure Walkthrough
 
-Recommend **committing `.workflows/`** to the repo. It contains disk-persisted agent outputs (research, reviews, red team critiques) that provide full traceability for how decisions were made. Without it, the reasoning behind plans and brainstorms is lost.
+After creating directories, explain the folder structure to the user:
+
+Use **AskUserQuestion**:
+
+```
+question: "Here's how compound-workflows organizes your project:"
+header: "Project Structure"
+```
+
+Present this overview:
+
+> **`docs/`** — Everything your team produces through the workflow:
+> - `brainstorms/` — Output from `/compound:brainstorm`. Exploratory thinking, evaluated alternatives, design decisions.
+> - `plans/` — Output from `/compound:plan`. Implementation plans with research-backed steps.
+> - `solutions/` — Output from `/compound:compound`. Verified fixes and proven patterns — your team's institutional knowledge.
+> - `decisions/` — Decision records. When a brainstorm's main output is a choice between alternatives rather than a design to implement.
+>
+> **`resources/`** — External reference material you bring into the project. API docs, specs, research papers, architecture references — anything that gives Claude context. Organize however you like: folders by topic, or files at the root. The context-researcher searches this recursively.
+>
+> **`memory/`** — Stable project facts that persist across sessions. Project context, glossary, key decisions. Updated over time as the project evolves.
+>
+> **`.workflows/`** — Disk-persisted agent outputs (research, reviews, red team critiques). Agents write here instead of returning results into your conversation, so context stays lean and you can run 15+ agents without exhaustion. These files persist across sessions and compactions — commit them for full traceability of how decisions were made.
+>
+> **Workflow:** `brainstorm → plan → [deepen-plan] → work → review → compound`
+>
+> Each step produces documents that feed the next. Start with `/compound:brainstorm` to explore an idea, or `/compound:plan` if you already know what to build. Solutions from `/compound:compound` feed future brainstorms.
+>
+> **Commands:** Type `/compound:` to see all available commands. The short form (e.g. `/compound:brainstorm`) works the same as the full form (`/compound-workflows:compound:brainstorm`).
+
+Then ask:
+
+Use **AskUserQuestion**: "Any questions about the structure, or ready to continue?"
+- **Continue** — proceed to Step 7
+- **Questions** — answer, then proceed
+
+### .workflows/ and .gitignore
 
 If `.workflows/` is in `.gitignore`, inform the user:
 
-> **Note:** `.workflows/` is currently gitignored. We recommend tracking it — agent research outputs provide traceability for how plans and decisions were reached. Remove `.workflows/` from `.gitignore` to preserve this history.
+> **Note:** `.workflows/` is currently gitignored. We recommend committing it — agent research outputs provide traceability for how plans and decisions were reached. Remove `.workflows/` from `.gitignore` to preserve this history.
 
 ## Step 7: Write Config Files
 

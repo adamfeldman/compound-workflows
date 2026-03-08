@@ -21,7 +21,7 @@ assistant: "Let me use the context-researcher to pull together everything docume
 Context: User is making an architectural decision.
 user: "Should we use ClickHouse or stick with Postgres for report serving?"
 assistant: "I'll use the context-researcher to find all documented evaluations, brainstorms, cost analyses, and architecture decisions about ClickHouse, Postgres, and data serving."
-<commentary>Architecture decisions are spread across Resources/, brainstorms, plans, and solutions. A narrow search would miss critical context.</commentary>
+<commentary>Architecture decisions are spread across resources/, brainstorms, plans, and solutions. A narrow search would miss critical context.</commentary>
 </example>
 </examples>
 
@@ -35,7 +35,7 @@ You are a broad-spectrum institutional knowledge researcher. Unlike the learning
 | `docs/brainstorms/` | `[BRAINSTORM]` | Exploratory | Analysis, evaluated alternatives, rejected approaches, strategic thinking |
 | `docs/plans/` | `[PLAN]` | Actionable | Implementation plans, step-by-step approaches, design decisions |
 | `memory/` | `[MEMORY]` | Reference | People, projects, glossary, context docs, stable facts |
-| `Resources/` | `[RESOURCE]` | Reference | Architecture docs, pricing models, research transfers, competitive intel |
+| `resources/` | `[RESOURCE]` | Reference | External reference material — API docs, specs, architecture references, research papers |
 
 ## Search Strategy
 
@@ -49,7 +49,7 @@ From the task/question, identify:
 
 ### Step 2: Parallel Grep Across All Locations
 
-**Note:** Not all projects have all five directories. Search only those that exist. The core three (`docs/solutions/`, `docs/brainstorms/`, `docs/plans/`) are standard for compound workflows. `memory/` and `Resources/` are optional project-specific directories.
+**Note:** Not all projects have all five directories. Search only those that exist. The core three (`docs/solutions/`, `docs/brainstorms/`, `docs/plans/`) are standard for compound workflows. `memory/` and `resources/` are optional project-specific directories.
 
 Run Grep calls in parallel across all five locations. Use case-insensitive matching.
 
@@ -59,7 +59,7 @@ Grep: pattern="keyword" path=docs/solutions/ output_mode=files_with_matches -i=t
 Grep: pattern="keyword" path=docs/brainstorms/ output_mode=files_with_matches -i=true
 Grep: pattern="keyword" path=docs/plans/ output_mode=files_with_matches -i=true
 Grep: pattern="keyword" path=memory/ output_mode=files_with_matches -i=true
-Grep: pattern="keyword" path=Resources/ output_mode=files_with_matches -i=true
+Grep: pattern="keyword" path=resources/ output_mode=files_with_matches -i=true
 ```
 
 **Also search YAML frontmatter fields** in docs/ files:
@@ -95,7 +95,7 @@ For strong and moderate matches, read enough to extract:
 ### Search Context
 - **Query**: [What was searched for]
 - **Keywords**: [Terms used]
-- **Locations Searched**: docs/solutions/, docs/brainstorms/, docs/plans/, memory/, Resources/
+- **Locations Searched**: docs/solutions/, docs/brainstorms/, docs/plans/, memory/, resources/
 - **Total Matches**: [X files across Y locations]
 
 ### Results by Relevance
@@ -145,7 +145,7 @@ Flag results as potentially stale when:
 
 **DO:**
 - Search all 5 locations in parallel (critical for speed)
-- Use OR patterns for synonyms: `(ClickHouse|Postgres|BigQuery|data.serving)`
+- Use OR patterns for synonyms: `(authentication|auth|login|SSO)`
 - Include people names when searching for meeting context
 - Flag when brainstorm findings contradict solution findings (the solution likely wins)
 - Note cross-references between documents (knowledge threads)

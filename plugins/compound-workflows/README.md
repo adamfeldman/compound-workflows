@@ -77,7 +77,7 @@ your-project/
 |   +-- solutions/       # Output from /compound:compound
 |   +-- decisions/       # Decision records (optional)
 +-- memory/              # Project memory files (optional)
-+-- Resources/           # Reference documents (optional)
++-- resources/           # External reference material (optional)
 +-- .workflows/          # Disk-persisted agent outputs (recommend committing for traceability)
 ```
 
