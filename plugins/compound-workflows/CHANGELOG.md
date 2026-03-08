@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.3] - 2026-03-07
+
+### Added
+
+- **Setup tutorial walkthrough** — Step 6 now explains the full project structure (docs/, resources/, memory/, .workflows/), the workflow cycle (brainstorm → plan → work → review → compound), and the `/compound:` command shorthand via AskUserQuestion
+- **`resources/` directory** created by `/compound:setup` — for external reference material (API docs, specs, research papers). Searched recursively by context-researcher.
+
+### Changed
+
+- **`Resources/` → `resources/`** — lowercase, consistent with other directories. Updated in context-researcher, brainstorm, and plugin README.
+- **context-researcher genericized** — removed project-specific descriptions and examples leaked from fork source
+
 ## [1.4.2] - 2026-03-07
 
 ### Changed
