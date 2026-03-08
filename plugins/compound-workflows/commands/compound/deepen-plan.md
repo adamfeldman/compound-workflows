@@ -41,7 +41,7 @@ If prior runs exist, increment the run number (e.g., if `run-2-manifest.json` ex
 mkdir -p .workflows/deepen-plan/<plan-stem>/agents/run-<N>
 ```
 
-**Check for interrupted current run:** If `.workflows/deepen-plan/<plan-stem>/manifest.json` exists AND its `status` is NOT `"synthesized"`, this may be an interrupted run. Skip to Phase 5 (Recovery).
+**Check for interrupted current run:** If `.workflows/deepen-plan/<plan-stem>/manifest.json` exists AND its `status` is NOT `"readiness_complete"`, this may be an interrupted run. Skip to Phase 5 (Recovery).
 
 Create `manifest.json` (the "current run" pointer):
 
@@ -56,6 +56,8 @@ Create `manifest.json` (the "current run" pointer):
   "agents": []
 }
 ```
+
+**Manifest status lifecycle:** `parsing` → `discovered` → `agents_planned` → `synthesized` → `readiness_checking` → `readiness_complete`. Recovery (Phase 5) uses this to determine where to resume.
 
 ## Phase 1: Parse Plan Structure
 
@@ -506,16 +508,67 @@ If `.workflows/deepen-plan/<plan-stem>/manifest.json` exists when this command s
 
 Tell the user: "Resuming deepen-plan run <N> from <timestamp>. X/Y agents completed. Re-launching Z agents."
 
+**Readiness-phase recovery:**
+- If manifest status is `readiness_checking`: check if readiness output files exist at `.workflows/plan-research/<plan-stem>/readiness/run-<N>/`. If `report.md` exists, skip check dispatch and go directly to consolidator dispatch (Phase 5.5 "If issues found" step 1). Otherwise, re-run all checks and reviewer from the start of Phase 5.5.
+- If manifest status is `readiness_complete`: skip to Phase 6.
+
+## Phase 5.5: Plan Readiness Check
+
+After all synthesis and red team edits are applied, verify the plan is work-ready. The command dispatches all checks directly (flat dispatch — same pattern as plan.md Phase 6.7).
+
+**Dispatch:**
+
+Set manifest status to `readiness_checking`.
+
+1. Read config from compound-workflows.md under the `## Plan Readiness` heading. Read flat keys (`plan_readiness_skip_checks`, `plan_readiness_provenance_expiry_days`, `plan_readiness_verification_source_policy`) and construct the parameter objects to pass to agents. Apply skip_checks filtering.
+2. Create output directory: `mkdir -p .workflows/plan-research/<plan-stem>/readiness/run-<N>/checks/`
+3. Run 3 mechanical check scripts in parallel (bash):
+   - `agents/workflow/plan-checks/stale-values.sh <plan-path> <output-dir>/checks/stale-values.md`
+   - `agents/workflow/plan-checks/broken-references.sh <plan-path> <output-dir>/checks/broken-references.md`
+   - `agents/workflow/plan-checks/audit-trail-bloat.sh <plan-path> <output-dir>/checks/audit-trail-bloat.md`
+4. If all 5 semantic passes are in skip_checks, skip the semantic agent dispatch entirely. Otherwise, dispatch 1 semantic checks agent (background Task):
+   - Agent: `agents/workflow/plan-checks/semantic-checks.md`
+   - Pass: plan file path, output path (`<output-dir>/checks/semantic-checks.md`), mode (`full`), skip_checks, provenance settings
+5. Wait for all checks to complete (3-minute timeout for scripts, 5-10 minutes for semantic agent). After timeout, remove any orphaned .tmp files: `rm -f <output-dir>/checks/*.tmp`. If rate limits are hit, retry with exponential backoff.
+6. Dispatch plan-readiness-reviewer (foreground Task):
+   - Agent: `agents/workflow/plan-checks/plan-readiness-reviewer.md`
+   - Pass: plan file path, plan stem, output directory (run-numbered), check output file paths, mode, config
+7. Show the reviewer's summary to the user: "Plan readiness check: [summary]"
+
+The readiness run number is the deepen-plan run number, not an independent counter. Pass the deepen-plan run number to the readiness dispatch.
+
+Keep Phase 5.5 focused on dispatch + response handling. The detailed logic lives in the check scripts and agent files.
+
+**If issues found:**
+
+1. Dispatch plan-consolidator (foreground Task). Agent: `agents/workflow/plan-checks/plan-consolidator.md`. Pass: plan file path, reviewer report path, consolidation report output path.
+2. Consolidator applies auto-fixes, then presents guardrailed items to user.
+3. After consolidation, re-run checks in `verify-only` mode: re-run all 3 mechanical scripts (type: mechanical), re-dispatch semantic agent with `mode: verify-only` (runs contradictions + underspecification only; skips unresolved-disputes, accretion, external-verification). Dispatch reviewer again.
+4. If verify finds new issues: present remaining findings to user directly.
+   User options: resolve now, defer to Open Questions, or dismiss.
+5. Show user: "Readiness check complete. N auto-fixes applied, M items resolved, K deferred."
+
+**If zero issues found:**
+
+Skip consolidator and re-verify. Show: "Plan readiness check: no issues found."
+
+**If reviewer fails:**
+
+Warn: "Readiness check failed — consider running again before starting work."
+
+Set manifest status to `readiness_complete`.
+
 ## Phase 6: Cleanup and Report
 
-After synthesis and red team challenge are complete:
+After synthesis, red team challenge, and plan readiness check are complete:
 
 1. Tell the user the plan has been enhanced
 2. Show a consolidated summary of all findings — both synthesis and red team — with final disposition (accepted, modified, rejected, deferred). **Every finding must have a disposition.** Nothing untriaged.
-3. **If any items were deferred (from synthesis OR red team):** Flag them explicitly with count by severity: "Note: N deferred items remain (X CRITICAL, Y SERIOUS, Z MINOR). `/compound:work` will surface these before execution."
-4. **Do NOT delete any working files.** All agent outputs, manifests, and synthesis files are retained.
-5. **Work readiness check:** Flag if any steps are oversized (20+ checkboxes) or share heavy reference data — the `/compound:work` orchestrator should split them into smaller issues or point subagents to the file path.
-6. Offer options:
+3. **Plan Readiness summary:** Include a "Plan Readiness" section reporting: total issues found by check type, auto-fixes applied by the consolidator, user decisions (resolved/deferred/dismissed), and any items deferred to Open Questions. If zero issues were found, state "Plan readiness check: no issues found."
+4. **If any items were deferred (from synthesis, red team, OR readiness):** Flag them explicitly with count by severity: "Note: N deferred items remain (X CRITICAL, Y SERIOUS, Z MINOR). `/compound:work` will surface these before execution."
+5. **Do NOT delete any working files.** All agent outputs, manifests, and synthesis files are retained.
+6. **Work readiness check:** Flag if any steps are oversized (20+ checkboxes) or share heavy reference data — the `/compound:work` orchestrator should split them into smaller issues or point subagents to the file path.
+7. Offer options:
    - **View diff**: `git diff <plan_path>`
    - **View full synthesis**: Read `.workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md`
    - **Start `/compound:work`**: Begin implementing (include any work-readiness flags)
