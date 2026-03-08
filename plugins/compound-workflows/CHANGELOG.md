@@ -2,37 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.4.3] - 2026-03-07
+## [1.5.0] - 2026-03-07
 
 ### Added
 
-- **Setup tutorial walkthrough** — Step 6 now explains the full project structure (docs/, resources/, memory/, .workflows/), the workflow cycle (brainstorm → plan → work → review → compound), and the `/compound:` command shorthand via AskUserQuestion
+- **Setup tutorial walkthrough** — Step 6 explains project structure (docs/, resources/, memory/, .workflows/), workflow cycle, `/compound:` command shorthand, and Workflow Instructions customization
 - **`resources/` directory** created by `/compound:setup` — for external reference material (API docs, specs, research papers). Searched recursively by context-researcher.
+- **Git repo prerequisite check** in `/compound:setup` — fails fast if not in a git repo
+- **Beads initialization offer** in `/compound:setup` — offers `bd init` if beads is installed but not initialized
+- **`.gitignore` management** in `/compound:setup` — offers to untrack `.workflows/`/`resources/`/`memory/`, ensures `compound-workflows.local.md` is gitignored
+- **Workflow Instructions** config section — plugin-specific overrides (red team focus areas, domain constraints, review emphasis) replacing generic "Project Context"
 
 ### Changed
 
+- **7 reference-only skills hidden from command palette** — added `user-invocable: false` to compound-docs, setup, brainstorming, disk-persist-agents, document-review, orchestrating-swarms, and agent-native-architecture
 - **`Resources/` → `resources/`** — lowercase, consistent with other directories. Updated in context-researcher, brainstorm, and plugin README.
 - **context-researcher genericized** — removed project-specific descriptions and examples leaked from fork source
-
-## [1.4.2] - 2026-03-07
-
-### Changed
-
-- **7 reference-only skills hidden from command palette** — added `user-invocable: false` to compound-docs, setup, brainstorming, disk-persist-agents, document-review, orchestrating-swarms, and agent-native-architecture. These are reference materials loaded by commands, not standalone workflows.
-
-## [1.4.1] - 2026-03-07
-
-### Added
-
-- **Git repo prerequisite check** in `/compound:setup` — fails fast if not in a git repo (worktrees, diffs, commits depend on it)
-- **Beads initialization offer** in `/compound:setup` — if `bd` is installed but not initialized in the project, offers to run `bd init`
+- **Setup directory check** covers all 7 directories with per-directory status reporting
 
 ### Fixed
 
+- **Install instructions** corrected to `/plugin marketplace add` + `/plugin install`
 - **Attribution** — copyright holder corrected to Every (matches upstream LICENSE), upstream URL fixed to EveryInc/compound-engineering-plugin
 - **Hallucinated fork version** `v2.35.2` removed — no such upstream release exists
-- **PAL MCP link** corrected to BeehiveInnovations/pal-mcp-server
-- **Beads link** corrected to steveyegge/beads
+- **PAL MCP and beads links** corrected
+- **Hardcoded dates** in work.md examples replaced with `YYYY-MM-DD`
+- **TodoWrite mode blocks** added to work.md section 2.2 and Phase 4 step 5
 
 ## [1.4.0] - 2026-03-07
 
