@@ -36,11 +36,6 @@ If beads (`bd`) is available:
    ```
    If any exist, warn the user: "N issues are still in_progress. Close or note them before compacting — you'll lose track of where you were otherwise."
 
-2. Sync beads:
-   ```bash
-   bd sync --flush-only
-   ```
-
 If beads is not available, skip this step.
 
 ## Step 3: Commit Check (pre-compound)
