@@ -2,6 +2,7 @@
 name: compound-docs
 description: Capture solved problems as categorized documentation with YAML frontmatter for fast lookup
 disable-model-invocation: true
+user-invocable: false
 allowed-tools:
   - Read # Parse conversation context
   - Write # Create resolution docs
