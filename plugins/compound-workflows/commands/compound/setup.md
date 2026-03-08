@@ -231,6 +231,10 @@ Workflow cycle:
 
 Commands: type /compound: to see all. The short form works:
   /compound:brainstorm = /compound-workflows:compound:brainstorm
+
+Customization: after setup, edit the "Workflow Instructions"
+  section in compound-workflows.md to add red team focus areas,
+  domain constraints, or review emphasis specific to this project.
 ```
 
 Then ask:
@@ -294,8 +298,13 @@ review_agents: [comma-separated list of configured review agents]
 plan_review_agents: [comma-separated list of research agents for plan deepening]
 depth: [standard|comprehensive|minimal]
 
-## Project Context
-[Add project-specific instructions here. These notes are available to all workflow commands.]
+## Workflow Instructions
+[Optional. Add instructions that apply to compound-workflows commands specifically.
+Examples:
+- Red team focus: "Always check for HIPAA compliance and multi-tenant data leakage"
+- Domain context: "This is a financial app — brainstorms should consider regulatory constraints"
+- Review emphasis: "Performance is critical — flag any N+1 queries or unbounded loops"
+General project instructions belong in CLAUDE.md or AGENTS.md, not here.]
 ```
 
 For `plan_review_agents`, use the research agents available in the plugin: `repo-research-analyst`, `best-practices-researcher`, `framework-docs-researcher`.
@@ -360,7 +369,8 @@ Ready to go:
   /compound:work        — execute a plan
   /compound:review      — review code changes
 
-Tip: Edit compound-workflows.md to add project-specific context.
+Tip: Edit the Workflow Instructions section in compound-workflows.md
+     to add red team focus areas, domain constraints, or review emphasis.
      Run /compound:setup anytime to reconfigure.
      Red team provider is chosen per-session based on available tools.
 ```
