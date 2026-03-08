@@ -17,7 +17,12 @@
         "name": "Adam Feldman"
       },
       "tags": ["compound-engineering", "workflow", "disk-persistence", "red-team", "beads", "knowledge-management"],
-      "source": "./plugins/compound-workflows"
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/adamfeldman/compound-workflows.git",
+        "path": "plugins/compound-workflows",
+        "ref": "v1.6.0"
+      }
     }
   ]
 }
