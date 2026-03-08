@@ -9,6 +9,9 @@
 # Archive (pre-plugin personal commands)
 .archive/
 
+# Claude memory (private workflow preferences)
+.claude/memory/
+
 # Editor
 *.code-workspace
 
