@@ -1,7 +1,7 @@
 ---
 title: "Plan Readiness Agents: plan-readiness-reviewer + plan-consolidator"
 type: feat
-status: active
+status: completed
 date: 2026-03-08
 origin: docs/brainstorms/2026-03-08-plan-readiness-agents-brainstorm.md
 ---
@@ -32,9 +32,9 @@ Re-verification loop capped at 1 cycle (reviewer → consolidator → verify-onl
 Create `plugins/compound-workflows/agents/workflow/plan-checks/` directory and 3 mechanical check shell scripts. These are actual bash scripts, not LLM agent .md files — mechanical checks are truly deterministic and do not require LLM reasoning.
 
 **Files to create:**
-- [ ] `plugins/compound-workflows/agents/workflow/plan-checks/stale-values.sh`
-- [ ] `plugins/compound-workflows/agents/workflow/plan-checks/broken-references.sh`
-- [ ] `plugins/compound-workflows/agents/workflow/plan-checks/audit-trail-bloat.sh`
+- [x] `plugins/compound-workflows/agents/workflow/plan-checks/stale-values.sh`
+- [x] `plugins/compound-workflows/agents/workflow/plan-checks/broken-references.sh`
+- [x] `plugins/compound-workflows/agents/workflow/plan-checks/audit-trail-bloat.sh`
 
 **Each shell script follows this structure:**
 
@@ -111,7 +111,7 @@ The first line of output MUST be `status: success` or `status: error` (if the sc
 Create a single semantic checks agent file that performs all 5 semantic analysis passes in one plan read. Bundling into 1 agent reduces dispatch count and avoids redundant plan reads.
 
 **File to create:**
-- [ ] `plugins/compound-workflows/agents/workflow/plan-checks/semantic-checks.md`
+- [x] `plugins/compound-workflows/agents/workflow/plan-checks/semantic-checks.md`
 
 **Frontmatter:**
 
@@ -179,7 +179,7 @@ The first line of output MUST be `status: success` or `status: error`. Location 
 ### Step 3: Create plan-readiness-reviewer agent (aggregator)
 
 **File to create:**
-- [ ] `plugins/compound-workflows/agents/workflow/plan-readiness-reviewer.md`
+- [x] `plugins/compound-workflows/agents/workflow/plan-readiness-reviewer.md`
 
 **Frontmatter:**
 
@@ -238,7 +238,7 @@ model: inherit
 ### Step 4: Create plan-consolidator agent
 
 **File to create:**
-- [ ] `plugins/compound-workflows/agents/workflow/plan-consolidator.md`
+- [x] `plugins/compound-workflows/agents/workflow/plan-consolidator.md`
 
 **Frontmatter:**
 
@@ -310,7 +310,7 @@ model: inherit
 ### Step 5: Integrate into plan.md
 
 **File to modify:**
-- [ ] `plugins/compound-workflows/commands/compound/plan.md`
+- [x] `plugins/compound-workflows/commands/compound/plan.md`
 
 **Changes:**
 
@@ -372,7 +372,7 @@ Proceed to Phase 7.
 ### Step 6: Integrate into deepen-plan.md
 
 **File to modify:**
-- [ ] `plugins/compound-workflows/commands/compound/deepen-plan.md`
+- [x] `plugins/compound-workflows/commands/compound/deepen-plan.md`
 
 **Changes:**
 
@@ -453,7 +453,7 @@ Set manifest status to `readiness_complete`.
 ### Step 7: Update setup.md
 
 **File to modify:**
-- [ ] `plugins/compound-workflows/commands/compound/setup.md`
+- [x] `plugins/compound-workflows/commands/compound/setup.md`
 
 **Changes:**
 
@@ -476,12 +476,12 @@ The setup command should explain each option briefly when writing the config. Th
 ### Step 8: Update registry and metadata
 
 **Files to modify:**
-- [ ] `plugins/compound-workflows/CLAUDE.md` — Update agent count (22 → 24), workflow agent count (3 → 5), add both agents to Agent Registry table, add `plan-checks/` to directory structure (note: 3 shell scripts + 1 semantic agent, not counted as standalone agents in registry), document plan_readiness config keys, update config reads for plan.md and deepen-plan.md
-- [ ] `plugins/compound-workflows/README.md` — Update component counts (22→24 agents in description and tables), add new agents to agent table
-- [ ] `plugins/compound-workflows/CHANGELOG.md` — Add v1.7.0 section with: "### Added" listing plan-readiness-reviewer, plan-consolidator, 3 mechanical check scripts, 1 semantic checks agent, plan_readiness config, Phase 6.7 in plan.md, Phase 5.5 in deepen-plan.md
-- [ ] `plugins/compound-workflows/.claude-plugin/plugin.json` — Bump version to 1.7.0 (MINOR: new agents). Update `description` field agent count (22→24)
-- [ ] `.claude-plugin/marketplace.json` — Bump version to 1.7.0, update `ref` field to `v1.7.0`
-- [ ] `plugins/compound-workflows/skills/disk-persist-agents/SKILL.md` — Add `readiness/` directory to the directory convention diagram with exact tree:
+- [x] `plugins/compound-workflows/CLAUDE.md` — Update agent count (22 → 24), workflow agent count (3 → 5), add both agents to Agent Registry table, add `plan-checks/` to directory structure (note: 3 shell scripts + 1 semantic agent, not counted as standalone agents in registry), document plan_readiness config keys, update config reads for plan.md and deepen-plan.md
+- [x] `plugins/compound-workflows/README.md` — Update component counts (22→24 agents in description and tables), add new agents to agent table
+- [x] `plugins/compound-workflows/CHANGELOG.md` — Add v1.7.0 section with: "### Added" listing plan-readiness-reviewer, plan-consolidator, 3 mechanical check scripts, 1 semantic checks agent, plan_readiness config, Phase 6.7 in plan.md, Phase 5.5 in deepen-plan.md
+- [x] `plugins/compound-workflows/.claude-plugin/plugin.json` — Bump version to 1.7.0 (MINOR: new agents). Update `description` field agent count (22→24)
+- [x] `.claude-plugin/marketplace.json` — Bump version to 1.7.0, update `ref` field to `v1.7.0`
+- [x] `plugins/compound-workflows/skills/disk-persist-agents/SKILL.md` — Add `readiness/` directory to the directory convention diagram with exact tree:
   ```
   plan-research/<plan-stem>/readiness/
   ├── checks/          # Individual check outputs
@@ -489,7 +489,7 @@ The setup command should explain each option briefly when writing the config. Th
   └── consolidation-report.md
   ```
   And for deepen-plan: `readiness/run-<N>/` variant with the same structure.
-- [ ] `AGENTS.md` — Update agent count, add QA patterns for new files
+- [x] `AGENTS.md` — Update agent count, add QA patterns for new files
 
 **Agent Registry entries to add:**
 
@@ -524,24 +524,24 @@ Add to Config Files section:
 
 Run the AGENTS.md QA process (4 parallel agent checks):
 
-- [ ] Pattern recognition specialist — verify new agents follow established conventions
-- [ ] Code simplicity reviewer — verify no over-engineering in check modules
-- [ ] Architecture strategist — verify integration doesn't break existing flows
-- [ ] Security sentinel — verify no plan-file corruption paths
+- [x] Pattern recognition specialist — verify new agents follow established conventions
+- [x] Code simplicity reviewer — verify no over-engineering in check modules
+- [x] Architecture strategist — verify integration doesn't break existing flows
+- [x] Security sentinel — verify no plan-file corruption paths
 
 Also manually verify:
-- [ ] Each mechanical check script has correct metadata comments (name, type, description, verify_only)
-- [ ] Semantic checks agent has correct frontmatter and all 5 analysis passes
-- [ ] Reviewer agent correctly handles input file paths (does not discover or dispatch)
-- [ ] Consolidator agent has preservation rule and pass-through rule
-- [ ] plan.md Phase 6.7 is correctly placed between 6.5 and 7
-- [ ] deepen-plan.md Phase 5.5 is correctly placed and manifest statuses added
-- [ ] setup.md writes plan_readiness config with correct defaults
-- [ ] All counts match across CLAUDE.md, README.md, AGENTS.md
-- [ ] Version is consistent across plugin.json and marketplace.json
-- [ ] Smoke test: run the full readiness check pipeline on a test plan and verify it produces a valid report (all check scripts execute, semantic agent completes, reviewer aggregates, output matches expected template)
-- [ ] Create test fixture plans (one with stale values, one with broken references, one with audit-trail bloat) and verify each script produces correct output on its fixture
-- [ ] Verify AskUserQuestion works from a foreground Task agent (the consolidator depends on this for user interaction)
+- [x] Each mechanical check script has correct metadata comments (name, type, description, verify_only)
+- [x] Semantic checks agent has correct frontmatter and all 5 analysis passes
+- [x] Reviewer agent correctly handles input file paths (does not discover or dispatch)
+- [x] Consolidator agent has preservation rule and pass-through rule
+- [x] plan.md Phase 6.7 is correctly placed between 6.5 and 7
+- [x] deepen-plan.md Phase 5.5 is correctly placed and manifest statuses added
+- [x] setup.md writes plan_readiness config with correct defaults
+- [x] All counts match across CLAUDE.md, README.md, AGENTS.md
+- [x] Version is consistent across plugin.json and marketplace.json
+- [x] Smoke test: run the full readiness check pipeline on a test plan and verify it produces a valid report (all check scripts execute, semantic agent completes, reviewer aggregates, output matches expected template)
+- [x] Create test fixture plans (one with stale values, one with broken references, one with audit-trail bloat) and verify each script produces correct output on its fixture
+- [x] Verify AskUserQuestion works from a foreground Task agent (the consolidator depends on this for user interaction)
 
 ## Key Design Decisions
 
