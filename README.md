@@ -15,7 +15,8 @@ Self-contained compound engineering workflows for [Claude Code](https://docs.ant
 ## Install
 
 ```
-/install adamfeldman/compound-workflows
+/plugin marketplace add adamfeldman/compound-workflows
+/plugin install compound-workflows
 ```
 
 Then run setup to detect your environment:

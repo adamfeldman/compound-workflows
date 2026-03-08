@@ -21,12 +21,9 @@ Self-contained compound engineering workflows for Claude Code. 22 agents, 15 ski
 
 ## Installation
 
-```bash
-# Add the marketplace
-claude /install compound-workflows-marketplace
-
-# Enable for your project
-claude /plugin enable compound-workflows
+```
+/plugin marketplace add adamfeldman/compound-workflows
+/plugin install compound-workflows
 ```
 
 Then run setup to detect your environment:
