@@ -39,6 +39,7 @@ Then run setup to detect your environment:
 | `/compound:review` | Multi-agent code review with disk-persisted findings |
 | `/compound:compound` | Document solved problems to build institutional knowledge |
 | `/compound:compact-prep` | Pre-compaction checklist — save context before `/compact` |
+| `/compound:recover` | Recover context from dead/exhausted sessions via JSONL log parsing |
 
 ### Workflow Cycle
 
@@ -47,6 +48,13 @@ brainstorm -> plan -> [deepen-plan] -> work -> review -> compound
 ```
 
 Each step produces documents that feed the next. Solutions feed future brainstorms.
+
+### Session Recovery
+
+Context exhaustion is inevitable in long sessions. Two paths:
+
+- **Proactive:** `/compound:compact-prep` before `/compact` — saves memory, checks for uncommitted work, queues a resume task. Say "resume" after compaction.
+- **Reactive:** `/compound:recover` when a session dies without compaction — parses the JSONL session log, cross-references git/beads/.workflows/plan state to reconstruct progress and extract what would otherwise be lost.
 
 ## Dependencies
 

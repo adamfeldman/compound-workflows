@@ -95,6 +95,16 @@ The core innovation. Instead of agents returning full results into the conversat
 
 See `skills/disk-persist-agents/SKILL.md` for the full pattern.
 
+## Session Recovery
+
+Context exhaustion is inevitable in long sessions. compound-workflows handles this two ways:
+
+**Proactive: `/compound:compact-prep`** — Run before `/compact` to save session state. Updates memory files, checks for uncommitted work, offers to compound learnings, and queues a resume task. After compaction, say "resume" to pick up where you left off.
+
+**Reactive: `/compound:recover`** — When a session dies without compaction (context exhaustion, crash, forgot to compact). Parses the JSONL session log, cross-references git history, beads state, `.workflows/` artifacts, and plan files to reconstruct what happened and what's left to do. Extracts memory-worthy content that would otherwise be lost.
+
+**Why recovery works:** Disk-persisted agent outputs survive in `.workflows/`. Beads issues survive in `.beads/`. Plan checkboxes track progress in `docs/plans/`. Git commits are durable. The only thing lost on context exhaustion is conversation history — and `/compound:recover` reconstructs that from the JSONL log.
+
 ## Attribution
 
 This plugin includes agents and skills forked from Every's compound engineering plugin (MIT licensed). The brainstorm, plan, work, review, and compound cycle, agent-based review architecture, and knowledge compounding philosophy originate from that project.
