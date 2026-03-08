@@ -1,13 +1,14 @@
 # compound-workflows
 
-Self-contained compound engineering workflows for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) (February 2026) with 22 bundled agents, disk-persisted outputs, multi-model red team ([PAL](https://github.com/BeehiveInnovations/pal-mcp-server) + Claude subagents), session recovery after context exhaustion, and [beads](https://github.com/steveyegge/beads) task tracking.
+Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Adds agents that don't exhaust context, session recovery after exhaustion, compaction-safe task tracking, multi-model red team ([PAL](https://github.com/BeehiveInnovations/pal-mcp-server) + Claude), fewer plan iterations via readiness checks, and tiered memory management.
 
 **Why fork?** Ambitious tasks in Claude Code hit walls:
 
-- **Context exhaustion** — Agent outputs fill up context and trigger compaction. Disk-persisted agents keep context lean so sessions last longer.
-- **State loss** — Work progress disappears on compaction. `/compact-prep` and `/recover` handle planned and unplanned session boundaries; beads tracking survives across compactions.
-- **Plan iteration overhead** — Plans require many rounds to reach quality. Plan-readiness checks and consolidation catch issues earlier, preventing the fix-introduces-new-bug cycle.
+- **Context exhaustion** — Agent outputs fill up context and trigger compaction. Agents write to disk and return summaries, so sessions last longer.
+- **State loss** — Work progress disappears on compaction. `/compact-prep` and `/recover` handle planned and unplanned session boundaries; [beads](https://github.com/steveyegge/beads) tracking survives across compactions.
+- **Plan iteration overhead** — Plans require many rounds to reach quality. Readiness checks and consolidation catch issues earlier, preventing the fix-introduces-new-bug cycle.
 - **Single-model blind spots** — Red team challenges from multiple providers (Gemini, OpenAI, Claude) catch assumptions a single model won't question.
+- **Knowledge loss** — Context learned in one session is gone in the next. Tiered memory management promotes frequently-used knowledge to where it's auto-loaded.
 
 ## What's Different
 
