@@ -78,14 +78,17 @@ Every change MUST update:
 
 Only release when files inside `plugins/compound-workflows/` change. Changes to the repo root (README, AGENTS.md, docs/, assets/) do NOT warrant a release.
 
+**Do not tag or release until the user explicitly says to release.** Version bumps and CHANGELOG updates are fine during development, but tagging, pushing tags, and `gh release create` require user confirmation. Do not bundle release into a commit flow automatically.
+
 1. Run QA (see above), fix any issues
 2. Update `plugins/compound-workflows/CHANGELOG.md`
 3. Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json`
 4. Bump version in `.claude-plugin/marketplace.json`
 5. Commit
-6. Tag: `git tag v<version>`
-7. Push: `git push origin main --tags`
-8. Release: `gh release create v<version> --title "v<version>" --notes "<changelog entry>"`
+6. **Wait for user to confirm release**, then:
+7. Tag: `git tag v<version>`
+8. Push: `git push origin main --tags`
+9. Release: `gh release create v<version> --title "v<version>" --notes "<changelog entry>"`
 
 After release, update locally via CLI (`claude plugin update compound-workflows@compound-workflows-marketplace`) or the interactive `/plugin` menu inside Claude Code.
 
