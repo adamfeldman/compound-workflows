@@ -89,9 +89,15 @@ Only release when files inside `plugins/compound-workflows/` change. Changes to 
 
 After release, update locally via CLI (`claude plugin update compound-workflows@compound-workflows-marketplace`) or the interactive `/plugin` menu inside Claude Code.
 
-## Routing
+## Compound Workflows Routing
 
-- When the user asks an exploratory or strategic question ("should we...", "is there an opportunity to...", "what if we..."), route through `/compound:brainstorm` rather than answering directly or spawning ad-hoc research agents.
+- **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/compound:brainstorm`
+- **Building a known feature or task**: `/compound:plan` to design, then `/compound:work` to execute
+- **Plan needs deeper research**: `/compound:deepen-plan` before executing
+- **Reviewing code changes**: `/compound:review`
+- **Solved a non-obvious problem**: `/compound:compound` to capture institutional knowledge
+- **Before `/compact`**: `/compound:compact-prep` to preserve session context
+- **Recovering a dead/exhausted session**: `/compound-workflows:recover`
 
 ## Key Conventions
 
