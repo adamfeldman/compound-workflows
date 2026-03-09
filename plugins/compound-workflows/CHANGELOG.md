@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-03-08
+
+### Fixed
+- MCP red team responses wrapped in Task subagents (brainstorm.md, deepen-plan.md) — prevents orchestrator context bloat
+- resolve-pr-parallel now uses disk-persist pattern with run namespacing
+
+### Added
+- `/compound:plugin-changes-qa` command — hybrid QA: Tier 1 bash scripts (structural) + Tier 2 LLM agents (semantic)
+- PostToolUse hook for automated Tier 1 QA on plugin file commits (`.claude/hooks/plugin-qa-check.sh`)
+- Context-Lean Convention section in CLAUDE.md — defines rules, OUTPUT INSTRUCTIONS variants, zero exceptions policy
+- Sentinel file lifecycle in work.md — suppresses hook during `/compound:work` execution
+
+### Changed
+- AGENTS.md: manual QA check prompts replaced with automated `/compound:plugin-changes-qa` reference
+- orchestrating-swarms skill marked as beta with context-lean warning banner
+- "context-safe" → "context-lean" terminology across all command files, skills, and plugin.json keyword
+
 ## [1.7.0] - 2026-03-08
 
 ### Added
