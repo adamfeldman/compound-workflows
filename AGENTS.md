@@ -125,10 +125,10 @@ Only release when files inside `plugins/compound-workflows/` change. Changes to 
 3. Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json`
 4. Bump version + ref in `.claude-plugin/marketplace.json`
 5. Commit
-6. Tag: `git tag v<version>` on the release commit
-7. Push: `git push origin main && git push origin v<version>`
+6. Push: `git push origin main`
+7. Release: `gh release create v<version> --title "v<version>" --notes "<changelog entry>"` (creates tag automatically)
 
-After push, update locally via CLI (`claude plugin update compound-workflows@compound-workflows-marketplace`) or the interactive `/plugin` menu inside Claude Code.
+After release, update locally via CLI (`claude plugin update compound-workflows@compound-workflows-marketplace`) or the interactive `/plugin` menu inside Claude Code.
 
 ## Key Conventions
 
