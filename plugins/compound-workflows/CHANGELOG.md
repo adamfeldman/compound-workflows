@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.1] - 2026-03-08
+
+### Fixed
+- Remove `license` and `keywords` fields from plugin.json — unknown fields break command registration in Claude Code ([#20415](https://github.com/anthropics/claude-code/issues/20415))
+- Remove redundant `user-invocable: true` from plugin-changes-qa command frontmatter
+
 ## [1.8.0] - 2026-03-08
 
 ### Fixed

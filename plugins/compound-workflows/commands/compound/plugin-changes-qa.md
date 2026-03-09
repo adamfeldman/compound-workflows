@@ -1,7 +1,6 @@
 ---
 name: compound:plugin-changes-qa
 description: Run structural and semantic QA checks on the compound-workflows plugin
-user-invocable: true
 ---
 
 # Plugin Changes QA
