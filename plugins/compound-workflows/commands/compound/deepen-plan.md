@@ -73,6 +73,11 @@ Create a section manifest — a numbered list of major sections that will each g
 
 **Review prior run findings (if any):** If prior runs exist, read the prior synthesis files (`run-<N-1>-synthesis.md`, etc.) to understand what was already found. This helps focus the new run on areas that need fresh analysis or deeper investigation. Prior findings may inform which agents to launch, but **do not skip agents just because a prior run covered the topic** — prefer re-running to ensure findings reflect the current state of the document.
 
+**Review prior convergence signals (if any):** If a prior convergence file exists (`run-<N-1>-convergence.md`), read ONLY its `## Signals` section. Do NOT read the `## Recommendation` section — reading the prior recommendation would anchor the current run toward the same conclusion. By reading only the raw signals, the current run's convergence analysis computes its own fresh recommendation independently.
+
+- **If prior convergence file exists:** Extract the Signals section and surface as context: "Prior run (run N-1) signals: [issue count trend, severity distribution, category mix, readiness result]." Check the plan file hash against the hash implied by the stale data indicator in the signals — if the signals note stale data, flag: "Prior convergence signals are stale — plan was modified since last run."
+- **If no prior convergence file exists:** Note: "No prior convergence data available." This is expected on run 1 and on runs following a run where convergence analysis was not completed.
+
 Update `manifest.json` status to `"discovered"`.
 
 ## Phase 2: Discover Available Skills, Learnings, and Agents
