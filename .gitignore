@@ -17,3 +17,6 @@
 
 # Editor
 *.code-workspace
+
+# OS
+.DS_Store
