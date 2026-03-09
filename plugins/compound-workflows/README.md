@@ -44,7 +44,7 @@ Then run setup to detect your environment:
 | `/compound:review` | Multi-agent code review with disk-persisted findings |
 | `/compound:compound` | Document solved problems to build institutional knowledge |
 | `/compound:compact-prep` | Pre-compaction checklist — save memory, compound, commit, queue resume task |
-| `/compound:recover` | Recover context from dead/exhausted sessions — parse JSONL logs, cross-reference state |
+| `/compound-workflows:recover` | Recover context from dead/exhausted sessions — parse JSONL logs, cross-reference state |
 
 ## Workflow Cycle
 
@@ -101,9 +101,9 @@ Context exhaustion is inevitable in long sessions. compound-workflows handles th
 
 **Proactive: `/compound:compact-prep`** — Run before `/compact` to save session state. Updates memory files, checks for uncommitted work, offers to compound learnings, and queues a resume task. After compaction, say "resume" to pick up where you left off.
 
-**Reactive: `/compound:recover`** — When a session dies without compaction (context exhaustion, crash, forgot to compact). Parses the JSONL session log, cross-references git history, beads state, `.workflows/` artifacts, and plan files to reconstruct what happened and what's left to do. Extracts memory-worthy content that would otherwise be lost.
+**Reactive: `/compound-workflows:recover`** — When a session dies without compaction (context exhaustion, crash, forgot to compact). Parses the JSONL session log, cross-references git history, beads state, `.workflows/` artifacts, and plan files to reconstruct what happened and what's left to do. Extracts memory-worthy content that would otherwise be lost.
 
-**Why recovery works:** Disk-persisted agent outputs survive in `.workflows/`. Beads issues survive in `.beads/`. Plan checkboxes track progress in `docs/plans/`. Git commits are durable. The only thing lost on context exhaustion is conversation history — and `/compound:recover` reconstructs that from the JSONL log.
+**Why recovery works:** Disk-persisted agent outputs survive in `.workflows/`. Beads issues survive in `.beads/`. Plan checkboxes track progress in `docs/plans/`. Git commits are durable. The only thing lost on context exhaustion is conversation history — and `/compound-workflows:recover` reconstructs that from the JSONL log.
 
 ## Attribution
 
