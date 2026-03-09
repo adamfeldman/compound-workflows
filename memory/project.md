@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v1.11.0 (plugins/compound-workflows/)
+- Plugin: compound-workflows v1.12.1 (plugins/compound-workflows/)
 - 25 agents, 19 skills, 8 commands
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -40,6 +40,8 @@
 - **v1.9.1** — Plan deepen recommendation (PR #5)
 - **v1.10.0** — Three-category MINOR triage (PR #6)
 - **v1.11.0** — Plugin version visibility (PR #7): version-check.sh, version-sync.sh, /compound-workflows:version skill, compact-prep/setup/work.md integrations, doc alignment
+- **v1.12.0** — QA bead cross-ref (PR #8)
+- **v1.12.1** — Bug fixes: stale /compound:recover refs, compact-prep $ARGUMENTS syntax, work.md sequential-as-safer bias, context-lean-grep false positives (13 SERIOUS → 0)
 - **v1.9.0** — Deepen-plan convergence guidance (PR #4): convergence-signals.sh, convergence-advisor.md, Phase 5.75/6/1 in deepen-plan.md
 
 ## In-Progress Work
@@ -47,6 +49,7 @@
 - **New beads:** 4gq (setup routing rules, depends on 0ob), voo (per-agent token instrumentation, P3)
 
 ## Dependency Chain
-- 22l → aig → h0g
-- cra(done) → {czu, 1q3, 0ob, dud} → aig
-- 9zq → {0ob, awx}, 0ob → {ybm, 4gq}
+- aig → h0g (aig now unblocked)
+- 0ob(done), dud(done), 1q3(done)
+- 9zq(done) → awx, 0ob(done) → {ybm, 4gq}
+- `.beads/PRIME.md` overrides bd prime to remove conflicting memory instructions
