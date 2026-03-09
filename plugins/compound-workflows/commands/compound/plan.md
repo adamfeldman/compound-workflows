@@ -1,6 +1,6 @@
 ---
 name: compound:plan
-description: Transform feature descriptions into plans with context-lean research agents
+description: Transform feature descriptions into implementation plans
 argument-hint: "[feature description, bug report, or improvement idea]"
 ---
 

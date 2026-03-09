@@ -1,6 +1,6 @@
 ---
 name: compound:compound
-description: Document a recently solved problem to compound your team's knowledge
+description: Document a solved problem to compound team knowledge
 argument-hint: "[optional: brief context about the fix]"
 ---
 

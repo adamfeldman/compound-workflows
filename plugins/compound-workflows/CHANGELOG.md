@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.2] - 2026-03-08
+
+### Fixed
+- Shorten all skill and command descriptions (63% reduction, 4577→1677 chars) to fit within Claude Code's skill character budget ([#13343](https://github.com/anthropics/claude-code/issues/13343))
+
 ## [1.8.1] - 2026-03-08
 
 ### Fixed

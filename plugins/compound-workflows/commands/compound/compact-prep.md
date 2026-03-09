@@ -1,6 +1,6 @@
 ---
 name: compound:compact-prep
-description: Prepare for context compaction — update memory, check for compound-worthy learnings, commit, and queue post-compaction task
+description: Prepare for context compaction — save memory, commit, queue next task
 argument-hint: "[optional: task to resume after compaction]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: compound:deepen-plan
-description: Context-lean plan enhancement with parallel research agents that persist outputs to disk
+description: Enhance plans with parallel research agents
 argument-hint: "[path to plan file]"
 ---
 

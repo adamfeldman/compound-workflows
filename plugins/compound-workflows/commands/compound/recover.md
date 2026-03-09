@@ -1,6 +1,6 @@
 ---
 name: compound:recover
-description: Recover context from a dead or exhausted Claude Code session
+description: Recover context from a dead or exhausted session
 argument-hint: "[session ID or empty for picker]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: create-agent-skills
-description: Expert guidance for creating Claude Code skills and slash commands. Use when working with SKILL.md files, authoring new skills, improving existing skills, creating slash commands, or understanding skill structure and best practices.
+description: Create and improve Claude Code skills and slash commands
 ---
 
 # Creating Skills & Commands

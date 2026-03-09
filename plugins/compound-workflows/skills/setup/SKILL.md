@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Configure which review agents run for your project. Auto-detects stack and writes compound-workflows.local.md.
+description: Configure review agents and stack detection for your project
 disable-model-invocation: true
 user-invocable: false
 ---
