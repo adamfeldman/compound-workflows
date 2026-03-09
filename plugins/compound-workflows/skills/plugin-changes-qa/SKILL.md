@@ -79,11 +79,21 @@ For each command file, verify:
 4. **TaskOutput is banned** — no command should instruct the orchestrator to call TaskOutput; file-existence polling is the correct pattern
 5. **Disk-persist pattern used** — agents write to .workflows/ directories, orchestrator reads from disk
 
+**Severity guide:**
+- CRITICAL: data flows through orchestrator context (MCP response not wrapped, full agent output returned)
+- SERIOUS: missing OUTPUT INSTRUCTIONS on a background Task, TaskOutput usage
+- INFO: style observations that are not functional violations
+
+**Known by-design patterns (do NOT flag as violations):**
+- Foreground Task dispatches that delegate to agent .md files for output instructions — this is a DRY pattern, the agent file contains the instructions
+- Summary format variations (e.g., 5 bullet points vs 2-3 sentences) — informational at most (INFO), not a violation
+- Lines marked with `context-lean-exempt` — explicitly excluded from checks
+
 For each violation found, report:
 - File path
 - Line number or section
 - What the violation is
-- Severity: CRITICAL (data flows through orchestrator), SERIOUS (missing instructions), MINOR (style/consistency)
+- Severity (using the guide above)
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
 Write your COMPLETE findings to: .workflows/plugin-qa/agents/context-lean-review.md
@@ -112,10 +122,16 @@ For each Task dispatch in commands and skills, verify:
 4. **Model specification** — if the agent definition specifies a model override (e.g., haiku), verify it is respected in the dispatch
 5. **Agent existence** — flag any Task dispatches referencing agents that do not have definition files
 
+**Severity guide:**
+- SERIOUS: wrong agent name, missing agent definition, incompatible tools, wrong model
+- INFO: inline role description drift (simplified/paraphrased descriptions are expected — commands use inline descriptions for graceful fallback, not exact copies of agent definitions)
+
+**Important:** Inline role descriptions are intentionally simplified summaries, not verbatim copies. A paraphrased or shortened description is expected by-design. Only flag as SERIOUS if the description is factually wrong or describes a different agent's purpose.
+
 For each mismatch found, report:
 - Command/skill file and the agent being dispatched
 - What the mismatch is (expected vs actual)
-- Severity: SERIOUS (wrong agent or missing definition), MINOR (description drift)
+- Severity (using the guide above)
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
 Write your COMPLETE findings to: .workflows/plugin-qa/agents/role-description-review.md
