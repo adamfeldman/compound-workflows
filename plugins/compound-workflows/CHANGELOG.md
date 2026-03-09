@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.1] - 2026-03-09
+
+### Added
+- **Phase 7 handoff recommendation** — plan.md Phase 7 now recommends deepen-plan or work based on readiness findings, using a decision tree that evaluates severity counts, deferred findings, material modification, brainstorm origin, and step count
+- **Feedback loop log** — tracks recommendation vs user choice at `.workflows/plan-research/<plan-stem>/recommendation-log.md` for future calibration
+
 ## [1.9.0] - 2026-03-09
 
 ### Added

@@ -283,7 +283,8 @@ Keep Phase 6.7 focused on dispatch + response handling. The detailed analysis lo
 3. After consolidation, re-run checks in `verify-only` mode: re-run all 3 mechanical scripts (type: mechanical), re-dispatch semantic agent with `mode: verify-only` (runs contradictions + underspecification only; skips unresolved-disputes, accretion, external-verification). Dispatch reviewer again.
 4. If verify finds new issues: present remaining findings to user directly.
    User options: resolve now, defer to Open Questions, or dismiss.
-5. Show user: "Readiness check complete. N auto-fixes applied, M items resolved, K deferred."
+5. **Track deferred finding severities** for Phase 7 recommendation: when the user defers a finding, note its severity level (CRITICAL, SERIOUS, MINOR). Carry these deferred severity counts forward to Phase 7 alongside the final reviewer summary.
+6. Show user: "Readiness check complete. N auto-fixes applied, M items resolved, K deferred."
 
 **If zero issues found:**
 
@@ -299,27 +300,73 @@ Proceed to Phase 7.
 **If any items were deferred:**
 Flag them explicitly: "Note: N deferred items remain in the plan. `/compound:work` will surface these before execution — the orchestrator may need to pause and ask you to resolve them."
 
-**Plan readiness status:** Include readiness check results in the handoff message:
-- If readiness passed: "Plan readiness: all checks passed."
-- If CRITICAL findings were deferred: "Warning: CRITICAL readiness findings were deferred — review before starting work."
-- If readiness check was skipped or failed: "Note: Plan readiness check was not completed. Consider running `/compound:deepen-plan` before starting work."
-
 **Work readiness note:** Before presenting options, assess whether the plan's steps are well-sized for `/compound:work` (subagent dispatch). Flag if:
 - Any step has 20+ checkboxes or heavy inline specs — suggest splitting during work setup
 - Steps share large reference data — note that the orchestrator should point subagents to the file path, not inline the data
 - Steps can run in parallel (touch separate files with no dependencies) — note the opportunity
 
-Include any flags in the handoff message.
+#### Recommendation Computation
+
+Compute the recommended next step by evaluating the following decision tree **in order** (first match wins). Use data from Phase 6.7: the reviewer's severity summary (in context from foreground dispatch), deferred finding severities (tracked per step 5 above), and post-verify severity counts (if verify ran).
+
+**Additional data to gather at Phase 7 time:**
+
+1. **Brainstorm existence:** Read the plan file's YAML frontmatter. If `origin:` exists and points to a `docs/brainstorms/*.md` file, a brainstorm exists. Otherwise, no brainstorm preceded this plan.
+2. **Step count:** Count the top-level numbered sections in the plan's implementation section (the items that become `/compound:work` execution units — the same ones assessed in the work readiness note above).
+
+**Decision tree (evaluate in order, first match wins):**
+
+1. **Reviewer failed or was skipped** → Recommend: deepen-plan
+   - Message: "Readiness check incomplete — deepen-plan recommended to verify plan quality."
+
+2. **Any CRITICAL finding remains (active or deferred)** → Recommend: deepen-plan
+   - Message: "N CRITICAL findings remain (check-categories). Deepen-plan recommended."
+   - Example: "2 CRITICAL findings remain (underspecification, contradictions). Deepen-plan recommended."
+
+3. **Any SERIOUS finding remains (active or deferred)** → Recommend: deepen-plan
+   - Message: "N SERIOUS findings remain (check-categories). Deepen-plan recommended."
+   - Example: "1 SERIOUS finding remains (stale-values). Deepen-plan recommended."
+
+4. **Consolidator resolved CRITICAL or SERIOUS findings (plan materially modified) and verify passed clean** → Recommend: deepen-plan
+   - Detect by comparing: initial reviewer had CRITICAL or SERIOUS counts > 0, post-verify counts are 0 for those severities.
+   - Message: "Plan was modified during readiness checks. Deepen-plan recommended to review changes."
+
+5. **No brainstorm origin AND plan has 4+ top-level implementation steps** → Recommend: deepen-plan
+   - Message: "No brainstorm preceded this plan. Deepen-plan recommended to catch unvalidated assumptions."
+
+6. **Clean or MINOR-only findings, brainstorm exists or plan is small (< 4 steps)** → Recommend: work
+   - Message: "Plan readiness checks passed — ready for work. Deepen-plan available for adversarial review if desired (~2-5 min, agent swarm + red team)."
+
+#### Handoff
 
 Use **AskUserQuestion tool**:
 
-**Question:** "Plan ready at `[plan_path]`. [Readiness status. Any work-readiness flags, e.g., 'Note: Steps 7-8 are large — the `/compound:work` orchestrator should split them into smaller issues.'] What would you like to do next?"
+**Question:** "Plan ready at `[plan_path]`. [Recommendation message from decision tree above.] [Any work-readiness flags, e.g., 'Note: Steps 7-8 are large — the `/compound:work` orchestrator should split them into smaller issues.'] What would you like to do next?"
 
-**Options:**
-1. **Run `/compound:deepen-plan`** — Enhance with parallel research agents
+**Options** (annotate exactly one with `**[Recommended]**` based on the decision tree result):
+1. **Run `/compound:deepen-plan`** — Enhance with parallel research agents **[Recommended]** ← if decision tree recommends deepen-plan
 2. **Review and refine** — Improve through structured self-review
-3. **Start `/compound:work`** — Begin implementing this plan [If CRITICAL readiness findings were deferred, append: "— Warning: unresolved CRITICAL findings"]
+3. **Start `/compound:work`** — Begin implementing this plan **[Recommended]** ← if decision tree recommends work [If CRITICAL readiness findings were deferred, always append: "— Warning: unresolved CRITICAL findings"]
 4. **Create Issue** — Create issue in project tracker (GitHub/Linear)
+
+The `**[Recommended]**` annotation appears on exactly one option per run (never zero, never two). The option order is fixed — only the annotation moves.
+
+#### Feedback Loop
+
+After the user responds to the AskUserQuestion above, append an entry to `.workflows/plan-research/<plan-stem>/recommendation-log.md` to track recommendation accuracy for future calibration:
+
+```markdown
+## <date>
+- Severity counts: N CRITICAL, N SERIOUS, N MINOR (final state)
+- Deferred: N CRITICAL, N SERIOUS (if any)
+- Consolidator materially modified plan: yes/no
+- Brainstorm origin: yes/no
+- Step count: N
+- Recommendation: <option> [Recommended]
+- User choice: <option selected>
+```
+
+The "Consolidator materially modified plan" field is "yes" if the consolidator resolved any CRITICAL or SERIOUS findings (material modification per decision tree rule 4), "no" otherwise.
 
 ## Key Principles
 
