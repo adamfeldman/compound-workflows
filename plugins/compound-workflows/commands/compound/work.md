@@ -90,6 +90,17 @@ cd .worktrees/<descriptive-name>
 git checkout -b feat/<descriptive-name>
 ```
 
+### 1.2.1 Create QA Hook Sentinel
+
+Suppress the PostToolUse QA hook during `/compound:work` execution. Without this, every subagent commit triggers Tier 1 QA scripts — adding overhead and stderr noise per commit.
+
+```bash
+mkdir -p .workflows
+date +%s > .workflows/.work-in-progress
+```
+
+This sentinel is checked by `.claude/hooks/plugin-qa-check.sh`. It is removed in Phase 4 (Ship) and cleaned up if stale in Phase 2.4 (Recovery).
+
 ### 1.3 Create or Resume Task Issues
 
 **Check for existing issues first:**
@@ -281,12 +292,22 @@ If context compacts mid-execution, recovery is simple:
    bd list --status=closed | tail -5  # What was recently completed
    ```
 2. If `bd worktree info` shows you should be in a worktree but you're not, `cd` into it
-3. Check git log for recent commits:
+3. Check for stale sentinel file and clean up if needed:
+   ```bash
+   if [ -f .workflows/.work-in-progress ]; then
+     sentinel_age=$(( $(date +%s) - $(cat .workflows/.work-in-progress) ))
+     if [ "$sentinel_age" -ge 14400 ]; then
+       echo "Stale sentinel detected ($(( sentinel_age / 3600 ))h old) — removing to re-enable QA hook"
+       rm -f .workflows/.work-in-progress
+     fi
+   fi
+   ```
+4. Check git log for recent commits:
    ```bash
    git log --oneline -10
    ```
-4. Read the plan file to re-orient
-5. Resume the dispatch loop from step 2.1
+5. Read the plan file to re-orient
+6. Resume the dispatch loop from step 2.1
 
 **This is the whole point of the architecture.** No in-memory state to lose. bd + git + worktree info + plan file = complete recovery.
 
@@ -343,7 +364,12 @@ After all issues are closed (or all TodoWrite tasks completed):
    )"
    ```
 
-2. **Create PR** (if project uses PRs):
+2. **Remove QA hook sentinel** (re-enable PostToolUse QA enforcement):
+   ```bash
+   rm -f .workflows/.work-in-progress
+   ```
+
+3. **Create PR** (if project uses PRs):
    ```bash
    git push -u origin [branch-name]
    gh pr create --title "[Description]" --body "$(cat <<'EOF'
@@ -362,12 +388,12 @@ After all issues are closed (or all TodoWrite tasks completed):
    )"
    ```
 
-3. **Update plan status** (if YAML frontmatter has `status` field):
+4. **Update plan status** (if YAML frontmatter has `status` field):
    ```
    status: active  →  status: completed
    ```
 
-4. **Clean up worktree** (if applicable):
+5. **Clean up worktree** (if applicable):
 
    If working in a worktree, return to the main repo and offer cleanup:
 
@@ -382,12 +408,12 @@ After all issues are closed (or all TodoWrite tasks completed):
 
    **TodoWrite mode:** No worktree to clean up. Skip this step.
 
-5. **Notify user** with summary:
+6. **Notify user** with summary:
    - Steps completed (N/N issues closed, or N/N tasks completed in TodoWrite mode)
    - PR link
    - Any follow-up work (unclosed issues or remaining tasks)
 
-6. **Compound Check**
+7. **Compound Check**
 
    Before closing out, assess whether this session produced compound-worthy knowledge:
    - Did you solve a non-obvious problem? (debugging insight, unexpected root cause, workaround for a tool/framework limitation)
