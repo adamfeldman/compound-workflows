@@ -77,7 +77,10 @@ Use **AskUserQuestion**: "Have you activated Gemini/Codex CLI in this repo (or w
 ## Step 1.5: Plugin Version Check
 
 ```bash
-bash plugins/compound-workflows/scripts/version-check.sh
+# Find version-check.sh: local repo (dev) or installed plugin
+VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
+[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
+[[ -n "$VERSION_CHECK" ]] && bash "$VERSION_CHECK" || echo "version-check.sh not found"
 ```
 
 Interpret the output:

@@ -80,9 +80,11 @@ If compound was run in Step 4, check `git status` again — compound creates doc
 Run the version check script to compare source, installed, and released versions:
 
 ```bash
-bash plugins/compound-workflows/scripts/version-check.sh
+# Find version-check.sh: local repo (dev) or installed plugin
+VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
+[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
+[[ -n "$VERSION_CHECK" ]] && bash "$VERSION_CHECK" || echo "version-check.sh not found — skipping"
 ```
-
 - **If all versions match** (exit code 0): Say "Versions OK." and move on.
 - **If STALE or UNRELEASED detected** (exit code 1): Present the script's full output to the user, then use **AskUserQuestion** for each actionable item:
   - **STALE** — "Plugin is stale. Update now?"

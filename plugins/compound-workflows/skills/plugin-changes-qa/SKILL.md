@@ -17,9 +17,12 @@ Discover and run all bash scripts in the plugin-qa directory. These are fast, de
 ### Step 1.1: Resolve Plugin Root
 
 ```bash
-# Find the plugin root — look for plugins/compound-workflows relative to repo root
+# Find plugin root: local repo (dev) or installed plugin
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 PLUGIN_ROOT="$REPO_ROOT/plugins/compound-workflows"
+if [[ ! -f "$PLUGIN_ROOT/CLAUDE.md" ]]; then
+  PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+fi
 echo "Plugin root: $PLUGIN_ROOT"
 ls "$PLUGIN_ROOT/CLAUDE.md" 2>/dev/null && echo "VALID" || echo "NOT FOUND"
 ```
@@ -29,13 +32,13 @@ If the plugin root is not found, report the error and stop.
 ### Step 1.2: Discover and Run Scripts
 
 ```bash
-ls plugins/compound-workflows/scripts/plugin-qa/*.sh
+ls "$PLUGIN_ROOT/scripts/plugin-qa"/*.sh
 ```
 
 Run each `.sh` script via the Bash tool, passing the plugin root path as the first argument:
 
 ```bash
-bash plugins/compound-workflows/scripts/plugin-qa/<script>.sh "$PLUGIN_ROOT"
+bash "$PLUGIN_ROOT/scripts/plugin-qa/<script>.sh" "$PLUGIN_ROOT"
 ```
 
 **Error handling:**
