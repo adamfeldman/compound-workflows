@@ -658,6 +658,101 @@ Warn: "Readiness check failed — consider running again before starting work."
 
 Set manifest status to `readiness_complete`.
 
+## Phase 5.75: Convergence Analysis
+
+After readiness checks complete, run convergence analysis to give the user data-driven guidance on whether to iterate further. This phase produces a convergence file that Phase 6 presents.
+
+### Step 1: Run convergence-signals.sh
+
+Compute the 5 structured convergence metrics by running the script:
+
+```bash
+bash plugins/compound-workflows/agents/workflow/plan-checks/convergence-signals.sh \
+  ".workflows/deepen-plan/<plan-stem>" \
+  ".workflows/plan-research/<plan-stem>/readiness" \
+  ".workflows/deepen-plan/<plan-stem>/run-<N>-convergence-signals.txt"
+```
+
+Capture the script's stdout into a variable — this is the raw signal text that will be pasted into the agent dispatch prompt.
+
+If the script fails (non-zero exit), log the error and proceed to the fallback in Step 4.
+
+### Step 2: Dispatch convergence-advisor agent
+
+Determine the prior convergence file path:
+
+```bash
+ls .workflows/deepen-plan/<plan-stem>/run-*-convergence.md 2>/dev/null
+```
+
+If a prior convergence file exists (e.g., `run-<N-1>-convergence.md`), use its path. Otherwise, use `"none"`.
+
+Dispatch the convergence-advisor agent as a background Task:
+
+```
+Task general-purpose (run_in_background: true): "
+You are a convergence advisor for the deepen-plan workflow. Read and follow the agent instructions at:
+  plugins/compound-workflows/agents/workflow/convergence-advisor.md
+
+Convergence signals (from convergence-signals.sh):
+<raw script stdout pasted here>
+
+Files to read:
+- Current synthesis summary: .workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md
+- Prior convergence file: <path to prior convergence file, or 'none' if first run>
+
+Output path: .workflows/deepen-plan/<plan-stem>/run-<N>-convergence.md
+
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write your COMPLETE convergence analysis to: .workflows/deepen-plan/<plan-stem>/run-<N>-convergence.md
+After writing the file, return ONLY a 2-3 sentence summary.
+DO NOT return your full analysis in your response. The file IS the output.
+"
+```
+
+### Step 3: Poll for convergence file
+
+Poll for the convergence file with a 3-minute timeout:
+
+```bash
+ls .workflows/deepen-plan/<plan-stem>/run-<N>-convergence.md 2>/dev/null
+```
+
+Check every 15-20 seconds. When the file exists, the agent has completed. Proceed to Phase 6.
+
+If a task-notification arrives, note the status but verify file existence rather than processing the notification content.
+
+### Step 4: Fallback on failure or timeout
+
+If the convergence-advisor agent fails or times out (3 minutes), write a script-only convergence file using the metrics already captured from Step 1:
+
+```markdown
+## Recommendation
+
+Convergence analysis incomplete — agent did not finish. Review script signals below and decide manually.
+
+Recommended next step: Review signals and decide
+
+## Signals
+
+- **Run:** <N>
+- **Complete:** false
+- **Issue count trend:** <from script stdout>
+- **Severity distribution:** <from script stdout>
+- **Change magnitude:** <from script stdout>
+- **Deferred items:** <from script stdout>
+- **Readiness result:** <from script stdout>
+- **Category mix:** unavailable (agent did not complete)
+
+## Analysis
+
+Agent timed out or failed. Only script-computed signals are available. The category mix (genuine vs edit-induced classification) requires agent analysis and is not available.
+```
+
+Write this to `.workflows/deepen-plan/<plan-stem>/run-<N>-convergence.md` so Phase 6 always has a convergence file to read.
+
+**No manifest status change:** Convergence is part of the Phase 5.5→6 flow, not a separate manifest status. If interrupted before Phase 6, Phase 6 checks for convergence file existence and re-runs Phase 5.75 if the file is missing.
+
 ## Phase 6: Cleanup and Report
 
 After synthesis, red team challenge, and plan readiness check are complete:
