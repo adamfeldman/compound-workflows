@@ -1,7 +1,7 @@
 ---
 title: "feat: Add QA finding → bead cross-reference to plugin-changes-qa"
 type: feat
-status: active
+status: completed
 date: 2026-03-09
 origin: docs/brainstorms/2026-03-09-qa-bead-cross-ref-brainstorm.md
 ---
@@ -29,30 +29,30 @@ The brainstorm (see origin) resolved all key design decisions through three-prov
 
 ## Acceptance Criteria
 
-- [ ] Phase 3.3 (Beads Cross-Reference) exists between current Phase 3.2 (aggregation) and presentation
-- [ ] Two-step beads availability check: `bd version 2>/dev/null` then `bd search "" --status open --json --limit 100`
-- [ ] If beads unavailable: warn once, skip cross-ref, present findings as today
-- [ ] If >100 open beads: warn and truncate to 100 most recent
-- [ ] Deterministic text matching runs first (check-name, file path, provenance token)
-- [ ] LLM subagent handles unmatched findings (disk-persist to `.workflows/plugin-qa/bead-cross-ref-matches.md`)
-- [ ] Second LLM subagent assesses coverage on matched beads (disk-persist to `.workflows/plugin-qa/bead-cross-ref-coverage.md`)
-- [ ] Staged batch confirmation via AskUserQuestion with three options (Apply all / Review individually / Skip)
-- [ ] Uncertain LLM matches escalated to user for manual linking
-- [ ] MINOR findings ask user per-item: Create bead? / Skip tracking
-- [ ] `bd create` includes provenance token in description (format: `qa-finding:<check-name>:<file>`)
-- [ ] `bd update --append-notes` adds finding as note on matched beads (append, not overwrite)
-- [ ] `bd update --description` for coverage updates on partially-covered beads
-- [ ] Note dedup: check existing bead notes for provenance token before appending
-- [ ] Deterministic matching applies to Tier 1 findings only; Tier 2 findings go directly to LLM subagent
-- [ ] Single-fetch beads pattern: fetch JSON once to `.workflows/plugin-qa/open-beads.json`, reuse for all matching
-- [ ] Skip-if-empty gates: skip LLM subagent if zero unmatched, skip coverage subagent if zero matched, skip batch if all tracked
-- [ ] Consecutive failure abort: stop remaining bd operations after 3 consecutive failures
-- [ ] Confirmed uncertain matches include retroactive provenance token addition to matched bead
-- [ ] Fingerprint dedup: skip if provenance token already exists in any bead
-- [ ] Per-item status tracking: report "N created, N updated, N notes added, N failed" at end
-- [ ] Severity-to-priority mapping: CRITICAL→P1, SERIOUS→P2, MINOR→P3
-- [ ] All four identity rules updated (lines 11, 209, 213, 216)
-- [ ] Version bump: MINOR version (new feature)
+- [x] Phase 3.3 (Beads Cross-Reference) exists between current Phase 3.2 (aggregation) and presentation
+- [x] Two-step beads availability check: `bd version 2>/dev/null` then `bd search "" --status open --json --limit 100`
+- [x] If beads unavailable: warn once, skip cross-ref, present findings as today
+- [x] If >100 open beads: warn and truncate to 100 most recent
+- [x] Deterministic text matching runs first (check-name, file path, provenance token)
+- [x] LLM subagent handles unmatched findings (disk-persist to `.workflows/plugin-qa/bead-cross-ref-matches.md`)
+- [x] Second LLM subagent assesses coverage on matched beads (disk-persist to `.workflows/plugin-qa/bead-cross-ref-coverage.md`)
+- [x] Staged batch confirmation via AskUserQuestion with three options (Apply all / Review individually / Skip)
+- [x] Uncertain LLM matches escalated to user for manual linking
+- [x] MINOR findings ask user per-item: Create bead? / Skip tracking
+- [x] `bd create` includes provenance token in description (format: `qa-finding:<check-name>:<file>`)
+- [x] `bd update --append-notes` adds finding as note on matched beads (append, not overwrite)
+- [x] `bd update --description` for coverage updates on partially-covered beads
+- [x] Note dedup: check existing bead notes for provenance token before appending
+- [x] Deterministic matching applies to Tier 1 findings only; Tier 2 findings go directly to LLM subagent
+- [x] Single-fetch beads pattern: fetch JSON once to `.workflows/plugin-qa/open-beads.json`, reuse for all matching
+- [x] Skip-if-empty gates: skip LLM subagent if zero unmatched, skip coverage subagent if zero matched, skip batch if all tracked
+- [x] Consecutive failure abort: stop remaining bd operations after 3 consecutive failures
+- [x] Confirmed uncertain matches include retroactive provenance token addition to matched bead
+- [x] Fingerprint dedup: skip if provenance token already exists in any bead
+- [x] Per-item status tracking: report "N created, N updated, N notes added, N failed" at end
+- [x] Severity-to-priority mapping: CRITICAL→P1, SERIOUS→P2, MINOR→P3
+- [x] All four identity rules updated (lines 11, 209, 213, 216)
+- [x] Version bump: MINOR version (new feature)
 
 ## Implementation Phases
 
@@ -60,10 +60,10 @@ The brainstorm (see origin) resolved all key design decisions through three-prov
 
 Insert Phase 3.3 skeleton into SKILL.md between current Step 3.2 (aggregation) and the presentation section. Renumber existing Phase 3.2 presentation to Phase 3.4.
 
-- [ ] Verify `bd update` CLI supports required flags: `--append-notes`, `--description`. Run `bd update --help` during implementation to confirm exact syntax.
-- [ ] Add `### Phase 3.3: Beads Cross-Reference` section header after Step 3.2
-- [ ] **Zero-findings gate:** If Phase 3.2 aggregation produced zero total findings, skip Phase 3.3 entirely and proceed to Phase 3.4
-- [ ] Add `#### Step 3.3.1: Check Beads Availability` with two-step check:
+- [x] Verify `bd update` CLI supports required flags: `--append-notes`, `--description`. Run `bd update --help` during implementation to confirm exact syntax.
+- [x] Add `### Phase 3.3: Beads Cross-Reference` section header after Step 3.2
+- [x] **Zero-findings gate:** If Phase 3.2 aggregation produced zero total findings, skip Phase 3.3 entirely and proceed to Phase 3.4
+- [x] Add `#### Step 3.3.1: Check Beads Availability` with two-step check:
   ```bash
   bd version 2>/dev/null && echo "BD_INSTALLED=true" || echo "BD_INSTALLED=false"
   ```
@@ -72,33 +72,33 @@ Insert Phase 3.3 skeleton into SKILL.md between current Step 3.2 (aggregation) a
   bd search "" --status open --json --limit 100 2>/dev/null
   ```
   **Important:** Use `bd search "" --status open --json --limit 100`, NOT `bd list --json` (which doesn't produce JSON — see brainstorm Decision 7).
-- [ ] Write beads JSON to `.workflows/plugin-qa/open-beads.json` (single-fetch pattern — one fetch, multiple consumers)
-- [ ] Gate: if either check fails, output warning and skip to Phase 3.4
-- [ ] If >100 beads in JSON output: warn user, truncate to 100 most recently updated
-- [ ] Renumber existing "Present Aggregated Summary" section to `### Step 3.4: Present Aggregated Summary`
+- [x] Write beads JSON to `.workflows/plugin-qa/open-beads.json` (single-fetch pattern — one fetch, multiple consumers)
+- [x] Gate: if either check fails, output warning and skip to Phase 3.4
+- [x] If >100 beads in JSON output: warn user, truncate to 100 most recently updated
+- [x] Renumber existing "Present Aggregated Summary" section to `### Step 3.4: Present Aggregated Summary`
 
 ### Phase 2: Deterministic Text Matching
 
 Add the first matching pass — fast, free, provably correct for exact/near-exact matches. Applies to **Tier 1 findings only** (they have structured check-name, file, line fields from lib.sh). Tier 2 findings are free-form prose without structured fields and go directly to the LLM subagent in Phase 3.
 
-- [ ] Add `#### Step 3.3.2: Deterministic Text Matching`
-- [ ] Read beads JSON from `.workflows/plugin-qa/open-beads.json`
-- [ ] For each Tier 1 finding, search the beads JSON for (match priority order):
+- [x] Add `#### Step 3.3.2: Deterministic Text Matching`
+- [x] Read beads JSON from `.workflows/plugin-qa/open-beads.json`
+- [x] For each Tier 1 finding, search the beads JSON for (match priority order):
   1. **Provenance token match** (strongest) — bead description contains `qa-finding:<check-name>:<file>` → auto-match
   2. **Check-name match** (strong) — bead title or description contains the check-name AND references the same file → auto-match
   3. **Check-name only match** (moderate) — bead title or description contains the check-name but no file overlap → auto-match (check-names are specific enough)
   4. **File-path-only match** (weak) — skip, too many false positives. Let LLM handle these.
-- [ ] Mark matched findings as `tracked` with the matched bead ID
-- [ ] Collect unmatched Tier 1 findings + ALL Tier 2 findings for LLM pass
+- [x] Mark matched findings as `tracked` with the matched bead ID
+- [x] Collect unmatched Tier 1 findings + ALL Tier 2 findings for LLM pass
 
 ### Phase 3: LLM Matching Subagent (Pass 1)
 
 Dispatch a disk-persist subagent for semantic matching of findings the text pass couldn't match.
 
-- [ ] Add `#### Step 3.3.3: LLM Semantic Matching (Unmatched Findings)`
-- [ ] Skip this step if zero unmatched findings remain after Step 3.3.2
-- [ ] Create output directory: `mkdir -p .workflows/plugin-qa/`
-- [ ] Dispatch Task subagent (disk-persist pattern):
+- [x] Add `#### Step 3.3.3: LLM Semantic Matching (Unmatched Findings)`
+- [x] Skip this step if zero unmatched findings remain after Step 3.3.2
+- [x] Create output directory: `mkdir -p .workflows/plugin-qa/`
+- [x] Dispatch Task subagent (disk-persist pattern):
   - Input: list of unmatched Tier 1 findings + all Tier 2 findings + beads JSON file path (`.workflows/plugin-qa/open-beads.json`)
   - Task: read beads JSON from disk, then for each finding classify as:
     - `matched` — high confidence this finding is tracked by bead [id]
@@ -106,33 +106,33 @@ Dispatch a disk-persist subagent for semantic matching of findings the text pass
     - `untracked` — no matching bead found
   - Output: `.workflows/plugin-qa/bead-cross-ref-matches.md`
   - Return: 2-3 sentence summary only
-- [ ] Monitor completion via file existence check. **Timeout: 2 minutes.** If output file does not appear, skip this pass and present findings without cross-reference data (same as beads-unavailable degradation path). If Pass 1 times out, also skip Pass 2.
-- [ ] Read results from disk
+- [x] Monitor completion via file existence check. **Timeout: 2 minutes.** If output file does not appear, skip this pass and present findings without cross-reference data (same as beads-unavailable degradation path). If Pass 1 times out, also skip Pass 2.
+- [x] Read results from disk
 
 ### Phase 4: Coverage Assessment Subagent (Pass 2)
 
 Separate subagent assesses whether matched beads adequately describe the findings.
 
-- [ ] Add `#### Step 3.3.4: Coverage Assessment (Matched Beads)`
-- [ ] Skip this step if zero matched findings (from both text and LLM passes)
-- [ ] Dispatch Task subagent (disk-persist pattern):
+- [x] Add `#### Step 3.3.4: Coverage Assessment (Matched Beads)`
+- [x] Skip this step if zero matched findings (from both text and LLM passes)
+- [x] Dispatch Task subagent (disk-persist pattern):
   - Input: list of matched finding→bead pairs
   - Task: for each pair, assess:
     - Does the bead description cover this specific finding?
     - If not, draft a proposed description addition
   - Output: `.workflows/plugin-qa/bead-cross-ref-coverage.md`
   - Return: 2-3 sentence summary only
-- [ ] Monitor completion via file existence check. **Timeout: 2 minutes.** If output file does not appear, present matches without coverage data and note the omission.
-- [ ] Read results from disk
+- [x] Monitor completion via file existence check. **Timeout: 2 minutes.** If output file does not appear, present matches without coverage data and note the omission.
+- [x] Read results from disk
 
 ### Phase 5: Staged Batch Confirmation
 
 Present all proposed bead operations as a batch for user confirmation.
 
-- [ ] Add `#### Step 3.3.5: Present Tracking Status`
-- [ ] Read results from both subagent output files
-- [ ] **If all findings are already tracked with full coverage:** skip batch confirmation, report "All N findings are tracked by existing beads" in QA summary. Proceed to Phase 3.4.
-- [ ] Otherwise, build the tracking status presentation:
+- [x] Add `#### Step 3.3.5: Present Tracking Status`
+- [x] Read results from both subagent output files
+- [x] **If all findings are already tracked with full coverage:** skip batch confirmation, report "All N findings are tracked by existing beads" in QA summary. Proceed to Phase 3.4.
+- [x] Otherwise, build the tracking status presentation:
 
   ```markdown
   ### Tracking Status
@@ -152,21 +152,21 @@ Present all proposed bead operations as a batch for user confirmation.
   - [MINOR] [finding] → Create bead? / Skip tracking
   ```
 
-- [ ] Write the composed batch to `.workflows/plugin-qa/bead-cross-ref-batch.md` (recovery artifact + context-lean)
-- [ ] Use AskUserQuestion with three options:
+- [x] Write the composed batch to `.workflows/plugin-qa/bead-cross-ref-batch.md` (recovery artifact + context-lean)
+- [x] Use AskUserQuestion with three options:
   1. **Apply all** — creates + updates + notes
   2. **Review individually** — present each operation for approval
   3. **Skip bead operations** — just show findings (existing behavior)
-- [ ] For "Review individually": group by category — uncertain matches first (need individual attention), then untracked MINOR findings as batch, then coverage updates as batch
-- [ ] Confirmed uncertain matches: include retroactive provenance token addition to the matched bead's description (so future runs find them deterministically)
-- [ ] Uncertain matches do NOT include coverage assessment (Pass 2 ran before user confirmed). User assesses coverage manually for these.
+- [x] For "Review individually": group by category — uncertain matches first (need individual attention), then untracked MINOR findings as batch, then coverage updates as batch
+- [x] Confirmed uncertain matches: include retroactive provenance token addition to the matched bead's description (so future runs find them deterministically)
+- [x] Uncertain matches do NOT include coverage assessment (Pass 2 ran before user confirmed). User assesses coverage manually for these.
 
 ### Phase 6: Execute Bead Operations
 
 Execute confirmed operations with per-item status tracking.
 
-- [ ] Add `#### Step 3.3.6: Execute Bead Operations`
-- [ ] For each confirmed creation:
+- [x] Add `#### Step 3.3.6: Execute Bead Operations`
+- [x] For each confirmed creation:
   ```bash
   bd create --title="[check-name]: [file] — [finding summary]" \
     --type=bug \
@@ -181,37 +181,37 @@ Execute confirmed operations with per-item status tracking.
 
   Provenance: qa-finding:[check-name]:[file]"
   ```
-- [ ] For each confirmed note addition on matched beads:
+- [x] For each confirmed note addition on matched beads:
   - First check if bead already has a note with this provenance token (dedup)
   - If not: `bd update <id> --append-notes "QA finding ([date]): [check-name] — [finding summary]. Provenance: qa-finding:[check-name]:[file]"`
   - Use `--append-notes` (not `--notes`) to preserve existing notes
-- [ ] For each confirmed coverage update:
+- [x] For each confirmed coverage update:
   - Re-read the bead's current description via `bd show <id> --json` immediately before updating (guard against stale data)
   - Verify the provenance token is still present in the existing description
   - If provenance token is missing (external modification): warn and skip this coverage update
   - If present: `bd update <id> --description "[current description]\n\nAdditional coverage: [proposed addition]"`
-- [ ] For confirmed uncertain matches: add provenance token to matched bead's description via `bd update <id> --description`
-- [ ] Track success/failure of each command
-- [ ] **Consecutive failure abort:** if 3+ consecutive bd commands fail, stop remaining operations and report "Beads database appears unavailable"
-- [ ] Report summary: "N created, N updated, N notes added, N failed"
-- [ ] If any failures: list the failed operations with error details
+- [x] For confirmed uncertain matches: add provenance token to matched bead's description via `bd update <id> --description`
+- [x] Track success/failure of each command
+- [x] **Consecutive failure abort:** if 3+ consecutive bd commands fail, stop remaining operations and report "Beads database appears unavailable"
+- [x] Report summary: "N created, N updated, N notes added, N failed"
+- [x] If any failures: list the failed operations with error details
 
 ### Phase 7: Identity Rule Updates
 
 Update all identity statements in SKILL.md to reflect the reporter+tracker role.
 
-- [ ] Line 11: Change `**Findings are informational only.** This command does not modify the codebase.` to `**Findings are informational.** Bead tracking operations require explicit user confirmation.`
-- [ ] Line 209 area: Change `**No codebase mutation.** Findings are informational only. The user decides what to act on.` to `**No codebase mutation.** Bead creation/updates are presented for user approval before execution.`
-- [ ] Line 213 area: Change `**NEVER modify the codebase.** This command only reports findings.` to `**NEVER modify the codebase.** Bead operations are the only side effect, and require user confirmation.`
-- [ ] Line 216: Change `**NEVER modify beads issues.** QA findings are presented to the user, not tracked automatically.` to `**Bead creation and updates require explicit user approval via staged batch confirmation.**`
+- [x] Line 11: Change `**Findings are informational only.** This command does not modify the codebase.` to `**Findings are informational.** Bead tracking operations require explicit user confirmation.`
+- [x] Line 209 area: Change `**No codebase mutation.** Findings are informational only. The user decides what to act on.` to `**No codebase mutation.** Bead creation/updates are presented for user approval before execution.`
+- [x] Line 213 area: Change `**NEVER modify the codebase.** This command only reports findings.` to `**NEVER modify the codebase.** Bead operations are the only side effect, and require user confirmation.`
+- [x] Line 216: Change `**NEVER modify beads issues.** QA findings are presented to the user, not tracked automatically.` to `**Bead creation and updates require explicit user approval via staged batch confirmation.**`
 
 ### Phase 8: Version Bump + Documentation
 
-- [ ] Bump version in `.claude-plugin/plugin.json` (MINOR bump)
-- [ ] Update `CHANGELOG.md` with feature description
-- [ ] Verify component counts in `README.md` (no new components — this modifies an existing skill)
-- [ ] Update version in `marketplace.json`
-- [ ] Verify no new agents need registration in `CLAUDE.md` (the subagents are ad-hoc Task dispatches, not registered agents)
+- [x] Bump version in `.claude-plugin/plugin.json` (MINOR bump)
+- [x] Update `CHANGELOG.md` with feature description
+- [x] Verify component counts in `README.md` (no new components — this modifies an existing skill)
+- [x] Update version in `marketplace.json`
+- [x] Verify no new agents need registration in `CLAUDE.md` (the subagents are ad-hoc Task dispatches, not registered agents)
 
 ## Key Design Decisions
 
