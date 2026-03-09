@@ -4,7 +4,7 @@ description: Document a recently solved problem to compound your team's knowledg
 argument-hint: "[optional: brief context about the fix]"
 ---
 
-# /compound — Context-Safe Edition
+# /compound — Context-Lean Edition
 
 Capture problem solutions while context is fresh. Uses parallel subagents with disk persistence.
 
