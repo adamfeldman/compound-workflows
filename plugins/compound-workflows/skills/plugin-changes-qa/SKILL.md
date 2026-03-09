@@ -177,7 +177,54 @@ ls .workflows/plugin-qa/agents/*.md
 
 Read each agent output file using the Read tool.
 
-### Step 3.2: Present Aggregated Summary
+### Step 3.2: Count Aggregated Findings
+
+Count total findings across all Tier 1 scripts and Tier 2 agents. Track this count — it determines whether Phase 3.3 runs.
+
+**If zero findings across all checks:** skip Phase 3.3 entirely and proceed directly to Step 3.4 (report "All checks passed.").
+
+### Phase 3.3: Beads Cross-Reference
+
+Cross-reference aggregated QA findings against open beads to identify which findings are already tracked and which need new beads.
+
+**Zero-findings gate:** If Step 3.2 counted zero total findings, skip this entire phase and proceed to Step 3.4.
+
+#### Step 3.3.1: Check Beads Availability
+
+Two-step availability check. Both must succeed to proceed.
+
+**Step A — Check if `bd` is installed:**
+
+```bash
+bd version 2>/dev/null && echo "BD_INSTALLED=true" || echo "BD_INSTALLED=false"
+```
+
+If `BD_INSTALLED=false`: output the following warning and skip to Step 3.4:
+
+> ⚠️ Beads (`bd`) is not installed. Skipping bead cross-reference. Findings will be presented without tracking status.
+
+**Step B — Fetch open beads:**
+
+```bash
+mkdir -p .workflows/plugin-qa/
+bd search "" --status open --json --limit 100 2>/dev/null
+```
+
+**Important:** Use `bd search "" --status open --json --limit 100`, NOT `bd list --json` (which does not produce valid JSON).
+
+Write the JSON output to `.workflows/plugin-qa/open-beads.json` (single-fetch pattern — fetched once here, referenced by all subsequent steps in Phase 3.3).
+
+**If the search command fails** (non-zero exit or empty output): output the following warning and skip to Step 3.4:
+
+> ⚠️ Beads search failed. Skipping bead cross-reference. Findings will be presented without tracking status.
+
+**If >100 beads in JSON output:** warn the user and truncate to the 100 most recently updated beads:
+
+> ⚠️ Found N open beads (limit: 100). Using 100 most recently updated. Consider grooming your backlog.
+
+After successful completion, proceed to Step 3.3.2 (deterministic text matching — implemented in a subsequent phase).
+
+### Step 3.4: Present Aggregated Summary
 
 Synthesize all findings into a single summary for the user:
 
