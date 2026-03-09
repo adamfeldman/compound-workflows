@@ -6,7 +6,7 @@
 #   1. Pattern B: "After receiving the response" + "write it to" (MCP transit)
 #   2. TaskOutput calls (banned)
 #   3. mcp__pal__clink / mcp__pal__chat calls (require manual verification)
-#   4. Task dispatches missing OUTPUT INSTRUCTIONS or [disk-write within 30 lines
+#   4. Task dispatches missing OUTPUT INSTRUCTIONS or [disk-write within 50 lines
 #
 # NOTE: This script does NOT skip code blocks. Command files use code blocks
 # for actual Task dispatch syntax that Claude Code executes -- these are
@@ -88,11 +88,13 @@ for f in "$cmd_dir"/*.md; do
 done
 
 # --- Check 4: Task dispatches missing OUTPUT INSTRUCTIONS or [disk-write ---
-# For each Task dispatch line, check if OUTPUT INSTRUCTIONS or [disk-write appears
-# within the next 20 lines. If not, flag it.
+# For each Task dispatch line, check if OUTPUT INSTRUCTIONS or [disk-write or
+# "Write your" or "Write to:" appears within the next 50 lines. If not, flag it.
 #
-# A "Task dispatch" is a line matching: ^Task <name> or containing "Task <name>"
-# at the start of a markdown instruction (possibly inside a code block).
+# A "Task dispatch" is a line where Task is at the start (after optional whitespace),
+# e.g., `Task general-purpose: "` or `Task subagent (run_in_background: true): "`.
+# Lines where "Task" appears mid-sentence (prose descriptions) are skipped.
+# Lines containing "context-lean-exempt" are skipped (legitimate exceptions).
 
 for f in "$cmd_dir"/*.md; do
   [[ -f "$f" ]] || continue
@@ -112,17 +114,21 @@ for f in "$cmd_dir"/*.md; do
   while IFS= read -r line; do
     current_line=$((current_line + 1))
 
-    # Match Task dispatches: "Task <agent-name>" with optional modifiers
-    if echo "$line" | grep -qE 'Task [a-z][a-z0-9-]+' 2>/dev/null; then
-      # Skip lines that are just discussing Task concept (e.g., "each Task")
-      # We want actual dispatch lines
+    # Only match lines where Task starts the line (after optional whitespace)
+    # This skips prose like "Run only the Claude Opus Task subagent"
+    if echo "$line" | grep -qE '^\s*Task [a-z][a-z0-9-]+' 2>/dev/null; then
       task_name="$(echo "$line" | grep -oE 'Task [a-z][a-z0-9-]+' | head -1 || true)"
       [[ -z "$task_name" ]] && continue
 
-      # Look ahead 30 lines for OUTPUT INSTRUCTIONS or [disk-write
-      # (MCP relay Task blocks can be 25+ lines due to embedded prompts)
+      # Skip lines marked as legitimate exceptions
+      if echo "$line" | grep -qF 'context-lean-exempt' 2>/dev/null; then
+        continue
+      fi
+
+      # Look ahead 50 lines for OUTPUT INSTRUCTIONS, [disk-write, or Write your/to:
+      # (MINOR triage Task blocks can be 40+ lines due to categorization instructions)
       found_output=false
-      end_line=$((current_line + 30))
+      end_line=$((current_line + 50))
       if [[ "$end_line" -gt "$line_count" ]]; then
         end_line="$line_count"
       fi
@@ -135,10 +141,13 @@ for f in "$cmd_dir"/*.md; do
       if echo "$window" | grep -qE '\[disk-write' 2>/dev/null; then
         found_output=true
       fi
+      if echo "$window" | grep -qE 'Write (your|to:)' 2>/dev/null; then
+        found_output=true
+      fi
 
       if [[ "$found_output" = false ]]; then
         add_finding "SERIOUS" "$f" "$current_line" "task-missing-output-instructions" \
-          "$task_name dispatch has no OUTPUT INSTRUCTIONS or [disk-write within 20 lines"
+          "$task_name dispatch has no OUTPUT INSTRUCTIONS or disk-write within 50 lines"
       fi
     fi
   done < "$lines_file"

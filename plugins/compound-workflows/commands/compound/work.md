@@ -262,7 +262,7 @@ Return a summary with:
 **Dispatch with:**
 
 ```
-Task general-purpose (foreground): "[constructed prompt above]"
+Task general-purpose (foreground): "[constructed prompt above]" <!-- context-lean-exempt: work subagents commit code, return inline summary -->
 ```
 
 ### 2.3 Handling Subagent Results

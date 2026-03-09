@@ -391,7 +391,7 @@ Display the setup summary:
 ## Setup Complete
 
 Environment:
-  Task tracking:  [beads (compaction-safe) | TodoWrite (in-memory)]
+  Task tracking:  [beads (compaction-safe) | TodoWrite (in-memory)] <!-- context-lean-exempt: display label -->
   Red team:       [Gemini CLI + Codex CLI | PAL MCP | Claude subagent fallback]
   GitHub CLI:     [available | not available]
 
