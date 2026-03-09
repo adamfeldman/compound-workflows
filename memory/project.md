@@ -30,13 +30,10 @@
   - 7 new files: 3 shell scripts + lib.sh, semantic-checks.md, reviewer.md, consolidator.md
   - Plan: `docs/plans/2026-03-08-feat-plan-readiness-agents-plan.md` (completed)
 
+## Completed Work (continued)
+- **Context-lean enforcement + QA enhancement (v1.8.0)** — bead `bdr` closed. 12 commits, 17+ files. MCP wrapping, disk-persist, QA command, hook, sentinel, docs, rename, version bump.
+
 ## In-Progress Work
-- **Context-lean enforcement + QA enhancement** — plan deepened (run 1 complete), ready for `/compound:work`
-  - Plan: `docs/plans/2026-03-08-feat-context-lean-enforcement-plan.md` (active, deepened)
-  - Brainstorm: `docs/brainstorms/2026-03-08-context-lean-enforcement-brainstorm.md`
-  - Bead: `compound-workflows-marketplace-bdr` (P1, in_progress)
-  - Target version: 1.8.0 (new command + fixes)
-  - Key deepen decisions: 4 scripts (not 1), keep Tier 2 agents, namespace PR runs, hooks in settings.local.json (not committed), zero MCP exceptions
 - **Finding resolution provenance** — brainstorm written, ready for `/compound:plan`
   - Brainstorm: `docs/brainstorms/2026-03-08-finding-resolution-provenance-brainstorm.md`
   - Bead: `compound-workflows-marketplace-emx` (P1, open)
@@ -44,4 +41,4 @@
   - Brainstorm: `docs/brainstorms/2026-03-08-deepen-plan-convergence-brainstorm.md` (red team complete)
   - Bead: `compound-workflows-marketplace-ruh` (P1, open, blocked on bdr)
   - Key decisions: hybrid script+agent, bounded reads (current+prior run only), 4 recommendation states, soft round-count guardrails, anti-anchoring (read prior signals not prior recommendation)
-- **All 4 open P1 beads blocked on context-lean enforcement (bdr):** emx → ruh → aig → h0g
+- **Dependency chain (all unblocked):** emx → ruh → aig → h0g
