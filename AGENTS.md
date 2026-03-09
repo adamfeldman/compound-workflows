@@ -10,7 +10,7 @@ plugins/compound-workflows/
 ├── agents/{research,review,workflow}/  # 25 agent YAML files
 ├── skills/                       # Skill directories (SKILL.md each)
 ├── commands/compound/            # Slash commands (max 8 per dir)
-├── scripts/plugin-qa/           # Tier 1 QA scripts (4 scripts + lib.sh)
+├── scripts/plugin-qa/           # Tier 1 QA scripts (5 scripts + lib.sh)
 ├── CLAUDE.md                     # Plugin dev instructions
 ├── CHANGELOG.md                  # Version history
 └── README.md                     # User-facing docs
@@ -34,7 +34,7 @@ Run `/compound-workflows:plugin-changes-qa` after ANY change to commands, agents
 
 ### Tier 1: Structural Scripts (Deterministic)
 
-Four bash scripts in `plugins/compound-workflows/scripts/plugin-qa/`:
+Five bash scripts in `plugins/compound-workflows/scripts/plugin-qa/`:
 
 | Script | What it checks |
 |--------|----------------|
@@ -42,6 +42,7 @@ Four bash scripts in `plugins/compound-workflows/scripts/plugin-qa/`:
 | `file-counts.sh` | Agent, skill, and command counts match declarations in CLAUDE.md, plugin.json, marketplace.json, README.md |
 | `truncation-check.sh` | YAML frontmatter present and closed, minimum line count thresholds (catches truncated files) |
 | `context-lean-grep.sh` | MCP response transit patterns, banned TaskOutput calls, MCP calls needing Task-wrapping verification, Task dispatches missing OUTPUT INSTRUCTIONS |
+| `version-sync.sh` | Validates version consistency across plugin.json, marketplace.json, and CHANGELOG.md |
 
 ### Tier 2: Semantic Agents (LLM)
 
@@ -67,6 +68,7 @@ Every change MUST update:
 1. `plugins/compound-workflows/.claude-plugin/plugin.json` — bump version
 2. `.claude-plugin/marketplace.json` — bump version
 3. `plugins/compound-workflows/CHANGELOG.md` — document changes
+4. `plugins/compound-workflows/README.md` — verify component counts
 
 - **MAJOR**: Breaking changes to command interfaces or config schema
 - **MINOR**: New commands, agents, skills, or significant enhancements
@@ -79,7 +81,7 @@ Only release when files inside `plugins/compound-workflows/` change. Changes to 
 1. Run QA (see above), fix any issues
 2. Update `plugins/compound-workflows/CHANGELOG.md`
 3. Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json`
-4. Bump version + ref in `.claude-plugin/marketplace.json` (ref pins the tag users install — set to the new version before committing)
+4. Bump version in `.claude-plugin/marketplace.json`
 5. Commit
 6. Tag: `git tag v<version>`
 7. Push: `git push origin main --tags`
