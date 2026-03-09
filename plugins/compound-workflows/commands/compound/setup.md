@@ -202,7 +202,13 @@ options:
     description: "Add or remove specific agents from the roster"
 ```
 
-If "Customize": list all available agents from `plugins/compound-workflows/agents/review/` and `plugins/compound-workflows/agents/research/` and let the user toggle.
+If "Customize": list all available review and research agents. To find them, resolve the plugin root:
+```bash
+PLUGIN_ROOT="plugins/compound-workflows"
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+ls "$PLUGIN_ROOT/agents/review/" "$PLUGIN_ROOT/agents/research/" 2>/dev/null
+```
+Let the user toggle agents on/off from the list.
 
 ## Step 6: Create Directories
 
@@ -373,7 +379,7 @@ Fill in based on detected environment. Red team provider preferences are NOT sto
 
 ### 7c: Routing Rules
 
-Check if the project has an `AGENTS.md` or `CLAUDE.md`. Append a compound-workflows routing section if one doesn't already exist:
+Check if the project has an `AGENTS.md` or `CLAUDE.md` with a compound-workflows routing section:
 
 ```bash
 # Check for existing routing rules
@@ -382,9 +388,15 @@ grep -q 'compound:brainstorm' CLAUDE.md 2>/dev/null && echo "ROUTING_EXISTS=CLAU
 echo "ROUTING_EXISTS=none"
 ```
 
-**If routing rules already exist:** Skip — don't duplicate.
+**If routing rules already exist:** Read the existing routing section and compare it against the canonical version below. If identical, skip. If different (missing routes, outdated wording, extra entries), show the user a diff summary of what would change and ask:
 
-**If no routing rules found:** Append to `AGENTS.md` (create if needed). Write this section:
+> Your routing rules differ from the current version. Want to update them? (yes / no / show diff)
+
+On "yes", replace the existing routing section with the canonical version. On "no", leave as-is.
+
+**If no routing rules found:** Append to `AGENTS.md` (create if needed).
+
+**Canonical routing section:**
 
 ```markdown
 ## Routing

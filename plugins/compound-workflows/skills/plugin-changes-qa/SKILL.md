@@ -52,6 +52,8 @@ Collect all script outputs for Phase 3 aggregation.
 
 Dispatch three LLM agents in parallel for semantic analysis that bash scripts cannot perform. All agents use the disk-persist pattern.
 
+**Important:** In the Task prompts below, substitute `$PLUGIN_ROOT` with the value resolved in Step 1.1.
+
 ### Step 2.1: Create Output Directory
 
 ```bash
@@ -68,7 +70,7 @@ Launch all three agents in a single message with `run_in_background: true`:
 Task general-purpose (run_in_background: true): "
 You are a context-lean compliance reviewer for the compound-workflows plugin.
 
-Read ALL command files in: plugins/compound-workflows/commands/compound/
+Read ALL command files in: $PLUGIN_ROOT/commands/compound/
 
 For each command file, verify:
 1. **No large agent returns in orchestrator context** — every Task dispatch must include OUTPUT INSTRUCTIONS that direct the agent to write to disk and return only a 2-3 sentence summary
@@ -97,11 +99,11 @@ DO NOT return your full analysis in your response.
 Task general-purpose (run_in_background: true): "
 You are a role description consistency reviewer for the compound-workflows plugin.
 
-Read the agent registry in: plugins/compound-workflows/CLAUDE.md
-Read all agent definition files in: plugins/compound-workflows/agents/
+Read the agent registry in: $PLUGIN_ROOT/CLAUDE.md
+Read all agent definition files in: $PLUGIN_ROOT/agents/
 
-Then read all command files in: plugins/compound-workflows/commands/compound/
-And all skill files matching: plugins/compound-workflows/skills/*/SKILL.md
+Then read all command files in: $PLUGIN_ROOT/commands/compound/
+And all skill files matching: $PLUGIN_ROOT/skills/*/SKILL.md
 
 For each Task dispatch in commands and skills, verify:
 1. **Agent name matches** — the Task dispatch references a valid agent from the registry
@@ -129,8 +131,8 @@ DO NOT return your full analysis in your response.
 Task general-purpose (run_in_background: true): "
 You are a command completeness and conventions reviewer for the compound-workflows plugin.
 
-Read ALL command files in: plugins/compound-workflows/commands/compound/
-Read the Command Conventions section in: plugins/compound-workflows/CLAUDE.md
+Read ALL command files in: $PLUGIN_ROOT/commands/compound/
+Read the Command Conventions section in: $PLUGIN_ROOT/CLAUDE.md
 
 For each command file, verify:
 1. **AskUserQuestion usage** — commands must use AskUserQuestion (the tool) for user interaction, never raw conversational questions without the tool

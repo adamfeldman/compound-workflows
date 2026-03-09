@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.1] - 2026-03-09
+
+### Fixed
+- **All remaining hardcoded plugin paths** — plan.md, deepen-plan.md, work.md, setup.md, and plugin-changes-qa now resolve `$PLUGIN_ROOT` dynamically via `find`. Previously plan-checks scripts, convergence-signals.sh, worktree-manager.sh, and Tier 2 agent file reads all used paths that only existed in the source repo.
+
+### Changed
+- **Setup routing merge** — Step 7c now diffs existing routing rules against the canonical version and offers to merge instead of silently skipping.
+
 ## [1.13.0] - 2026-03-09
 
 ### Added
