@@ -138,3 +138,4 @@ After release, update locally via CLI (`claude plugin update compound-workflows@
 - Red team provider method (clink vs pal chat) is runtime-detected, not stored in config
 - Config is split: `compound-workflows.md` (committed) + `compound-workflows.local.md` (gitignored)
 - No git remote configured; local-only development
+- Only commit files you changed in the current session — do not stage unrelated modified files
