@@ -222,7 +222,37 @@ Write the JSON output to `.workflows/plugin-qa/open-beads.json` (single-fetch pa
 
 > ⚠️ Found N open beads (limit: 100). Using 100 most recently updated. Consider grooming your backlog.
 
-After successful completion, proceed to Step 3.3.2 (deterministic text matching — implemented in a subsequent phase).
+After successful completion, proceed to Step 3.3.2.
+
+#### Step 3.3.2: Deterministic Text Matching
+
+Match Tier 1 findings against open beads using fast, deterministic string comparison. This runs in the orchestrator (not a subagent) because data volumes are bounded (max ~50 Tier 1 findings, 100 beads) and the matching is simple string comparison.
+
+**Tier 2 findings bypass this step entirely.** Tier 2 findings are free-form prose without structured check-name or file fields — they go directly to the LLM subagent (Step 3.3.3).
+
+**Input:**
+- Tier 1 findings from Phase 1 (format: `- **[SEVERITY]** \`relative/file/path\` (line N): pattern-name — Description text`)
+- Beads JSON from `.workflows/plugin-qa/open-beads.json` (written in Step 3.3.1)
+
+**For each Tier 1 finding**, extract the `check-name` (the pattern-name after the line number) and `file-path` (the backtick-quoted path). Then search the beads JSON in priority order — stop at the first match:
+
+1. **Provenance token match** (strongest): Any bead's description contains the exact string `qa-finding:<check-name>:<file-path>`. This is a fingerprint left by prior QA runs — it is definitive. Mark the finding as `tracked` with that bead's ID.
+
+2. **Check-name + file match** (strong): Any bead's title or description contains the `check-name` AND also references the same `file-path`. Mark as `tracked` with that bead's ID.
+
+3. **Check-name only match** (moderate): Any bead's title or description contains the `check-name` but does NOT reference the same file. Still mark as `tracked` — check-names (e.g., `stale-task-dispatch`, `missing-output-instructions`) are specific enough that a bead mentioning one almost certainly covers this finding category.
+
+4. **File-path-only match** (weak): Skip — too many false positives. A bead mentioning a file does not mean it tracks a specific QA finding about that file. Leave these for the LLM subagent.
+
+**Fingerprint dedup:** Before classifying any finding as `untracked`, check whether its provenance token (`qa-finding:<check-name>:<file-path>`) already exists in ANY bead's description or notes. If it does, that finding is already tracked regardless of other matching criteria — mark it as `tracked` with that bead's ID and move on.
+
+**Output — two lists for subsequent steps:**
+
+1. **Matched findings** — each entry contains: the finding text, the match type (provenance/check-name+file/check-name-only), and the matched bead ID. These go to the coverage assessment subagent (Step 3.3.4).
+
+2. **Unmatched findings** — all Tier 1 findings that did not match any bead via the rules above, plus ALL Tier 2 findings (which were never candidates for deterministic matching). These go to the LLM matching subagent (Step 3.3.3).
+
+**If all Tier 1 findings matched and there are no Tier 2 findings:** skip Step 3.3.3 (LLM matching) and proceed directly to Step 3.3.4 (coverage assessment).
 
 ### Step 3.4: Present Aggregated Summary
 
