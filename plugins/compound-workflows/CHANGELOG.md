@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.0] - 2026-03-09
+
+### Added
+- **Setup routing rules** — Step 7c writes a "Compound Workflows Routing" section to the user's AGENTS.md during setup, mapping question types to commands (brainstorm, plan, deepen-plan, work, review, compound, compact-prep, recover). Skips if routing rules already exist.
+
+### Changed
+- **compact-prep UNRELEASED check** — now only offers to create releases when in the plugin source repo (`plugins/compound-workflows/` exists locally). Regular users see UNRELEASED as informational only.
+
 ## [1.12.2] - 2026-03-09
 
 ### Fixed
