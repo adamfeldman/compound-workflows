@@ -39,6 +39,7 @@ If prior runs exist, increment the run number (e.g., if `run-2-manifest.json` ex
 
 ```bash
 mkdir -p .workflows/deepen-plan/<plan-stem>/agents/run-<N>
+[[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
 ```
 
 **Check for interrupted current run:** If `.workflows/deepen-plan/<plan-stem>/manifest.json` exists AND its `status` is NOT `"readiness_complete"`, this may be an interrupted run. Skip to Phase 5 (Recovery).
@@ -150,6 +151,24 @@ For each matched skill, learning, research topic, and review agent, add an entry
 ```
 
 **When in doubt about whether to include an agent, include it.** Prefer producing the best output over reducing repeated work. It is always acceptable to re-run research on topics that prior runs covered — the document may have changed, and fresh analysis catches things prior runs missed.
+
+### Step 2e: Relevance Assessment
+
+Before launching agents, check whether the project's configured stack makes certain agents irrelevant. Read the `stack:` field from `compound-workflows.md`. If no `stack:` field is configured, skip nothing — all agents proceed to launch.
+
+**Never-skip protection.** The following agents are always included regardless of stack configuration: `security-sentinel` and `architecture-strategist`. Check this protected list first. If an agent is protected, keep it and move on — do not evaluate skip conditions for protected agents.
+
+**Stack-based skip rules:**
+
+- If `stack: python` is configured, skip `typescript-reviewer` and `frontend-races-reviewer`. These agents review TypeScript-specific patterns and frontend race conditions that do not apply to Python projects.
+- If `stack: typescript` is configured, skip `python-reviewer`. This agent reviews Python-specific idioms and packaging that do not apply to TypeScript projects.
+- All other agents are always included. Do not infer skip decisions from plan keywords, file extensions, or domain analysis — only the explicit `stack:` value drives filtering. When in doubt about whether to include an agent, include it.
+
+**Manifest tracking.** For each skipped agent, update its entry in `manifest.json` to `"status": "skipped"` with a `"reason"` field explaining why (e.g., `"reason": "stack: python — typescript-reviewer not applicable"`). Skipped agents remain in the manifest for traceability but are not launched.
+
+**Report to user.** After applying skip rules, tell the user: "Skipping N agents (stack: \<value\>): [list of skipped agent names]. [Total remaining] agents launching." If no agents were skipped, say: "No agents skipped — [Total] agents launching."
+
+> **Future expansion (v2.1):** Keyword-based filtering (matching plan technologies against agent descriptions) may be added after collecting empirical data from v2.0 runs. Until then, only the explicit `stack:` field drives skip decisions.
 
 Update `manifest.json` status to `"agents_planned"`. Write the file to disk.
 
@@ -492,7 +511,7 @@ which codex 2>/dev/null && echo "CODEX_CLI=available" || echo "CODEX_CLI=not_ava
 *If Gemini CLI is available* — use `clink` via subagent:
 
 ```
-Task general-purpose (run_in_background: true): "
+Task red-team-relay (run_in_background: true): "
 You are a red team dispatch agent. Call the Gemini model for a red team review and persist the result to disk.
 
 Call this MCP tool:
@@ -532,7 +551,7 @@ After writing the file, return ONLY a 2-3 sentence summary of the key findings.
 *If no Gemini CLI, or user prefers a specific model* — use `pal chat` via subagent:
 
 ```
-Task general-purpose (run_in_background: true): "
+Task red-team-relay (run_in_background: true): "
 You are a red team dispatch agent. Call the Gemini model for a red team review and persist the result to disk.
 
 Call this MCP tool:
@@ -573,7 +592,7 @@ After writing the file, return ONLY a 2-3 sentence summary of the key findings.
 *If Codex CLI is available* — use `clink` via subagent:
 
 ```
-Task general-purpose (run_in_background: true): "
+Task red-team-relay (run_in_background: true): "
 You are a red team dispatch agent. Call the OpenAI model for a red team review and persist the result to disk.
 
 Call this MCP tool:
@@ -613,7 +632,7 @@ After writing the file, return ONLY a 2-3 sentence summary of the key findings.
 *If no Codex CLI, or user prefers a specific model* — use `pal chat` via subagent:
 
 ```
-Task general-purpose (run_in_background: true): "
+Task red-team-relay (run_in_background: true): "
 You are a red team dispatch agent. Call the OpenAI model for a red team review and persist the result to disk.
 
 Call this MCP tool:
@@ -958,10 +977,7 @@ If a prior convergence file exists (e.g., `run-<N-1>-convergence.md`), use its p
 Dispatch the convergence-advisor agent as a background Task:
 
 ```
-Task general-purpose (run_in_background: true): "
-You are a convergence advisor for the deepen-plan workflow. Read and follow the agent instructions at:
-  $PLUGIN_ROOT/agents/workflow/convergence-advisor.md
-
+Task convergence-advisor (run_in_background: true): "
 Convergence signals (from convergence-signals.sh):
 <raw script stdout pasted here>
 

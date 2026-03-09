@@ -37,6 +37,7 @@ Run a quick repo scan and broad context search in parallel:
 
 ```bash
 mkdir -p .workflows/brainstorm-research/<topic-stem>
+[[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
 ```
 
 ```
@@ -129,7 +130,7 @@ which codex 2>/dev/null && echo "CODEX_CLI=available" || echo "CODEX_CLI=not_ava
 *If Gemini CLI is available* — use `clink` via subagent:
 
 ```
-Task general-purpose (run_in_background: true): "
+Task red-team-relay (run_in_background: true): "
 You are a red team dispatch agent. Call the Gemini model for a red team review and persist the result to disk.
 
 Call this MCP tool:
@@ -163,7 +164,7 @@ After writing the file, return ONLY a 2-3 sentence summary of the key findings.
 *If no Gemini CLI, or user prefers a specific model* — use `pal chat` via subagent:
 
 ```
-Task general-purpose (run_in_background: true): "
+Task red-team-relay (run_in_background: true): "
 You are a red team dispatch agent. Call the Gemini model for a red team review and persist the result to disk.
 
 Call this MCP tool:
@@ -198,7 +199,7 @@ After writing the file, return ONLY a 2-3 sentence summary of the key findings.
 *If Codex CLI is available* — use `clink` via subagent:
 
 ```
-Task general-purpose (run_in_background: true): "
+Task red-team-relay (run_in_background: true): "
 You are a red team dispatch agent. Call the OpenAI model for a red team review and persist the result to disk.
 
 Call this MCP tool:
@@ -232,7 +233,7 @@ After writing the file, return ONLY a 2-3 sentence summary of the key findings.
 *If no Codex CLI, or user prefers a specific model* — use `pal chat` via subagent:
 
 ```
-Task general-purpose (run_in_background: true): "
+Task red-team-relay (run_in_background: true): "
 You are a red team dispatch agent. Call the OpenAI model for a red team review and persist the result to disk.
 
 Call this MCP tool:

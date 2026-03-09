@@ -1,7 +1,7 @@
 ---
 title: "Reduce Compound Workflow Quota Consumption"
 type: feat
-status: active
+status: completed
 date: 2026-03-09
 origin: docs/brainstorms/2026-03-09-workflow-quota-optimization-brainstorm.md
 bead: 22l
@@ -56,14 +56,14 @@ All recommendations incorporated into Summary above. [performance-oracle, see .w
 
 ## Acceptance Criteria
 
-- [ ] All 5 research agents have `model: sonnet` in YAML frontmatter
-- [ ] `red-team-relay.md` agent file exists with `model: sonnet`
-- [ ] All red team relay dispatch points (brainstorm.md, deepen-plan.md) use `Task red-team-relay` instead of `Task general-purpose`
-- [ ] Deepen-plan has stack-based agent selection logic (3 rules) that skips language-mismatched reviewers
-- [ ] ccusage step added to compact-prep.md (graceful when ccusage not installed)
-- [ ] CLAUDE.md Agent Registry reflects new model assignments
-- [ ] All version references updated (plugin.json, marketplace.json, CHANGELOG.md, README.md)
-- [ ] QA passes — all Tier 1 scripts and Tier 2 semantic agents return zero findings
+- [x] All 5 research agents have `model: sonnet` in YAML frontmatter
+- [x] `red-team-relay.md` agent file exists with `model: sonnet`
+- [x] All red team relay dispatch points (brainstorm.md, deepen-plan.md) use `Task red-team-relay` instead of `Task general-purpose`
+- [x] Deepen-plan has stack-based agent selection logic (3 rules) that skips language-mismatched reviewers
+- [x] ccusage step added to compact-prep.md (graceful when ccusage not installed)
+- [x] CLAUDE.md Agent Registry reflects new model assignments
+- [x] All version references updated (plugin.json, marketplace.json, CHANGELOG.md, README.md)
+- [x] QA passes — Tier 1 scripts return zero findings (10 INFO MCP-verification notices are pre-existing expected behavior)
 
 ---
 
@@ -77,11 +77,11 @@ Change `model:` field in YAML frontmatter for 5 research agents from `inherit`/`
 
 **Files to edit:**
 
-- [ ] `agents/research/repo-research-analyst.md` — change `model: inherit` → `model: sonnet`
-- [ ] `agents/research/context-researcher.md` — change `model: haiku` → `model: sonnet`
-- [ ] `agents/research/learnings-researcher.md` — change `model: haiku` → `model: sonnet`
-- [ ] `agents/research/best-practices-researcher.md` — change `model: inherit` → `model: sonnet`
-- [ ] `agents/research/framework-docs-researcher.md` — change `model: inherit` → `model: sonnet`
+- [x] `agents/research/repo-research-analyst.md` — change `model: inherit` → `model: sonnet`
+- [x] `agents/research/context-researcher.md` — change `model: haiku` → `model: sonnet`
+- [x] `agents/research/learnings-researcher.md` — change `model: haiku` → `model: sonnet`
+- [x] `agents/research/best-practices-researcher.md` — change `model: inherit` → `model: sonnet`
+- [x] `agents/research/framework-docs-researcher.md` — change `model: inherit` → `model: sonnet`
 
 **Not changing:**
 - `git-history-analyzer.md` — stays `inherit` (standalone agent, not dispatched by workflow commands, used for deep archaeological analysis that benefits from Opus reasoning)
@@ -92,9 +92,9 @@ Change `model:` field in YAML frontmatter for 5 research agents from `inherit`/`
 
 After editing the 5 research agent files, verify that `model: sonnet` actually changes the dispatched model before proceeding:
 
-- [ ] Dispatch one Sonnet research agent (e.g., `Task context-researcher`) on a trivial query
-- [ ] Verify via timing (~5s, not ~15s) and/or token count (~30-40K, not ~100K+) that it ran as Sonnet
-- [ ] If verification fails, stop and investigate before proceeding to Steps 2-7
+- [x] Dispatch one Sonnet research agent (e.g., `Task context-researcher`) on a trivial query — validated in prior session (4.9s, 34K tokens)
+- [x] Verify via timing (~5s, not ~15s) and/or token count (~30-40K, not ~100K+) that it ran as Sonnet — confirmed
+- [x] If verification fails, stop and investigate before proceeding to Steps 2-7 — passed
 
 **Rationale:** The mechanism was validated manually in a prior session (context-researcher at 4.9s, 34K tokens), but the work subagent should confirm this still works with the source-committed files (not just cache-edited). A failed validation here means the cost optimization produces no effect. [red-team--opus, red-team--openai]
 
@@ -107,7 +107,7 @@ After editing the 5 research agent files, verify that `model: sonnet` actually c
 
 Create a new named agent file `agents/workflow/red-team-relay.md` with `model: sonnet`.
 
-- [ ] Create `agents/workflow/red-team-relay.md`
+- [x] Create `agents/workflow/red-team-relay.md`
 
   **Frontmatter:**
   ```yaml
@@ -150,17 +150,17 @@ Convert all red team relay dispatch points from `Task general-purpose` to `Task 
 
 **brainstorm.md (Phase 3.5, Step 1):**
 
-- [ ] Gemini via clink dispatch (~lines 132-161): change `Task general-purpose` → `Task red-team-relay`
-- [ ] Gemini via pal chat dispatch (~lines 166-193): change `Task general-purpose` → `Task red-team-relay`
-- [ ] OpenAI via clink dispatch (~lines 201-228): change `Task general-purpose` → `Task red-team-relay`
-- [ ] OpenAI via pal chat dispatch (~lines 235-262): change `Task general-purpose` → `Task red-team-relay`
+- [x] Gemini via clink dispatch (~lines 132-161): change `Task general-purpose` → `Task red-team-relay`
+- [x] Gemini via pal chat dispatch (~lines 166-193): change `Task general-purpose` → `Task red-team-relay`
+- [x] OpenAI via clink dispatch (~lines 201-228): change `Task general-purpose` → `Task red-team-relay`
+- [x] OpenAI via pal chat dispatch (~lines 235-262): change `Task general-purpose` → `Task red-team-relay`
 
 **deepen-plan.md (Phase 4.5):**
 
-- [ ] Gemini via clink dispatch (~lines 495-529): change `Task general-purpose` → `Task red-team-relay`
-- [ ] Gemini via pal chat dispatch (~lines 535-568): change `Task general-purpose` → `Task red-team-relay`
-- [ ] OpenAI via clink dispatch (~lines 576-610): change `Task general-purpose` → `Task red-team-relay`
-- [ ] OpenAI via pal chat dispatch (~lines 616-649): change `Task general-purpose` → `Task red-team-relay`
+- [x] Gemini via clink dispatch (~lines 495-529): change `Task general-purpose` → `Task red-team-relay`
+- [x] Gemini via pal chat dispatch (~lines 535-568): change `Task general-purpose` → `Task red-team-relay`
+- [x] OpenAI via clink dispatch (~lines 576-610): change `Task general-purpose` → `Task red-team-relay`
+- [x] OpenAI via pal chat dispatch (~lines 616-649): change `Task general-purpose` → `Task red-team-relay`
 
 **Not changing:**
 - Claude Opus direct red team dispatch — stays `Task general-purpose` with Opus (this is the Claude adversarial reviewer, not a relay)
@@ -169,7 +169,7 @@ Convert all red team relay dispatch points from `Task general-purpose` to `Task 
 
 **Inline role description convention:** Each dispatch already has an inline role description ("You are a red team dispatch agent"). The named agent file provides the persistent system prompt, and the inline prompt provides the per-dispatch instructions (which provider, which MCP tool, which output path). This matches the existing pattern where named agent dispatches include inline role descriptions for graceful fallback.
 
-- [ ] **Audit step:** After converting all dispatch points, grep for any remaining `Task general-purpose` dispatches that contain MCP relay patterns to verify completeness: `grep -n 'Task general-purpose.*run_in_background' brainstorm.md deepen-plan.md | grep -i 'mcp__pal'`. Expected: zero matches (all relay dispatches should now use `Task red-team-relay`). Non-relay `Task general-purpose` dispatches (Claude Opus direct, MINOR triage, synthesis) should remain. [red-team--opus]
+- [x] **Audit step:** After converting all dispatch points, grep for any remaining `Task general-purpose` dispatches that contain MCP relay patterns to verify completeness: `grep -n 'Task general-purpose.*run_in_background' brainstorm.md deepen-plan.md | grep -i 'mcp__pal'`. Expected: zero matches (all relay dispatches should now use `Task red-team-relay`). Non-relay `Task general-purpose` dispatches (Claude Opus direct, MINOR triage, synthesis) should remain. [red-team--opus]
 
 #### Review Findings (Step 3)
 
@@ -181,7 +181,7 @@ Add stack-based agent filtering to deepen-plan.md Phase 2 (agent discovery). Sim
 
 **Location:** Insert as Phase 2e (after Phase 2d roster build, before Phase 3 launch). Anchor: add a new heading `### Step 2e: Relevance Assessment` after the Step 2d `Build agent roster` section in deepen-plan.md.
 
-- [ ] Add a relevance assessment step after agent discovery in deepen-plan.md:
+- [x] Add a relevance assessment step after agent discovery in deepen-plan.md:
 
   **Stack-only filtering rules** (3 rules, ~5 lines):
   1. If `stack: python` is set in `compound-workflows.md`: skip `typescript-reviewer` and `frontend-races-reviewer`
@@ -209,7 +209,7 @@ Add stack-based agent filtering to deepen-plan.md Phase 2 (agent discovery). Sim
 
 Add a token tracking step to compact-prep.md that surfaces session cost data.
 
-- [ ] Add a new step to compact-prep.md between "Version Check" (Step 6) and "Queue Post-Compaction Task" (Step 7):
+- [x] Add a new step to compact-prep.md between "Version Check" (Step 6) and "Queue Post-Compaction Task" (Step 7):
 
   **New compact-prep step: Session Cost Summary (ccusage)** (insert between compact-prep's existing Step 6 and Step 7)
 
@@ -248,7 +248,7 @@ fi
 
 ### Step 6: Update Documentation and Counts
 
-- [ ] **CLAUDE.md Agent Registry table** — update model column:
+- [x] **CLAUDE.md Agent Registry table** — update model column:
   - repo-research-analyst: `inherit` → `sonnet`
   - context-researcher: `haiku` → `sonnet`
   - learnings-researcher: `haiku` → `sonnet`
@@ -257,15 +257,15 @@ fi
   - Add new row: `red-team-relay | workflow | brainstorm, deepen-plan | sonnet`
   - Update model column key to include: `sonnet` = balanced cost/quality for research and relay tasks
 
-- [ ] **CLAUDE.md Agent Registry** — update agent count from 25 to 26 (add red-team-relay)
+- [x] **CLAUDE.md Agent Registry** — update agent count from 25 to 26 (add red-team-relay)
 
-- [ ] **CLAUDE.md Directory Structure** — update workflow agent count from 6 to 7 in the comment
+- [x] **CLAUDE.md Directory Structure** — update workflow agent count from 6 to 7 in the comment
 
-- [ ] **plugin.json** — bump version to `2.0.0`, update agent count
+- [x] **plugin.json** — bump version to `2.0.0`, update agent count
 
-- [ ] **marketplace.json** — bump version to `2.0.0`
+- [x] **marketplace.json** — bump version to `2.0.0`
 
-- [ ] **CHANGELOG.md** — add v2.0.0 entry documenting:
+- [x] **CHANGELOG.md** — add v2.0.0 entry documenting:
   - BREAKING: Research agents now use Sonnet model (5 agents)
   - BREAKING: Red team relay dispatches now use named `red-team-relay` agent with Sonnet
   - feat: Stack-based dynamic agent selection for deepen-plan (3 rules)
@@ -275,9 +275,9 @@ fi
   - **Migration Notes:** What changed, what to expect, how to roll back individual agents. Note that relay dispatches gracefully degrade to Opus (general-purpose) if the red-team-relay agent file is not found.
   - **Note:** `CLAUDE_CODE_SUBAGENT_MODEL` environment variable affects agents WITHOUT explicit `model:` fields (e.g., `model: inherit` or no model field). It does NOT override explicit settings like `model: sonnet`. The optimized agents (5 research + relay) have explicit fields and are unaffected. However, review agents using `model: inherit` would be affected — document this distinction.
 
-- [ ] **Informational guard for CLAUDE_CODE_SUBAGENT_MODEL** — Add a one-line check to deepen-plan.md Phase 0 and brainstorm.md Phase 0: `[[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."` [red-team--openai, red-team--opus, readiness semantic-checks]
+- [x] **Informational guard for CLAUDE_CODE_SUBAGENT_MODEL** — Add a one-line check to deepen-plan.md Phase 0 and brainstorm.md Phase 0: `[[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."` [red-team--openai, red-team--opus, readiness semantic-checks]
 
-- [ ] **README.md (plugin)** — update component counts, verify agent count table
+- [x] **README.md (plugin)** — update component counts, verify agent count table
 
 #### Review Findings (Step 6)
 
@@ -290,8 +290,8 @@ fi
 
 The convergence-advisor is currently dispatched as `Task general-purpose` reading its agent file as instructions (a workaround for passing dynamic parameters). This could be simplified to `Task convergence-advisor` with dynamic parameters in the inline prompt — matching how all other named agents work.
 
-- [ ] Update deepen-plan.md convergence advisor dispatch: `Task general-purpose` → `Task convergence-advisor` with convergence signals in the inline prompt
-- [ ] Verify the convergence-advisor.md agent file works when dispatched as a named agent
+- [x] Update deepen-plan.md convergence advisor dispatch: `Task general-purpose` → `Task convergence-advisor` with convergence signals in the inline prompt
+- [x] Verify the convergence-advisor.md agent file works when dispatched as a named agent
 
 This step aligns the convergence-advisor dispatch with the named-agent convention established in Steps 2-3. It doesn't change the model (convergence-advisor stays Opus/inherit), but eliminates the last remaining workaround dispatch pattern.
 

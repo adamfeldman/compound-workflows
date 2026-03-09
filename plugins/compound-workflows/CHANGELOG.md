@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - 2026-03-09
+
+### Breaking Changes
+- Research agents now use Sonnet model for balanced cost/quality (5 agents: repo-research-analyst, context-researcher, learnings-researcher, best-practices-researcher, framework-docs-researcher)
+- Red team relay dispatches now use named `red-team-relay` agent with Sonnet model (8 dispatch points in brainstorm.md and deepen-plan.md)
+- No Haiku tier — previously-Haiku agents (context-researcher, learnings-researcher) promoted to Sonnet for better summary quality
+
+### Features
+- Stack-based dynamic agent selection for deepen-plan (3 rules: skip language-mismatched reviewers based on stack config)
+- ccusage session cost tracking in compact-prep (graceful skip when not installed)
+- Convergence advisor uses named dispatch pattern (consistency with other workflow agents)
+- New agent: `red-team-relay` (workflow category, model: sonnet)
+
+### Migration Notes
+- Agent model assignments changed — research agents and relay dispatches now use Sonnet instead of Opus/Haiku
+- Relay dispatches gracefully degrade to Opus (general-purpose) if red-team-relay agent file is not found
+- Individual agents can be rolled back by changing `model: sonnet` to `model: inherit` in their YAML frontmatter
+- `CLAUDE_CODE_SUBAGENT_MODEL` environment variable affects agents WITHOUT explicit `model:` fields only — does NOT override explicit `model: sonnet` settings. Review agents using `model: inherit` would be affected.
+- Agent count: 25 → 26
+
 ## [1.13.2] - 2026-03-09
 
 ### Fixed
