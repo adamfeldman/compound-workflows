@@ -12,6 +12,9 @@
 # Claude memory (private workflow preferences)
 .claude/memory/
 
+# Worktrees (created by bd worktree / worktree-manager.sh)
+.worktrees/
+
 # Editor
 *.code-workspace
 

@@ -56,6 +56,8 @@ Flag any concerns to the user before proceeding.
 
 ### 1.2 Setup Worktree
 
+**NEVER call `git worktree add` directly.** Always use `bd worktree` or the `worktree-manager.sh` script. Raw `git worktree add` creates worktrees in the wrong location and requires manual `.gitignore` entries.
+
 Check current branch and worktree state:
 
 ```bash
@@ -65,6 +67,8 @@ if [ -z "$default_branch" ]; then
   default_branch=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo "main" || echo "master")
 fi
 echo "Current: $current_branch | Default: $default_branch"
+# Detect worktree tool availability
+command -v bd >/dev/null 2>&1 && echo "BD=available" || echo "BD=not_available"
 bd worktree info 2>/dev/null
 ```
 
@@ -74,16 +78,20 @@ bd worktree info 2>/dev/null
 - **AskUserQuestion:** "Continue working on `[current_branch]`, or create a worktree for isolated development?"
 
 **If on the default branch**, create a worktree (default) or opt out:
-- **Default:** Create a worktree with `bd worktree create <name>` — provides isolated development with shared beads state. Then `cd` into the worktree path.
+- **Default:** Create a worktree — provides isolated development. Then `cd` into the worktree path.
 - **Opt-out:** Work directly on a feature branch (`git checkout -b feat/...`) — only if user explicitly prefers this.
 
 ```bash
-# Default: worktree (beads handles db redirect automatically)
+# Primary: bd worktree (beads handles db redirect automatically)
 bd worktree create <descriptive-name>
+cd .worktrees/<descriptive-name>
+
+# Fallback (if bd not available): use worktree-manager.sh
+bash plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh create <descriptive-name>
 cd .worktrees/<descriptive-name>
 ```
 
-**Why worktrees are the default for subagent execution:** Subagents write code autonomously. If something goes wrong, you can nuke the worktree (`bd worktree remove <name>`) without touching your main working tree. No `git reset --hard`, no orphaned files.
+**Why worktrees are the default for subagent execution:** Subagents write code autonomously. If something goes wrong, you can nuke the worktree without touching your main working tree. No `git reset --hard`, no orphaned files.
 
 **TodoWrite mode:** Skip worktree setup. Create a feature branch instead:
 ```bash
@@ -286,12 +294,12 @@ If context compacts mid-execution, recovery is simple:
 
 1. Re-orient — check worktree and beads state:
    ```bash
-   bd worktree info               # Are we in a worktree? Which one?
+   bd worktree info 2>/dev/null || git worktree list  # Are we in a worktree? Which one?
    bd list --status=in_progress   # What was being worked on
    bd ready                        # What's available next
    bd list --status=closed | tail -5  # What was recently completed
    ```
-2. If `bd worktree info` shows you should be in a worktree but you're not, `cd` into it
+2. If worktree info shows you should be in a worktree but you're not, `cd` into it
 3. Check for stale sentinel file and clean up if needed:
    ```bash
    if [ -f .workflows/.work-in-progress ]; then
@@ -400,8 +408,10 @@ After all issues are closed (or all TodoWrite tasks completed):
    ```bash
    # Return to main repo
    cd $(git worktree list --porcelain | head -1 | sed 's/worktree //')
-   # Remove the worktree (has safety checks for uncommitted changes)
+   # Remove the worktree
    bd worktree remove <worktree-name>
+   # Fallback (if bd not available):
+   bash plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh remove <worktree-name>
    ```
 
    Only remove after PR is created and pushed. If the user wants to keep the worktree (e.g., awaiting review feedback), skip this step.

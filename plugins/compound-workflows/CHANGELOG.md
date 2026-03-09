@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.4] - 2026-03-08
+
+### Fixed
+- Enforce worktree creation via `bd worktree` or `worktree-manager.sh` — prohibit raw `git worktree add` which creates worktrees in wrong location
+- Add `worktree-manager.sh` as fallback when `bd` is unavailable (create, remove, recovery)
+- Add `.worktrees/` to `.gitignore`
+- Fix stale invocation path `/compound:plugin-changes-qa` → `/compound-workflows:plugin-changes-qa` in AGENTS.md and QA hook
+- Fix stale skill/command counts in CLAUDE.md and README.md (18 skills, 8 commands)
+
 ## [1.8.3] - 2026-03-08
 
 ### Changed
