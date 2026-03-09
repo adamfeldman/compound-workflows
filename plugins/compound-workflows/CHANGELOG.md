@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.2] - 2026-03-09
+
+### Fixed
+- **Hardcoded plugin script paths** — version-check.sh and plugin-qa script paths now resolve dynamically via `find`, trying local repo first then searching `$HOME/.claude/plugins/`. Previously only worked in the source repo, not in consumer projects installed via marketplace. Affects compact-prep, setup, version skill, and plugin-changes-qa skill.
+
 ## [1.12.1] - 2026-03-09
 
 ### Fixed

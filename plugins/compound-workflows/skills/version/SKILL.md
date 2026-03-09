@@ -7,21 +7,20 @@ description: Check plugin version status — source vs installed vs release
 
 Show the current plugin version status by comparing source, installed, and latest release versions.
 
-## Step 1: Resolve Plugin Root
+## Step 1: Find and Run Script
 
 ```bash
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-echo "Repo root: $REPO_ROOT"
-ls "$REPO_ROOT/plugins/compound-workflows/scripts/version-check.sh" 2>/dev/null && echo "FOUND" || echo "NOT FOUND"
+# Find version-check.sh: local repo (dev) or installed plugin
+VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
+[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
+if [[ -n "$VERSION_CHECK" ]]; then
+  bash "$VERSION_CHECK"
+else
+  echo "NOT FOUND"
+fi
 ```
 
-If version-check.sh is not found, tell the user: "version-check.sh not found at `plugins/compound-workflows/scripts/version-check.sh`. The compound-workflows plugin may not be installed or is an older version without version checking." Then stop.
-
-## Step 2: Run Version Check
-
-```bash
-bash plugins/compound-workflows/scripts/version-check.sh
-```
+If version-check.sh is not found, tell the user: "version-check.sh not found. The compound-workflows plugin may not be installed or is an older version without version checking." Then stop.
 
 ## Step 3: Present Results
 
