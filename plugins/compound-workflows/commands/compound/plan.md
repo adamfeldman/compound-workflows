@@ -351,6 +351,23 @@ Use **AskUserQuestion tool**:
 
 The `**[Recommended]**` annotation appears on exactly one option per run (never zero, never two). The option order is fixed — only the annotation moves.
 
+#### Feedback Loop
+
+After the user responds to the AskUserQuestion above, append an entry to `.workflows/plan-research/<plan-stem>/recommendation-log.md` to track recommendation accuracy for future calibration:
+
+```markdown
+## <date>
+- Severity counts: N CRITICAL, N SERIOUS, N MINOR (final state)
+- Deferred: N CRITICAL, N SERIOUS (if any)
+- Consolidator materially modified plan: yes/no
+- Brainstorm origin: yes/no
+- Step count: N
+- Recommendation: <option> [Recommended]
+- User choice: <option selected>
+```
+
+The "Consolidator materially modified plan" field is "yes" if the consolidator resolved any CRITICAL or SERIOUS findings (material modification per decision tree rule 4), "no" otherwise.
+
 ## Key Principles
 
 - **Zero untriaged items at handoff** — every open question, contradiction, or finding must be explicitly resolved, deferred by the user, or removed. Nothing slips through unseen. Deferred items are acceptable when the user consciously chooses to defer — but they must be flagged clearly so `/compound:work` knows what's unresolved.
