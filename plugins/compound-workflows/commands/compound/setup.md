@@ -371,7 +371,34 @@ gh_cli: [available|not available]
 
 Fill in based on detected environment. Red team provider preferences are NOT stored — they're detected at runtime each session (CLI availability varies by machine and may change).
 
-### 7c: Migration Check
+### 7c: Routing Rules
+
+Check if the project has an `AGENTS.md` or `CLAUDE.md`. Append a compound-workflows routing section if one doesn't already exist:
+
+```bash
+# Check for existing routing rules
+grep -q 'compound:brainstorm' AGENTS.md 2>/dev/null && echo "ROUTING_EXISTS=AGENTS.md" || \
+grep -q 'compound:brainstorm' CLAUDE.md 2>/dev/null && echo "ROUTING_EXISTS=CLAUDE.md" || \
+echo "ROUTING_EXISTS=none"
+```
+
+**If routing rules already exist:** Skip — don't duplicate.
+
+**If no routing rules found:** Append to `AGENTS.md` (create if needed). Write this section:
+
+```markdown
+## Compound Workflows Routing
+
+- **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/compound:brainstorm`
+- **Building a known feature or task**: `/compound:plan` to design, then `/compound:work` to execute
+- **Plan needs deeper research**: `/compound:deepen-plan` before executing
+- **Reviewing code changes**: `/compound:review`
+- **Solved a non-obvious problem**: `/compound:compound` to capture institutional knowledge
+- **Before `/compact`**: `/compound:compact-prep` to preserve session context
+- **Recovering a dead/exhausted session**: `/compound-workflows:recover`
+```
+
+### 7d: Migration Check
 
 Before writing, check if either config file already exists:
 

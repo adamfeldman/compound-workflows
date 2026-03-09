@@ -90,9 +90,10 @@ VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
   - **STALE** — "Plugin is stale. Update now?"
     - **Yes** — run `claude plugin update compound-workflows@compound-workflows-marketplace`
     - **No** — proceed without updating
-  - **UNRELEASED** — "Version X.Y.Z has no release. Create one now?"
-    - **Yes** — create tag and release: `git tag vX.Y.Z && git push origin vX.Y.Z && gh release create vX.Y.Z --title "vX.Y.Z" --notes "<changelog entry>"`
-    - **No** — proceed without releasing
+  - **UNRELEASED** — only act on this if `plugins/compound-workflows/` exists locally (you're in the plugin source repo). For regular users, UNRELEASED is informational only — skip it.
+    - **In source repo** — "Version X.Y.Z has no release. Create one now?"
+      - **Yes** — create tag and release: `git tag vX.Y.Z && git push origin vX.Y.Z && gh release create vX.Y.Z --title "vX.Y.Z" --notes "<changelog entry>"`
+      - **No** — proceed without releasing
 
 ## Step 7: Queue Post-Compaction Task
 
