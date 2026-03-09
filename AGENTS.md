@@ -116,6 +116,20 @@ Every change MUST update:
 - **MINOR**: New commands, agents, skills, or significant enhancements
 - **PATCH**: Bug fixes, doc updates, prompt improvements
 
+## Release Process
+
+Only release when files inside `plugins/compound-workflows/` change. Changes to the repo root (README, AGENTS.md, docs/, assets/) do NOT warrant a release.
+
+1. Run QA (see above), fix any issues
+2. Update `plugins/compound-workflows/CHANGELOG.md`
+3. Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json`
+4. Bump version + ref in `.claude-plugin/marketplace.json`
+5. Commit
+6. Tag: `git tag v<version>` on the release commit
+7. Push: `git push origin main && git push origin v<version>`
+
+After push, install locally with `/plugin update compound-workflows`.
+
 ## Key Conventions
 
 - Commands use `compound:` namespace prefix
