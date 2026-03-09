@@ -1,7 +1,7 @@
 ---
 title: "/compound:recover — Dead Session Recovery Command"
 date: 2026-03-07
-origin: /Users/adamf/Documents/Projects/WhatsNext/docs/solutions/meta-tooling/session-log-mining-full-analysis.md
+origin: (private project — session log mining analysis)
 tags:
   - recover
   - session-recovery
@@ -118,7 +118,7 @@ Discovered by inspecting actual session logs. Entry types (from a 4849-line / 24
 
 ### Project directory derivation
 The session log directory uses the project's absolute path with `/` replaced by `-`:
-`~/.claude/projects/-Users-adamf-Dev-compound-workflows-marketplace/<session-id>.jsonl`
+`~/.claude/projects/-<path-with-dashes>/<session-id>.jsonl`
 
 ## Resolved Questions
 
@@ -127,7 +127,7 @@ The session log directory uses the project's absolute path with `/` replaced by 
 **Rationale:** Metadata scan (type/timestamp only) is fast even for large files and gives enough for activity summaries. For recovery, the head captures the original intent that may not exist in external artifacts (especially for interactive sessions), and the tail captures recent context. Red team (Gemini) correctly identified that tail-only would miss foundational intent.
 
 ### 2. Project directory derivation
-**Decision:** Path with `/` replaced by `-` (e.g., `-Users-adamf-Dev-compound-workflows-marketplace`).
+**Decision:** Path with `/` replaced by `-` (e.g., `/Users/you/Dev/my-project` becomes `-Users-you-Dev-my-project`).
 **Rationale:** Verified by inspecting `~/.claude/projects/` — no hashing, just path transformation.
 
 ### 3. Exhaustion detection
