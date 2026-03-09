@@ -1,6 +1,6 @@
 ---
 name: compound:work
-description: Execute work plans using subagent dispatch — context stays lean, progress survives compaction
+description: Execute work plans using subagent dispatch
 argument-hint: "[plan file, specification, or todo file path]"
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: resolve_pr_parallel
-description: Resolve all PR comments using parallel processing. Use when addressing PR review feedback, resolving review threads, or batch-fixing PR comments.
+description: Resolve PR review comments in parallel
 argument-hint: "[optional: PR number or current PR]"
 disable-model-invocation: true
 allowed-tools: Bash(gh *), Bash(git *), Read

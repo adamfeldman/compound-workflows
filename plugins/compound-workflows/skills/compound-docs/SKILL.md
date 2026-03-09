@@ -1,6 +1,6 @@
 ---
 name: compound-docs
-description: Capture solved problems as categorized documentation with YAML frontmatter for fast lookup
+description: Capture solved problems as categorized docs with YAML frontmatter
 disable-model-invocation: true
 user-invocable: false
 allowed-tools:

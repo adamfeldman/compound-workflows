@@ -1,6 +1,6 @@
 ---
 name: compound:setup
-description: "Set up compound-workflows plugin for your project"
+description: Set up compound-workflows for your project
 ---
 
 # Compound Workflows Setup

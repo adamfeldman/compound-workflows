@@ -1,6 +1,6 @@
 ---
 name: compound:review
-description: Context-lean code review using multi-agent analysis with disk-persisted outputs
+description: Multi-agent code review with parallel analysis
 argument-hint: "[PR number, GitHub URL, branch name, or latest]"
 ---
 

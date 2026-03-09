@@ -1,6 +1,6 @@
 ---
 name: compound:brainstorm
-description: Explore requirements and approaches through collaborative dialogue before planning
+description: Explore requirements and approaches before planning
 argument-hint: "[feature idea or problem to explore]"
 ---
 

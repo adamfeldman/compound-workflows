@@ -1,6 +1,6 @@
 ---
 name: compound:plugin-changes-qa
-description: Run structural and semantic QA checks on the compound-workflows plugin
+description: Run QA checks on the compound-workflows plugin
 ---
 
 # Plugin Changes QA
