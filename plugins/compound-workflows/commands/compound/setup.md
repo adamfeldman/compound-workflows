@@ -74,6 +74,33 @@ Use **AskUserQuestion**: "Have you activated Gemini/Codex CLI in this repo (or w
 - **Will do it now** — pause setup, let user activate, then continue
 - **Skip** — use PAL API calls instead (or Claude-only fallback)
 
+## Step 1.5: Plugin Version Check
+
+```bash
+bash plugins/compound-workflows/scripts/version-check.sh
+```
+
+Interpret the output:
+
+- **If script not found:** Skip silently — the script may not exist in older plugin versions.
+- **If output contains STALE:** Warn the user:
+
+> **Your compound-workflows plugin is out of date.** The installed version is behind the source. Run:
+> ```
+> claude plugin update compound-workflows@compound-workflows-marketplace
+> ```
+> Then restart your session to pick up the new version.
+
+Use **AskUserQuestion**: "Plugin is stale. Update now, or continue setup with the current version?"
+- **Update now** — run the update command, then advise restarting the session
+- **Continue** — proceed with setup using the current version
+
+- **If output contains UNRELEASED:** Note it but do not block setup:
+
+> **Note:** The current source version has no GitHub release yet. This won't affect your project setup — releases are tracked separately via `/compound:compact-prep`.
+
+- **If all versions match:** Move on silently.
+
 ## Step 2: Compound-Engineering Conflict Detection
 
 ```bash
