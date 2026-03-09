@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
 - **deepen-plan.md** — Phase 5.75 (convergence signal dispatch), Phase 6 (present convergence recommendation to user), Phase 1 (read prior signals for anti-anchoring: next run reads prior signals but not prior recommendation)
 - Agents: 24→25, plan-checks scripts: 3→4
 
+## [1.8.6] - 2026-03-08
+
+### Fixed
+- Pass `.worktrees/<name>` to `bd worktree create/remove` — bd uses the path as-is and defaults to repo root, causing worktrees outside `.worktrees/`
+
 ## [1.8.5] - 2026-03-08
 
 ### Added
