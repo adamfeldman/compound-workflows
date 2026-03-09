@@ -126,7 +126,7 @@ Instead of agents returning full results into conversation context (which fills 
 
 | Priority | Feature | Description | Done | Next | Target |
 |----------|---------|-------------|------|------|--------|
-| P1 | Quota optimization | Sonnet for research agents, relay wrappers to cut token usage | Plan | Deepen | v2.0 |
+| P1 | Quota optimization | Sonnet for research agents, relay wrappers to cut token usage | Released | — | v2.0 |
 | P1 | Red team model selection | Configurable model routing for multi-provider challenges | Brainstorm | Plan | — |
 | P1 | Memory skill integration | Memory management with cleanup emphasis | Plan | Deepen | — |
 | P2 | Plugin handbook | User-facing docs: getting-started, commands, config, architecture, troubleshooting | Brainstorm | Plan | — |

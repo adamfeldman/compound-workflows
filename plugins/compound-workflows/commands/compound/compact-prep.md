@@ -95,9 +95,9 @@ VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
       - **Yes** — create tag and release: `git tag vX.Y.Z && git push origin vX.Y.Z && gh release create vX.Y.Z --title "vX.Y.Z" --notes "<changelog entry>"`
       - **No** — proceed without releasing
 
-## Step 7: Session Cost Summary
+## Step 7: Daily Cost Summary
 
-Check if `ccusage` is installed and report session cost/token usage:
+Check if `ccusage` is installed and report today's cost/token usage:
 
 ```bash
 which ccusage 2>/dev/null
@@ -116,13 +116,13 @@ Parse the JSON output defensively — field naming varies across ccusage version
 
 Check for all three field names when extracting cost data.
 
-**Display format:** "Session cost: $X.XX (input: Nk tokens, output: Mk tokens)"
+**Display format:** "Today's cost: $X.XX (input: Nk tokens, output: Mk tokens)" — include per-model breakdown if `--breakdown` data is available.
 
 If JSON parsing fails for any reason, show the raw summary output rather than erroring.
 
 **If ccusage is not available:** "ccusage not installed — skip token tracking. Install: `npm install -g ccusage`"
 
-> **Limitation:** ccusage tracks daily aggregate usage, not per-agent or per-command breakdowns. The cost shown is session-level (or daily-level if multiple sessions ran today).
+> **Limitation:** ccusage tracks daily aggregate usage across all sessions, not per-session or per-agent breakdowns.
 
 ## Step 8: Queue Post-Compaction Task
 
@@ -145,7 +145,7 @@ Ready to compact.
 - Compound: [done / run NOW before compacting / nothing to compound]
 - Git: [clean / uncommitted changes — user declined commit]
 - Versions: [all match / updated plugin / released vX.Y.Z / user declined]
-- Cost: [session cost $X.XX / ccusage not installed / parse error — raw output shown]
+- Cost: [today $X.XX / ccusage not installed / parse error — raw output shown]
 - After compaction: [task description / general resume]
 
 Run /compact when ready.
