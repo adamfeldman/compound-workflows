@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.1] - 2026-03-09
+
+### Fixed
+- **Stale `/compound:recover` references** — updated to `/compound-workflows:recover` in recover SKILL.md, CLAUDE.md, and README.md (recover is a skill, not a command)
+- **compact-prep `$ARGUMENTS` syntax** — changed to `#$ARGUMENTS` to match all other commands (enables argument interpolation)
+- **work.md sequential-as-safer bias** — reworded dispatch guidance so parallel is recommended when steps touch separate files, not treated as an exception
+
 ## [1.12.0] - 2026-03-09
 
 ### Added
