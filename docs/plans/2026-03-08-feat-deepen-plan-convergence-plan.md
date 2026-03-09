@@ -1,7 +1,7 @@
 ---
 title: "feat: Deepen-Plan Convergence Guidance"
 type: feat
-status: active
+status: completed
 date: 2026-03-08
 origin: docs/brainstorms/2026-03-08-deepen-plan-convergence-brainstorm.md
 ---

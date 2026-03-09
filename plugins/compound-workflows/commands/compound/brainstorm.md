@@ -312,16 +312,145 @@ Apply the user's decision to the brainstorm document. **Include the user's state
 
 **Any CRITICAL items the user defers MUST be flagged in the Phase 4 handoff.** The plan skill needs to know about unresolved challenges.
 
-#### Step 3: Surface MINOR Findings
+#### Step 3: Surface MINOR Findings (Three-Category Triage)
 
 After all CRITICAL and SERIOUS items are resolved, check for MINOR findings across all three red team critiques.
 
-If MINOR findings exist, present them as a batch:
+If no MINOR findings exist, skip to Phase 4.
 
-**AskUserQuestion:** "N MINOR findings remain from red team review. Review individually, or batch-accept as acknowledged?"
+##### Step 3a: Categorize MINORs via Subagent
 
-- **Batch-accept**: Note all as "acknowledged" in the resolution summary. No plan changes needed.
-- **Review individually**: Present each MINOR finding via AskUserQuestion with the same options as CRITICAL/SERIOUS items.
+Dispatch a background Task subagent to categorize all MINOR findings:
+
+```
+Task general-purpose (run_in_background: true): "
+You are a MINOR finding triage analyst. Your job is to categorize MINOR red team findings by fixability and propose concrete edits for fixable items.
+
+**Read these files:**
+1. .workflows/brainstorm-research/<topic-stem>/red-team--gemini.md
+2. .workflows/brainstorm-research/<topic-stem>/red-team--openai.md
+3. .workflows/brainstorm-research/<topic-stem>/red-team--opus.md
+4. The brainstorm document at <brainstorm-file-path>
+
+(Read whichever red team files exist — some providers may have failed.)
+
+**Filter:** Extract only MINOR-severity findings from the red team files. Deduplicate across providers — if multiple providers flag the same issue, count it once with provider attribution.
+
+**Categorize each MINOR finding** into one of three categories using these fixability criteria. All three must hold for 'Fixable now':
+1. **Unambiguous** — only one reasonable fix exists
+   - Pass: 'Add rationale for X exclusion → append one sentence to Decision 5'
+   - Fail: 'Decide whether env vars should supplement or replace the config approach'
+2. **Low effort** — a one-line or few-line edit, not a structural change
+   - Pass: 'Rename cache to context retention in one section'
+   - Fail: 'Restructure the precedence chain to address conflict handling'
+3. **Low risk** — safe to change without ripple effects; no user decisions or reasoning involved
+   - Pass: 'Add review.md to the Out of Scope list'
+   - Fail: 'Change a term used in 5+ other documents'
+
+**Categories:**
+- **Fixable now** — meets all 3 criteria. Propose a concrete edit: what to change and where in the brainstorm document (section/heading).
+- **Needs manual review** — valid finding but fails at least one criterion. Note which criterion fails.
+- **No action needed** — observation with no concrete edit implied. Provide reason (not an issue / actively disagree / already resolved).
+
+**Conflict detection:** If two fixable items propose conflicting edits to the same section, re-categorize both as 'needs manual review' with the conflict noted.
+
+**Output format:** Use sequential numbering across all categories.
+
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write your COMPLETE categorization to: .workflows/brainstorm-research/<topic-stem>/minor-triage.md
+
+Use this exact format:
+# MINOR Triage Categorization
+
+## Summary
+- Total: N MINOR findings
+- Fixable now: M items
+- Needs manual review: K items
+- No action needed: J items
+
+## Fixable Now
+
+### 1. [Finding summary]
+- Source: [provider(s)]
+- Proposed fix: [concrete edit — what to change, where in the document]
+- Location: [section/heading in brainstorm document]
+
+## Needs Manual Review
+
+### M+1. [Finding summary]
+- Source: [provider(s)]
+- Why manual: [which fixability criterion fails]
+
+## No Action Needed
+
+### M+K+1. [Finding summary]
+- Source: [provider(s)]
+- Reason: [not an issue / actively disagree / already resolved]
+
+After writing the file, return ONLY a 2-3 sentence summary.
+"
+```
+
+**Poll for completion:** Check file existence with `ls .workflows/brainstorm-research/<topic-stem>/minor-triage.md`. Wait until the file exists, then read it from disk. **DO NOT call TaskOutput.**
+
+##### Step 3b: Present Three-Category Triage
+
+Read the categorization file from `.workflows/brainstorm-research/<topic-stem>/minor-triage.md` and construct the presentation.
+
+**Omit any empty category section.** Adapt the options based on which categories have items (see edge cases below).
+
+**AskUserQuestion:**
+
+"N MINOR findings from red team review:
+
+**Fixable now** (M items):
+1. [summary] → [proposed edit]
+2. [summary] → [proposed edit]
+
+**Needs manual review** (K items):
+3. [summary]
+
+**No action needed** (J items):
+4. [summary] — [reason]
+
+What would you like to do?"
+
+Options:
+1. **Apply all fixes + acknowledge no-action items** (Recommended)
+2. **Apply specific fixes** (e.g., "1, 2") + acknowledge rest
+3. **Review all individually**
+4. **Acknowledge all** (no fixes)
+
+**Partial acceptance parsing:** Interpret the user's natural language response (e.g., "1, 3", "all except 2", "first two"). If ambiguous, ask for clarification rather than guessing.
+
+**Edge cases:**
+- **Zero fixable items:** Omit "Fixable now" section. Remove "Apply all fixes" option. Recommend "Review all individually" if manual-review items exist, or "Acknowledge all" if only no-action items.
+- **All fixable items:** Omit empty sections. "Acknowledge rest" in option 2 has nothing to acknowledge.
+- **Conflicting proposals:** The subagent should have already re-categorized conflicting items as "needs manual review." If conflicts are detected at presentation time, move them to manual review before presenting.
+
+##### Step 3c: Apply Fixes and Verify
+
+After the user confirms which fixes to apply:
+
+1. **Apply fixes:** For each accepted fixable item, apply the proposed edit to the brainstorm document using the Edit tool. Apply one edit at a time, sequentially.
+2. **Post-fix verification:** After all edits are applied, re-read the modified sections of the brainstorm document. Verify each applied edit matches the proposal by content (not line number — earlier edits may shift lines). If drift is detected (edit doesn't match proposal), flag to the user before proceeding.
+3. **Record in resolution summary:** Note applied fixes in the Red Team Resolution Summary table with inline annotations (brainstorm uses inline annotations, not provenance pointers):
+   - Applied fixes: `**Fixed (batch):** M MINOR fixes applied.`
+   - If user declined all proposed fixes: `**Acknowledged (batch):** N MINOR findings accepted (M fixable declined).`
+   - Partial acceptance: `**Fixed (batch):** M of N fixable MINOR items applied (items 1, 3).`
+
+##### Step 3d: Handle Manual Review Items
+
+After fixes are applied (or if user chose option 3 to review all individually), present each "needs manual review" item individually via **AskUserQuestion** — using the same options as CRITICAL/SERIOUS items in Step 2:
+
+"[Finding summary — note which provider(s) flagged it and why it needs manual review]. How should we handle this?"
+- **Valid — update the brainstorm** (edit the doc to address it)
+- **Disagree — note why** (add a "Considered and Rejected" note with the counterargument)
+- **Defer — add to Open Questions** (move to Open Questions section with the red team's concern)
+
+Apply the user's decision to the brainstorm document. **Include the user's stated reasoning.**
+
+"No action needed" items are recorded as acknowledged with reason in the resolution summary — no user interaction required for these.
 
 ### Phase 4: Handoff
 
