@@ -75,7 +75,21 @@ If compound was run in Step 4, check `git status` again — compound creates doc
   - **No** — proceed without committing
 - **If clean or compound was skipped:** Move on.
 
-## Step 6: Queue Post-Compaction Task
+## Step 6: Release Check
+
+Check if a plugin version was bumped this session without a corresponding GitHub release:
+
+```bash
+plugin_version=$(grep '"version"' plugins/compound-workflows/.claude-plugin/plugin.json | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+gh release view "v$plugin_version" >/dev/null 2>&1 && echo "RELEASE_EXISTS" || echo "RELEASE_MISSING"
+```
+
+- **If RELEASE_MISSING and plugin files were changed this session:** Use **AskUserQuestion**: "Plugin v$plugin_version has no GitHub release. Create one now?"
+  - **Yes** — create tag and release from the CHANGELOG entry: `git tag v$plugin_version && git push origin v$plugin_version && gh release create v$plugin_version --title "v$plugin_version" --notes "<changelog entry>"`
+  - **No** — proceed without releasing
+- **If RELEASE_EXISTS or no plugin changes:** Move on.
+
+## Step 7: Queue Post-Compaction Task
 
 If the user provided a post-compaction task in `$ARGUMENTS`, confirm it back to them clearly:
 
@@ -85,7 +99,7 @@ If no task was provided, ask:
 
 > **Anything specific to pick up after compaction, or just `resume`?**
 
-## Step 7: Ready to Compact
+## Step 8: Ready to Compact
 
 Output a brief summary block:
 
@@ -95,6 +109,7 @@ Ready to compact.
 - Beads: [synced, N issues closed / no beads / N issues still in_progress]
 - Compound: [done / run NOW before compacting / nothing to compound]
 - Git: [clean / uncommitted changes — user declined commit]
+- Release: [v$version released / no plugin changes / user declined]
 - After compaction: [task description / general resume]
 
 Run /compact when ready.
