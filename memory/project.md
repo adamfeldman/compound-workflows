@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v1.12.1 (plugins/compound-workflows/)
+- Plugin: compound-workflows v1.13.0 (plugins/compound-workflows/)
 - 25 agents, 19 skills, 8 commands
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained

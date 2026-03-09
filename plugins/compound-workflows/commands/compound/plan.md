@@ -261,13 +261,19 @@ Run plan readiness checks and aggregate findings to verify the plan is work-read
 **Dispatch:**
 
 1. Read config from compound-workflows.md under the `## Plan Readiness` heading. Read flat keys (`plan_readiness_skip_checks`, `plan_readiness_provenance_expiry_days`, `plan_readiness_verification_source_policy`) and construct the parameter objects to pass to agents. Apply skip_checks filtering.
-2. Create output directory: `mkdir -p .workflows/plan-research/<plan-stem>/readiness/checks/`
-3. Run 3 mechanical check scripts in parallel (bash):
-   - `agents/workflow/plan-checks/stale-values.sh <plan-path> <output-dir>/checks/stale-values.md`
-   - `agents/workflow/plan-checks/broken-references.sh <plan-path> <output-dir>/checks/broken-references.md`
-   - `agents/workflow/plan-checks/audit-trail-bloat.sh <plan-path> <output-dir>/checks/audit-trail-bloat.md`
-4. If all 5 semantic passes are in skip_checks, skip the semantic agent dispatch entirely. Otherwise, dispatch 1 semantic checks agent (background Task):
-   - Agent: `agents/workflow/plan-checks/semantic-checks.md`
+2. Resolve plugin root for plan-checks scripts:
+   ```bash
+   PLUGIN_ROOT="plugins/compound-workflows"
+   [[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+   echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+   ```
+3. Create output directory: `mkdir -p .workflows/plan-research/<plan-stem>/readiness/checks/`
+4. Run 3 mechanical check scripts in parallel (bash), using the resolved `$PLUGIN_ROOT`:
+   - `$PLUGIN_ROOT/agents/workflow/plan-checks/stale-values.sh <plan-path> <output-dir>/checks/stale-values.md`
+   - `$PLUGIN_ROOT/agents/workflow/plan-checks/broken-references.sh <plan-path> <output-dir>/checks/broken-references.md`
+   - `$PLUGIN_ROOT/agents/workflow/plan-checks/audit-trail-bloat.sh <plan-path> <output-dir>/checks/audit-trail-bloat.md`
+5. If all 5 semantic passes are in skip_checks, skip the semantic agent dispatch entirely. Otherwise, dispatch 1 semantic checks agent (background Task):
+   - Agent: `$PLUGIN_ROOT/agents/workflow/plan-checks/semantic-checks.md`
    - Pass: plan file path, output path (`<output-dir>/checks/semantic-checks.md`), mode (`full`), skip_checks, provenance settings
 5. Wait for all checks to complete (3-minute timeout for scripts, 5-10 minutes for semantic agent due to WebSearch latency). After timeout, remove any orphaned .tmp files: `rm -f <output-dir>/checks/*.tmp`. If rate limits are hit, retry with exponential backoff.
 6. Dispatch plan-readiness-reviewer (foreground Task):

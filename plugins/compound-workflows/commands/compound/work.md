@@ -87,8 +87,10 @@ bd worktree info 2>/dev/null
 bd worktree create .worktrees/<descriptive-name>
 cd .worktrees/<descriptive-name>
 
-# Fallback (if bd not available): use worktree-manager.sh (already defaults to .worktrees/)
-bash plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh create <descriptive-name>
+# Fallback (if bd not available): find and use worktree-manager.sh
+WORKTREE_MGR=$(find "$HOME/.claude/plugins" -name "worktree-manager.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
+[[ -z "$WORKTREE_MGR" ]] && WORKTREE_MGR="plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh"
+bash "$WORKTREE_MGR" create <descriptive-name>
 cd .worktrees/<descriptive-name>
 ```
 
@@ -413,8 +415,10 @@ After all issues are closed (or all TodoWrite tasks completed):
    cd $(git worktree list --porcelain | head -1 | sed 's/worktree //')
    # Remove the worktree
    bd worktree remove .worktrees/<worktree-name>
-   # Fallback (if bd not available):
-   bash plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh remove <worktree-name>
+   # Fallback (if bd not available): find and use worktree-manager.sh
+   WORKTREE_MGR=$(find "$HOME/.claude/plugins" -name "worktree-manager.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
+   [[ -z "$WORKTREE_MGR" ]] && WORKTREE_MGR="plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh"
+   bash "$WORKTREE_MGR" remove <worktree-name>
    ```
 
    Only remove after PR is created and pushed. If the user wants to keep the worktree (e.g., awaiting review feedback), skip this step.
