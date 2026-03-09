@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.3] - 2026-03-08
+
+### Changed
+- Move `plugin-changes-qa` and `recover` from commands to skills — works around Claude Code per-directory command limit. Invocation changes: `/compound-workflows:plugin-changes-qa` and `/compound-workflows:recover`
+- Commands: 10→8, Skills: 16→18
+
 ## [1.8.2] - 2026-03-08
 
 ### Fixed

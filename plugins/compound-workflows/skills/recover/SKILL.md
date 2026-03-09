@@ -1,7 +1,8 @@
 ---
-name: compound:recover
+name: recover
 description: Recover context from a dead or exhausted session
 argument-hint: "[session ID or empty for picker]"
+disable-model-invocation: true
 ---
 
 # Recover — Dead Session Recovery
