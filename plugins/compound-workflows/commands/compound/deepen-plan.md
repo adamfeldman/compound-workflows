@@ -326,7 +326,19 @@ After synthesis, read the synthesis summary and the enhanced plan. Collect ALL f
 - **Batch-accept**: Keep all (record why if the user gives a reason — e.g., "all cosmetic" or "out of scope for this iteration").
 - **Review individually**: Present each with the same options as CRITICAL/SERIOUS.
 
-**Step 5: Apply.** Update the plan with all accepted/modified findings. Remove any rejected findings. Record the user's reasoning for all non-trivial decisions.
+**Step 5: Apply.** Update the plan with all accepted/modified findings. For rejected, deferred, and modified findings, replace the original finding text with a resolution line that includes a provenance pointer. Record the user's reasoning for all non-trivial decisions.
+
+**Resolution line format by verdict:**
+- **Accepted:** `[finding summary]. [agent-name, see .workflows/deepen-plan/<stem>/run-<N>-synthesis.md]`
+- **Modified:** `[modified finding]. User: [reasoning]. [agent-name, see .workflows/deepen-plan/<stem>/run-<N>-synthesis.md]`
+- **Rejected:** `[finding summary]. User: [reasoning]. [agent-name, see .workflows/deepen-plan/<stem>/run-<N>-synthesis.md]`
+- **Deferred:** `[finding summary]. User: [reasoning]. [agent-name, see .workflows/deepen-plan/<stem>/run-<N>-synthesis.md]`
+
+**Batch-accept format:** `**Acknowledged (batch):** N MINOR findings accepted. [see .workflows/deepen-plan/<stem>/run-<N>-synthesis.md]`
+
+**Best-effort fallback:** If the source file path is unavailable, use the agent name only (omit the `see` clause).
+
+**Deferred items moving to Open Questions** also get provenance pointers — include the same `[agent-name, see ...]` suffix so future sessions can trace the origin.
 
 **Do not proceed to red team with unresolved contradictions.** The red team should challenge a coherent plan, not arbitrate between the synthesis's own internal conflicts.
 
@@ -565,6 +577,8 @@ For each CRITICAL or SERIOUS item, present to the user via **AskUserQuestion**:
 
 Apply the user's decision to the plan file. **Include the user's stated reasoning** — not just "disagreed" but *why* (e.g., "Disagreed: user noted the plan already handles this via the retry middleware in Phase 3"). The rationale is more valuable than the verdict — it prevents future sessions from relitigating settled decisions.
 
+**Provenance pointers for red team resolutions:** Each resolution line should include: `[red-team--<provider>, see .workflows/deepen-plan/<stem>/agents/run-<N>/red-team--<provider>.md]`. For findings flagged by multiple providers, list all provider names with one path (e.g., `[red-team--gemini, red-team--opus, see .workflows/deepen-plan/<stem>/agents/run-<N>/red-team--gemini.md]`).
+
 **Any CRITICAL items the user defers MUST appear in the Phase 6 report.** The `/compound:work` command needs to know about unresolved challenges before implementation begins.
 
 ### Step 3: Surface MINOR Findings
@@ -575,8 +589,8 @@ If MINOR findings exist, present them as a batch:
 
 **AskUserQuestion:** "N MINOR findings remain from red team review. Review individually, or batch-accept as acknowledged?"
 
-- **Batch-accept**: Note all as "acknowledged" in the resolution summary (record the user's reasoning if given). No plan changes needed.
-- **Review individually**: Present each MINOR finding via AskUserQuestion with the same options as CRITICAL/SERIOUS items.
+- **Batch-accept**: Note all as "acknowledged" in the resolution summary (record the user's reasoning if given). No plan changes needed. Include provenance pointer: `**Acknowledged (batch):** N MINOR findings accepted. [see .workflows/deepen-plan/<stem>/agents/run-<N>/red-team--<provider>.md]` (list all provider files if findings span multiple providers).
+- **Review individually**: Present each MINOR finding via AskUserQuestion with the same options as CRITICAL/SERIOUS items. Each resolution line gets the same provenance pointer format as Step 2.
 
 ## Phase 5: Recovery (Resume After Compaction)
 
