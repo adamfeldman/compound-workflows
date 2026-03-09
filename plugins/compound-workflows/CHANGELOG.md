@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.2] - 2026-03-09
+
+### Fixed
+- **version-check.sh consumer project bug** — script read "Source" from its own cached location (e.g., 1.11.0 cache entry) instead of detecting it's not in the source repo. Now detects context: in source repo does 3-way comparison (source vs installed vs release), in consumer projects does 2-way (installed vs release only). No longer uses `dirname $0` for source detection.
+
 ## [1.13.1] - 2026-03-09
 
 ### Fixed
