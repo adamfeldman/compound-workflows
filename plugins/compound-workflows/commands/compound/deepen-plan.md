@@ -755,20 +755,27 @@ Write this to `.workflows/deepen-plan/<plan-stem>/run-<N>-convergence.md` so Pha
 
 ## Phase 6: Cleanup and Report
 
-After synthesis, red team challenge, and plan readiness check are complete:
+After synthesis, red team challenge, plan readiness check, and convergence analysis are complete:
 
 1. Tell the user the plan has been enhanced
 2. Show a consolidated summary of all findings — both synthesis and red team — with final disposition (accepted, modified, rejected, deferred). **Every finding must have a disposition.** Nothing untriaged.
 3. **Plan Readiness summary:** Include a "Plan Readiness" section reporting: total issues found by check type, auto-fixes applied by the consolidator, user decisions (resolved/deferred/dismissed), and any items deferred to Open Questions. If zero issues were found, state "Plan readiness check: no issues found."
 4. **If any items were deferred (from synthesis, red team, OR readiness):** Flag them explicitly with count by severity: "Note: N deferred items remain (X CRITICAL, Y SERIOUS, Z MINOR). `/compound:work` will surface these before execution."
-5. **Do NOT delete any working files.** All agent outputs, manifests, and synthesis files are retained.
-6. **Work readiness check:** Flag if any steps are oversized (20+ checkboxes) or share heavy reference data — the `/compound:work` orchestrator should split them into smaller issues or point subagents to the file path.
-7. Offer options:
+5. **Convergence summary:** Read the `## Recommendation` and `## Signals` sections from `.workflows/deepen-plan/<plan-stem>/run-<N>-convergence.md`. Present the recommendation and key signals to the user.
+   - **If convergence file exists:** Show "Convergence analysis (run N): [recommendation summary]" followed by the key signals (issue count trend, severity distribution, category mix, readiness result).
+   - **If convergence file is missing:** Show "Convergence analysis was not completed. Consider running `/compound:deepen-plan` again for convergence guidance."
+   - **Context-lean:** Read only the Recommendation and Signals sections, not the full Analysis section.
+6. **Do NOT delete any working files.** All agent outputs, manifests, and synthesis files are retained.
+7. **Work readiness check:** Flag if any steps are oversized (20+ checkboxes) or share heavy reference data — the `/compound:work` orchestrator should split them into smaller issues or point subagents to the file path.
+8. Offer options. **Annotate the recommended next step** based on the convergence recommendation:
    - **View diff**: `git diff <plan_path>`
    - **View full synthesis**: Read `.workflows/deepen-plan/<plan-stem>/run-<N>-synthesis.md`
-   - **Start `/compound:work`**: Begin implementing (include any work-readiness flags)
-   - **Deepen further**: Run another round on specific sections
+   - **Start `/compound:work`**: Begin implementing (include any work-readiness flags) — **[Recommended]** if convergence says "converged" / "ready for work"
+   - **Deepen further**: Run another round on specific sections — **[Recommended]** if convergence says "recommend another run"
+   - **Consolidate first, then deepen**: Run the consolidator to clean up edit-induced churn before another round — **[Recommended]** if convergence says "consolidate"
    - **Revert**: `git checkout <plan_path>`
+
+   **Precedence rule:** The convergence recommendation takes precedence for "next step" guidance since it already incorporates readiness as an input signal. If readiness passes clean but convergence recommends another run (e.g., genuine CRITICAL findings remain), the convergence recommendation governs. If no convergence file exists, omit the [Recommended] annotation entirely.
 
 ## Rules
 
