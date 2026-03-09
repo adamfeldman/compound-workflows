@@ -439,6 +439,140 @@ Present operations grouped by category in this order (most interactive first):
 
 After all confirmations are collected, proceed to Step 3.3.6 (Execute Bead Operations) with the confirmed operation set.
 
+#### Step 3.3.6: Execute Bead Operations
+
+Execute confirmed bead operations from Step 3.3.5, tracking success and failure for each command.
+
+**Skip this step if the user chose "Skip bead operations" in Step 3.3.5.** Proceed directly to Step 3.4.
+
+**Initialize counters:** `created=0`, `updated=0`, `notes_added=0`, `failed=0`, `consecutive_failures=0`.
+
+**Consecutive failure abort:** Before each `bd` command, check `consecutive_failures`. If it reaches 3 or more, stop all remaining operations immediately and report:
+
+> Beads database appears unavailable (3 consecutive failures). Remaining operations skipped. N created, N updated, N notes added, N failed.
+
+After each successful `bd` command, reset `consecutive_failures` to 0. After each failed command, increment both `failed` and `consecutive_failures`.
+
+---
+
+**1. Create beads for confirmed untracked findings:**
+
+For each confirmed creation (CRITICAL, SERIOUS, or user-approved MINOR findings):
+
+```bash
+bd create --title="[check-name]: [file] — [finding summary]" \
+  --type=bug \
+  --priority=<priority> \
+  --description="Found by plugin-changes-qa [check-name]:
+[finding description]
+
+File: [file path]
+Line: [line number]
+Severity: [CRITICAL|SERIOUS|MINOR]
+Check: [script or agent name]
+
+Provenance: qa-finding:[check-name]:[file]"
+```
+
+Severity-to-priority mapping: CRITICAL → `--priority=1` (P1), SERIOUS → `--priority=2` (P2), MINOR → `--priority=3` (P3).
+
+Check the exit code. On success: increment `created`, reset `consecutive_failures` to 0. On failure: increment `failed` and `consecutive_failures`, record the error message for the failure report.
+
+---
+
+**2. Add notes on matched beads:**
+
+For each confirmed note addition on a matched bead:
+
+**Dedup check first:** Read the bead's current notes to check if a note with this provenance token already exists. Run:
+
+```bash
+bd show <id> --json
+```
+
+Parse the JSON output. If the bead's notes already contain the provenance token `qa-finding:<check-name>:<file>`, skip this note addition (it is a duplicate from a prior QA run) — do not count it as a failure.
+
+If the provenance token is NOT present in existing notes, append the new note:
+
+```bash
+bd update <id> --append-notes "QA finding (YYYY-MM-DD): [check-name] — [finding summary]. Provenance: qa-finding:[check-name]:[file]"
+```
+
+**Important:** Use `--append-notes` (NOT `--notes`). The `--notes` flag overwrites all existing notes. `--append-notes` adds to them with a newline separator.
+
+Check the exit code. On success: increment `notes_added`, reset `consecutive_failures` to 0. On failure: increment `failed` and `consecutive_failures`, record the error.
+
+---
+
+**3. Update descriptions for partial-coverage beads:**
+
+For each confirmed coverage update on a partially-covered bead:
+
+**Stale-data guard:** Re-read the bead's current description immediately before updating:
+
+```bash
+bd show <id> --json
+```
+
+Parse the JSON output and extract the current description text.
+
+**Verify provenance token is still present:** Check that the bead's description still contains the expected provenance token (`qa-finding:<check-name>:<file>`). If the provenance token is missing (meaning someone externally modified the bead's description since the cross-reference ran), output a warning and skip this update:
+
+> ⚠️ Skipping coverage update for bead [id]: provenance token no longer present in description (external modification detected).
+
+Do not count skipped updates as failures.
+
+**If the provenance token is present:** Update the description by appending the proposed coverage addition:
+
+```bash
+bd update <id> --description "[current description]
+
+Additional coverage: [proposed addition from Step 3.3.4]"
+```
+
+Check the exit code. On success: increment `updated`, reset `consecutive_failures` to 0. On failure: increment `failed` and `consecutive_failures`, record the error.
+
+---
+
+**4. Add provenance tokens to confirmed uncertain matches:**
+
+For each uncertain match the user confirmed as "Link" in Step 3.3.5:
+
+Re-read the bead's current description:
+
+```bash
+bd show <id> --json
+```
+
+Parse the current description, then append the provenance token so future deterministic matching runs (Step 3.3.2) will find this match automatically:
+
+```bash
+bd update <id> --description "[current description]
+
+Provenance: qa-finding:[check-name]:[file]"
+```
+
+Check the exit code. On success: increment `updated`, reset `consecutive_failures` to 0. On failure: increment `failed` and `consecutive_failures`, record the error.
+
+---
+
+**5. Report summary:**
+
+After all operations complete (or after a consecutive failure abort), present the operation summary:
+
+> Bead operations complete: N created, N updated, N notes added, N failed.
+
+**If any failures occurred:** list each failed operation with its error details:
+
+```markdown
+**Failed operations:**
+- CREATE [proposed title]: [error message]
+- UPDATE bead [id] (note): [error message]
+- UPDATE bead [id] (coverage): [error message]
+```
+
+Proceed to Step 3.4 (Present Aggregated Summary).
+
 ### Step 3.4: Present Aggregated Summary
 
 Synthesize all findings into a single summary for the user:
