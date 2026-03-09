@@ -254,6 +254,125 @@ Match Tier 1 findings against open beads using fast, deterministic string compar
 
 **If all Tier 1 findings matched and there are no Tier 2 findings:** skip Step 3.3.3 (LLM matching) and proceed directly to Step 3.3.4 (coverage assessment).
 
+#### Step 3.3.3: LLM Semantic Matching (Unmatched Findings)
+
+Match findings that the deterministic text pass could not resolve. This covers all Tier 2 findings (free-form prose) and any Tier 1 findings without a bead match.
+
+**Skip this step if zero unmatched findings remain after Step 3.3.2.**
+
+Create the output directory (if not already present):
+
+```bash
+mkdir -p .workflows/plugin-qa/
+```
+
+Dispatch a disk-persist subagent:
+
+```
+Task general-purpose (run_in_background: true): "
+You are a QA finding-to-bead matching agent.
+
+Your task: read the open beads JSON from disk, then classify each QA finding as matched, uncertain, or untracked against those beads.
+
+**Input findings to classify:**
+[Insert the list of unmatched Tier 1 findings + ALL Tier 2 findings here. For each finding, include: source (script name or agent name), file path if available, severity, and the finding description.]
+
+**Beads data:** Read the open beads JSON from `.workflows/plugin-qa/open-beads.json`. This file contains all open beads with their IDs, titles, descriptions, and notes.
+
+**Classification rules:**
+For each finding, search the beads for a match and classify as one of:
+- **matched** — high confidence this finding is tracked by a specific bead. The bead's title, description, or notes clearly cover this finding's domain AND specific issue.
+- **uncertain** — possible match to a bead, but not confident. Use this when the finding shares a file or domain with a bead but the bead's scope does not clearly include this specific finding.
+- **untracked** — no matching bead found after reviewing all open beads.
+
+When multiple beads could match, pick the strongest match. Do not assign the same finding to multiple beads.
+
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write your COMPLETE classification to: .workflows/plugin-qa/bead-cross-ref-matches.md
+
+Use this EXACT structure:
+
+## Matched
+- [finding description] → bead [id]: [title] (confidence: high)
+
+## Uncertain
+- [finding description] → possibly bead [id]: [title] (reason for uncertainty)
+
+## Untracked
+- [finding description] — no matching bead found
+
+If a section has no entries, include the header with '(none)' underneath.
+
+After writing the file, return ONLY a 2-3 sentence summary of how many findings fell into each category.
+DO NOT return your full classification in your response.
+"
+```
+
+**Monitor completion via file existence check:**
+
+```bash
+ls .workflows/plugin-qa/bead-cross-ref-matches.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+```
+
+**Timeout: 2 minutes.** Poll periodically. If the output file does not appear within 2 minutes, skip this pass and present findings without cross-reference data (same degradation path as beads-unavailable in Step 3.3.1). **If Step 3.3.3 times out, also skip Step 3.3.4** — proceed directly to Step 3.4.
+
+When the file exists, read results from `.workflows/plugin-qa/bead-cross-ref-matches.md` using the Read tool. Merge any `matched` results with the deterministic matches from Step 3.3.2 to build the combined matched-findings list for the next step.
+
+#### Step 3.3.4: Coverage Assessment (Matched Beads)
+
+Assess whether matched beads adequately describe the findings they are tracking, and draft description additions for gaps.
+
+**Skip this step if zero matched findings exist** (from both Step 3.3.2 deterministic matches and Step 3.3.3 LLM matches combined).
+
+Dispatch a disk-persist subagent:
+
+```
+Task general-purpose (run_in_background: true): "
+You are a bead coverage assessment agent.
+
+Your task: for each QA finding that has been matched to a bead, assess whether the bead's description adequately covers that specific finding.
+
+**Matched finding→bead pairs to assess:**
+[Insert the combined list of matched findings from Step 3.3.2 (deterministic) and Step 3.3.3 (LLM). For each pair, include: the finding description, the matched bead ID, and the bead title.]
+
+**Beads data:** Read the full bead details from `.workflows/plugin-qa/open-beads.json` to access each bead's description and notes.
+
+**Coverage definitions:**
+- **Full coverage** — the bead's description or notes already mention the specific file AND the specific finding pattern. No update needed.
+- **Partial coverage** — the bead covers the general domain but does not mention this specific instance (e.g., bead tracks 'stale references' generally but doesn't mention the specific file this finding is about). Draft a proposed description addition.
+
+For partial coverage, draft a concise proposed addition that could be appended to the bead's existing description to cover this specific finding.
+
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write your COMPLETE assessment to: .workflows/plugin-qa/bead-cross-ref-coverage.md
+
+Use this EXACT structure:
+
+## Full Coverage
+- [finding] → bead [id]: description already covers this finding
+
+## Partial Coverage (updates proposed)
+- [finding] → bead [id]: [proposed description addition]
+
+If a section has no entries, include the header with '(none)' underneath.
+
+After writing the file, return ONLY a 2-3 sentence summary of how many findings have full vs partial coverage.
+DO NOT return your full assessment in your response.
+"
+```
+
+**Monitor completion via file existence check:**
+
+```bash
+ls .workflows/plugin-qa/bead-cross-ref-coverage.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+```
+
+**Timeout: 2 minutes.** Poll periodically. If the output file does not appear within 2 minutes, present matches without coverage data and note the omission in the Step 3.4 summary:
+
+> ⚠️ Coverage assessment timed out. Matches are shown without coverage status.
+
+When the file exists, read results from `.workflows/plugin-qa/bead-cross-ref-coverage.md` using the Read tool.
+
 ### Step 3.4: Present Aggregated Summary
 
 Synthesize all findings into a single summary for the user:
