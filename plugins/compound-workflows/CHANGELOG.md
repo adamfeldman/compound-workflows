@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0] - 2026-03-09
+
+### Changed
+- **Three-category MINOR triage** — replaces binary "batch-accept or review individually" at all 4 triage points (brainstorm.md Phase 3.5 Step 3, deepen-plan.md Synthesis Gate Step 4, deepen-plan.md Red Team Step 3, plan-consolidator.md Section 6). Subagent now categorizes each MINOR finding as "fixable now" (with proposed edit), "needs manual review" (present individually), or "no action needed" (acknowledge with reason). Users can apply all fixes, cherry-pick, review individually, or acknowledge all. Post-fix verification ensures edits match proposals.
+
 ## [1.9.1] - 2026-03-09
 
 ### Added
