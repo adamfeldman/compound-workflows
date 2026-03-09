@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Run hybrid QA checks on the compound-workflows plugin: deterministic Tier 1 bash scripts for structural validation, followed by Tier 2 LLM agents for semantic analysis.
 
-**Findings are informational only.** This command does not modify the codebase.
+**Findings are informational.** Bead tracking operations require explicit user confirmation.
 
 ## Phase 1: Tier 1 (Deterministic Scripts)
 
@@ -602,14 +602,14 @@ Synthesize all findings into a single summary for the user:
 
 **If zero findings across all checks:** "All checks passed."
 
-**No codebase mutation.** Findings are informational only. The user decides what to act on.
+**No codebase mutation.** Bead creation/updates are presented for user approval before execution.
 
 ## Rules
 
-- **NEVER modify the codebase.** This command only reports findings.
+- **NEVER modify the codebase.** Bead operations are the only side effect, and require user confirmation.
 - **NEVER call TaskOutput.** Poll for file existence instead.
 - **NEVER push to remote.** This is a local analysis command.
-- **NEVER modify beads issues.** QA findings are presented to the user, not tracked automatically.
+- **Bead creation and updates require explicit user approval via staged batch confirmation.**
 - Agent outputs go to `.workflows/plugin-qa/agents/`. Second runs overwrite prior results (always want latest).
 - If a Tier 1 script fails with exit 1, report the error and continue with remaining scripts.
 - If a Tier 2 agent times out, note it in the summary and present available results.
