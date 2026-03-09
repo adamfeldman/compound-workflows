@@ -1,6 +1,6 @@
 # Agent Instructions — compound-workflows-marketplace
 
-This repo contains the **compound-workflows** Claude Code plugin. 24 agents, 15 skills, 9 commands under the `/compound:*` namespace.
+This repo contains the **compound-workflows** Claude Code plugin. 24 agents, 15 skills, 10 commands under the `/compound:*` namespace.
 
 ## Project Structure
 
@@ -9,7 +9,8 @@ plugins/compound-workflows/
 ├── .claude-plugin/plugin.json    # Plugin manifest (version here)
 ├── agents/{research,review,workflow}/  # 24 agent YAML files
 ├── skills/                       # 15 skill directories
-├── commands/compound/            # 9 slash commands
+├── commands/compound/            # 10 slash commands
+├── scripts/plugin-qa/           # Tier 1 QA scripts (4 scripts + lib.sh)
 ├── CLAUDE.md                     # Plugin dev instructions
 ├── CHANGELOG.md                  # Version history
 └── README.md                     # User-facing docs
@@ -29,81 +30,36 @@ docs/plans/                       # Planning documents
 
 ## QA Process
 
-Run after ANY change to commands, agents, or skills. Launch all 4 checks in parallel using background agents.
+Run `/compound:plugin-changes-qa` after ANY change to commands, agents, or skills. The command runs two tiers of checks:
 
-### Check 1: Commands QA (brainstorm + plan)
+### Tier 1: Structural Scripts (Deterministic)
 
-```
-Agent: "QA review brainstorm.md and plan.md. Read each file and check:
-1. Truncation — complete file?
-2. Role descriptions on ALL Task dispatches — inline role present?
-3. Stale references — any compound-workflows:, aworkflows:, bd sync, /resolve_todo_parallel, /test-browser, /xcode-test?
-4. AskUserQuestion — all user decision points explicit?
-5. Year references — any hardcoded dates?
-6. Red team — providers independent (no reading each other)? Both clink and pal chat paths? Runtime detection?
-7. PAL write-to-disk — explicit instruction to write PAL response to file?
-Report: ISSUE or OK per check per file."
-```
+Four bash scripts in `plugins/compound-workflows/scripts/plugin-qa/`:
 
-### Check 2: Commands QA (deepen-plan + work)
+| Script | What it checks |
+|--------|----------------|
+| `stale-references.sh` | Old namespace references (`aworkflows:`), references to non-existent commands/agents, stale Task dispatches |
+| `file-counts.sh` | Agent, skill, and command counts match declarations in CLAUDE.md, plugin.json, marketplace.json, README.md |
+| `truncation-check.sh` | YAML frontmatter present and closed, minimum line count thresholds (catches truncated files) |
+| `context-lean-grep.sh` | MCP response transit patterns, banned TaskOutput calls, MCP calls needing Task-wrapping verification, Task dispatches missing OUTPUT INSTRUCTIONS |
 
-```
-Agent: "QA review deepen-plan.md and work.md. Read each file and check:
-1. Truncation — complete file?
-2. Role descriptions on ALL Task dispatches — inline role present?
-3. Stale references — any compound-workflows:, aworkflows:, bd sync?
-4. AskUserQuestion — all user decision points explicit?
-5. Year references — any hardcoded dates?
-6. Red team (deepen-plan) — providers independent? Both clink and pal chat? Runtime detection?
-7. TodoWrite fallback (work) — TodoWrite mode blocks at all divergence points? Step numbering sequential?
-8. Plan readiness (plan + deepen-plan) — readiness phase present? Dispatches plan-readiness-reviewer with role description? Config gate (plan_readiness)? Output paths match SKILL.md convention?
-Report: ISSUE or OK per check per file."
-```
+### Tier 2: Semantic Agents (LLM)
 
-### Check 3: Commands QA (setup + review + compound + compact-prep)
+Three `Task general-purpose` agents with disk-persisted output:
 
-```
-Agent: "QA review setup.md, review.md, compound.md, compact-prep.md. Check:
-1. Truncation — complete?
-2. Role descriptions on ALL Task dispatches — inline role?
-3. Stale references — compound-workflows:, aworkflows:, bd sync? (compound-engineering in setup is intentional)
-4. AskUserQuestion — all decision points explicit?
-5. Year references — hardcoded dates?
-6. Setup: detects gemini+codex CLI? Writes TWO config files? No red team in stored config?
-7. Review: conditional agents have run_in_background + disk-write?
-8. Compound: all 8 dispatches (5 Phase 1 + 3 Phase 3) have full Task syntax + role?
-9. Compact-prep: both commit checks use AskUserQuestion?
-Report: ISSUE or OK per check per file."
-```
+| Agent | What it checks |
+|-------|----------------|
+| Context-lean reviewer | No large agent returns in orchestrator, MCP calls wrapped in subagents, OUTPUT INSTRUCTIONS on all Task dispatches, disk-persist pattern used |
+| Role description reviewer | Task dispatch agent names exist, inline role descriptions match agent definitions, allowed-tools and model specs consistent |
+| Command completeness reviewer | AskUserQuestion usage, phase/step numbering, YAML frontmatter, required sections, namespace conventions, argument handling |
 
-### Check 4: Stale References + CLAUDE.md
+### Hook-Based Enforcement
 
-```
-Agent: "Scan plugins/compound-workflows/ commands/, agents/, skills/ for:
-1. compound-workflows: (old namespace, exclude compound-workflows.local and compound-workflows.md)
-2. aworkflows
-3. bd sync
-4. /resolve_todo_parallel, /test-browser, /xcode-test
-5. kieran or julik (case insensitive) in agents/
-6. BriefSystem, EmailProcessing, Xiatech, EveryInc, Every Reader in agents/ and skills/
-
-Then read CLAUDE.md and verify:
-- Config section documents TWO files (committed + gitignored)
-- Red team dispatch is runtime detection, not stored config
-- Agent count is 24 (22 original + plan-readiness-reviewer + plan-consolidator)
-- Workflow agent count is 5 (3 original + 2 new)
-- plan-checks/ noted as check modules, not standalone agents
-
-Then verify plan-checks/ integrity:
-- 3 shell scripts are executable and have #!/usr/bin/env bash
-- semantic-checks.md has agent YAML frontmatter
-- No shell scripts reference absolute paths or non-portable commands
-Report all results."
-```
+The PostToolUse hook in `.claude/settings.local.json` auto-triggers Tier 1 scripts after git commits touching plugin files. The hook is suppressed during `/compound:work` via the `.workflows/.work-in-progress` sentinel file.
 
 ### Expected Result
 
-All checks should return OK. Any ISSUE must be fixed before committing.
+All checks should return zero findings. Any finding must be fixed before committing.
 
 ## Versioning
 
