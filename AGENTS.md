@@ -1,6 +1,6 @@
 # Agent Instructions — compound-workflows-marketplace
 
-This repo contains the **compound-workflows** Claude Code plugin. 24 agents, 15 skills, 10 commands under the `/compound:*` namespace.
+This repo contains the **compound-workflows** Claude Code plugin. Commands use the `/compound:*` namespace; skills use `/compound-workflows:*`.
 
 ## Project Structure
 
@@ -8,8 +8,8 @@ This repo contains the **compound-workflows** Claude Code plugin. 24 agents, 15 
 plugins/compound-workflows/
 ├── .claude-plugin/plugin.json    # Plugin manifest (version here)
 ├── agents/{research,review,workflow}/  # 24 agent YAML files
-├── skills/                       # 15 skill directories
-├── commands/compound/            # 10 slash commands
+├── skills/                       # Skill directories (SKILL.md each)
+├── commands/compound/            # Slash commands (max 8 per dir)
 ├── scripts/plugin-qa/           # Tier 1 QA scripts (4 scripts + lib.sh)
 ├── CLAUDE.md                     # Plugin dev instructions
 ├── CHANGELOG.md                  # Version history
@@ -30,7 +30,7 @@ docs/plans/                       # Planning documents
 
 ## QA Process
 
-Run `/compound:plugin-changes-qa` after ANY change to commands, agents, or skills. The command runs two tiers of checks:
+Run `/compound-workflows:plugin-changes-qa` after ANY change to commands, agents, or skills. The command runs two tiers of checks:
 
 ### Tier 1: Structural Scripts (Deterministic)
 

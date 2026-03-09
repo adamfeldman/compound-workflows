@@ -98,7 +98,7 @@ if [ "$has_findings" = true ]; then
   echo "Plugin QA findings detected after commit:" >&2
   echo "$combined_output" >&2
   echo "" >&2
-  echo "Run \`/compound:plugin-changes-qa\` for full QA (includes semantic checks)" >&2
+  echo "Run \`/compound-workflows:plugin-changes-qa\` for full QA (includes semantic checks)" >&2
   exit 2
 fi
 

@@ -26,7 +26,7 @@ agents/
     └── plan-checks/  # 3 shell scripts + 1 agent-format .md file (check modules, not standalone agents)
 
 commands/
-└── compound/ # All slash commands (namespaced, 10 commands)
+└── compound/ # All slash commands (namespaced, 8 commands)
 
 scripts/
 └── plugin-qa/               # 4 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook

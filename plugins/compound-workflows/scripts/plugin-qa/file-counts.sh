@@ -96,7 +96,7 @@ declared_agents_readme=""
 declared_skills_readme=""
 declared_commands_readme=""
 if [[ -f "$readme" ]]; then
-  # First line with counts: "24 agents, 15 skills, and 9 commands"
+  # First line with counts: "N agents, N skills, and N commands"
   count_line="$(grep -E '[0-9]+ agents.*[0-9]+ skills.*[0-9]+ commands' "$readme" 2>/dev/null | head -1 || true)"
   if [[ -n "$count_line" ]]; then
     declared_agents_readme="$(echo "$count_line" | grep -oE '[0-9]+ agents' | grep -oE '[0-9]+' || true)"
