@@ -31,14 +31,12 @@ Ambitious tasks in Claude Code hit walls:
 
 | | compound-engineering | compound-workflows |
 |---|---|---|
-| Agents | 22 bundled | 24 bundled (forked, self-contained) |
-| Red team | Single model | 3 providers in parallel with configurable model selection |
 | Agent outputs | In-context (fills up) | Disk-persisted to `.workflows/` |
+| Plan quality | Unbounded iteration | Readiness checks, auto-consolidation, and signals for when to stop iterating (+2 agents: plan-readiness-reviewer, plan-consolidator) |
+| Red team | Single model | 3 providers in parallel with configurable model selection |
 | Task tracking | TodoWrite only | Beads preferred, TodoWrite fallback |
-| Config | Single file | Split: committed project + gitignored machine-specific |
 | Session recovery | Manual | `/compact-prep` (proactive) + `/recover` (reactive, JSONL log parsing) |
 | Memory management | None | Adapted fork of Anthropic's memory skill with tiered storage (in progress) |
-| Plan quality | Unbounded iteration | Readiness checks, auto-consolidation, and signals for when to stop iterating |
 
 ## Install
 
