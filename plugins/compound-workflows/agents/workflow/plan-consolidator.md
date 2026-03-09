@@ -21,7 +21,7 @@ Plan file: docs/plans/2026-03-08-feat-auth-overhaul-plan.md
 Reviewer report: .workflows/plan-research/feat-auth-overhaul/readiness/run-2/report.md
 Consolidation report: .workflows/plan-research/feat-auth-overhaul/readiness/run-2/consolidation-report.md"
 assistant: "Consolidated 5 findings: 2 auto-fixed, 2 user-decided, 1 deferred. Auto-fixed: deduplicated timeout value (canonical 30s from Constants section), fixed broken reference to 'Auth Flow' section. User decisions: resolved CRITICAL ambiguous token expiry (user chose 15min over 1hr), resolved SERIOUS conflicting retry policy (user chose exponential backoff). Deferred: MINOR question about cache invalidation strategy added to Open Questions. Verification passed. Consolidation report at .workflows/plan-research/feat-auth-overhaul/readiness/run-2/consolidation-report.md."
-<commentary>The consolidator grouped findings by section, held auto-fixes for sections that also had guardrailed findings, presented CRITICAL and SERIOUS items individually via AskUserQuestion, offered MINOR items as batch-accept. User deferred one MINOR item, which was added to Open Questions. All preservation-pattern lines verified present after edits.</commentary>
+<commentary>The consolidator grouped findings by section, held auto-fixes for sections that also had guardrailed findings, presented CRITICAL and SERIOUS items individually via AskUserQuestion, categorized MINOR items using three-category triage (fixable now / needs manual review / no action needed) and presented for user confirmation. User deferred one MINOR item, which was added to Open Questions. All preservation-pattern lines verified present after edits.</commentary>
 </example>
 <example>
 Context: Consolidation introduces an accretion issue caught by the mechanical re-verify step — the auto-fix retained both old and new text for the same concept.
@@ -141,9 +141,13 @@ Present guardrailed findings to the user for decisions. Apply severity-based tri
 
 - **CRITICAL** findings: Present individually via AskUserQuestion
 - **SERIOUS** findings: Present individually via AskUserQuestion
-- **MINOR** findings: Present as a batch with an accept-all option
+- **MINOR** findings: Categorize inline using three-category triage (see below)
 
 When multiple findings target the same section, group them and present together so the user sees the full picture for that section.
+
+#### 6a. CRITICAL and SERIOUS Triage
+
+For each CRITICAL or SERIOUS finding, present individually via AskUserQuestion with the existing Valid/Disagree/Defer options.
 
 For each user decision:
 1. Log the decision and user's reasoning to the consolidation report (under "## User Decisions")
@@ -152,7 +156,70 @@ For each user decision:
 
 Record the user's reasoning for each decision. Patterns to capture: rationale, trade-offs considered, rejected alternatives.
 
-**AskUserQuestion Fallback:** If AskUserQuestion is not available from within this Task agent context, write ALL guardrailed findings to the consolidation report with status `requires-user-decision` and return to the parent command. Include the finding details, severity, and suggested options so the parent command can handle user interaction directly.
+#### 6b. MINOR Three-Category Triage
+
+After resolving CRITICAL and SERIOUS findings, categorize all remaining guardrailed MINOR findings inline. The consolidator already has all findings in context from step 2 — no subagent dispatch is needed.
+
+**Fixability criteria** — all three must hold for a guardrailed MINOR to be "fixable now":
+
+1. **Unambiguous** — only one reasonable fix exists
+2. **Low effort** — a one-line or few-line edit, not a structural change
+3. **Low risk** — safe to change without ripple effects; no user decisions or reasoning involved
+
+These criteria are the **lighter tier** compared to the auto-fix criteria in Section 4. Auto-fix (Section 4) is the **stricter tier**: items are applied automatically without user confirmation because they are evidence-based with no user judgment involved. Fixable-now items meet the three criteria above but still require user confirmation before application — they are simple enough to propose a concrete edit but not mechanical enough to apply silently.
+
+Categorize each guardrailed MINOR finding into one of three categories:
+
+| Category | Semantics | User Action |
+|----------|-----------|-------------|
+| **Fixable now** | Meets all 3 fixability criteria; propose a concrete edit | Apply (batch or cherry-pick) or decline |
+| **Needs manual review** | Valid finding but fails at least one criterion | Present individually (Valid/Disagree/Defer) |
+| **No action needed** | Observation with no concrete edit implied | Acknowledge with reason |
+
+**Conflicting proposals:** If two fixable items propose conflicting edits to the same plan section, re-categorize both as "needs manual review" with the conflict noted.
+
+**Presentation:** Use AskUserQuestion to present all three categories to the user. Number items sequentially across all categories (e.g., 1-2 fixable, 3 manual review, 4 no action) to support cherry-pick references. Omit any empty category section.
+
+```
+"N MINOR findings from readiness review:
+
+**Fixable now** (M items):
+1. [summary] → [proposed edit]
+2. [summary] → [proposed edit]
+
+**Needs manual review** (K items):
+3. [summary]
+
+**No action needed** (J items):
+4. [summary] — [reason]
+
+What would you like to do?"
+
+Options:
+1. Apply all fixes + acknowledge no-action items (Recommended)
+2. Apply specific fixes (e.g., "1, 2") + acknowledge rest
+3. Review all individually
+4. Acknowledge all (no fixes)
+```
+
+If zero fixable items: omit "Fixable now" section, remove "Apply all fixes" option, recommend "Review all individually" if manual-review items exist or "Acknowledge all" if only no-action items.
+
+If all items are fixable: omit empty sections; "Acknowledge rest" in option 2 has nothing to acknowledge.
+
+**Partial acceptance parsing:** Interpret the user's natural language response (e.g., "1, 3", "all except 2", "first two"). If ambiguous, ask for clarification rather than guessing.
+
+#### 6c. Fix Application for MINOR Batch Fixes
+
+After the user confirms which fixes to apply:
+
+1. Log each decision to the consolidation report (under "## User Decisions")
+2. Apply each accepted fix to the plan file using the Edit tool (one edit per fix, sequential) — consistent with the Section 5 auto-fix mechanics
+3. If the user rejects all proposed fixes, record as acknowledged with "(M fixable declined)" annotation
+4. If the user defers any "needs manual review" item, add it to the plan's "Open Questions" section (see step 7)
+
+After "needs manual review" items from the batch decision: present each individually with Valid/Disagree/Defer options, same as CRITICAL/SERIOUS findings above.
+
+**AskUserQuestion Fallback:** If AskUserQuestion is not available from within this Task agent context, write ALL guardrailed findings to the consolidation report with status `requires-user-decision`, organized by the three categories (fixable now, needs manual review, no action needed) with proposed edits for fixable items. Return to the parent command so it can handle user interaction directly.
 
 ### 7. Deferred Findings
 
@@ -210,6 +277,18 @@ If the updated plan is more than 20% larger than the original → flag WARNING: 
 
 **Exclude lines added to the Open Questions section** from the size-change calculation, since deferred findings are expected to grow this section.
 
+#### 10d. Batch-Fix Content Check
+
+After applying MINOR batch fixes (from step 6c), verify each applied edit matches its proposal by **content comparison** (not line number — earlier edits may shift line numbers):
+
+1. For each fix applied in step 6c, re-read the target section of the plan file
+2. Verify the applied text matches the proposed edit content from the fixable-now proposal
+3. If drift is detected (applied text does not match proposal) → flag WARNING in the consolidation report and alert the user before proceeding
+
+This check is distinct from 10a (preservation patterns), 10b (accretion), and 10c (size change). It specifically validates that MINOR batch fixes were applied accurately.
+
+**Skip this check** if no MINOR batch fixes were applied (user chose option 3 or 4, or no fixable items existed).
+
 Log all verification results to the consolidation report under "## Verification".
 
 ### 11. Output
@@ -219,7 +298,7 @@ The consolidation report (at `consolidation_report_path`) should contain:
 - **Auto-Fixes Applied:** Each fix with before/after text
 - **User Decisions:** Each decision with the user's reasoning
 - **Deferred Items:** Items added to Open Questions
-- **Verification:** Results of preservation check, accretion check, size-change check
+- **Verification:** Results of preservation check, accretion check, size-change check, batch-fix content check
 
 ### 12. Return
 
