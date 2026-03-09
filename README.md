@@ -132,7 +132,7 @@ Instead of agents returning full results into conversation context (which fills 
 | P2 | Plugin handbook | User-facing docs: getting-started, commands, config, architecture, troubleshooting | Brainstorm | Plan | — |
 | P2 | Command commit hygiene | All commands offer to commit artifacts before handoff | — | Scope | — |
 | P2 | Correction-capture skill | Guide turning one-time corrections into durable rules | — | Brainstorm | — |
-| P3 | Per-agent token tracking | Measure token consumption per subagent dispatch | — | Brainstorm | — |
+| P1 | Per-agent token tracking | Persist Task completion stats across all commands for cost/complexity dataset | — | Brainstorm | — |
 | P4 | Orchestrating-swarms review | Context-lean compliance review when swarms GA | — | Deferred | — |
 | P4 | Setup: PRIME.md generation | Generate .beads/PRIME.md to prevent memory instruction conflicts | Scoped | Brainstorm | — |
 | P4 | Setup: tool install guides | Guide PAL, Gemini CLI, Codex CLI installation | Scoped | Brainstorm | — |
