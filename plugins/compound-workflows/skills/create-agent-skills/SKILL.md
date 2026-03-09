@@ -254,6 +254,20 @@ For form filling guide, see [forms.md](forms.md).
 - [ ] Examples are concrete, not abstract
 - [ ] Tested with real usage
 
+## Context-Lean Convention (compound-workflows)
+
+Skills and commands in this plugin that dispatch subagents MUST follow the context-lean convention documented in `CLAUDE.md` under "Context-Lean Convention":
+
+1. **Include OUTPUT INSTRUCTIONS blocks** in every agent dispatch. Two variants:
+   - **Analysis variant** (research/review agents): `Write your COMPLETE findings to: <path>`
+   - **Relay variant** (MCP dispatch agents): `Write the response faithfully to: <path>`
+
+2. **Ban TaskOutput** — never retrieve full agent results into orchestrator context. Poll for file existence instead.
+
+3. **Wrap MCP calls in Task subagents** — any MCP tool returning large content must be called from within a Task subagent that writes to disk.
+
+See `skills/disk-persist-agents/SKILL.md` for the canonical pattern and templates.
+
 ## Anti-Patterns to Avoid
 
 - **XML tags in body** - Use standard markdown headings
@@ -262,6 +276,7 @@ For form filling guide, see [forms.md](forms.md).
 - **Missing invocation control** - Side-effect workflows need `disable-model-invocation: true`
 - **Too many options** - Provide a default with escape hatch
 - **Punting to Claude** - Scripts should handle errors explicitly
+- **Missing OUTPUT INSTRUCTIONS** - Agent-dispatching commands must include output instruction blocks
 
 ## Reference Files
 
