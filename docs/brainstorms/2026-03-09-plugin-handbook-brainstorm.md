@@ -67,19 +67,22 @@ All knobs and their defaults documented in one place. Currently this info is spl
 ### Q: How should plan readiness settings be documented?
 **Answer:** Split. `configuration.md` is the single reference for ALL config keys (including plan readiness keys like `provenance_expiry_days`) with brief descriptions and defaults. `core-workflow.md` covers when/why plan readiness runs and what each setting controls in context. `plugin-qa.md` covers only the plugin QA system (Tier 1/Tier 2 scripts, PostToolUse hook, bead cross-ref), not plan readiness. Rationale: plan readiness is part of the plan→work lifecycle, not the plugin QA pipeline.
 
-### Decision 5: Add /compound:help command
+### Decision 5: Document command autocomplete shortcuts
+The handbook should tell users they can type short prefixes like `/prep` or `/work` and use autocomplete instead of typing full command names like `/compound:compact-prep`. This is a Claude Code feature (tab/autocomplete on `/` commands) but users won't discover it without being told. Rationale: the full command names are verbose — showing shortcuts reduces friction for daily use.
+
+### Decision 6: Add /compound:help command
 A `/compound:help` command that links to the handbook on GitHub, providing in-CLI discoverability. Also: post-setup hint in `/compound:setup` mentioning the handbook exists. Rationale: the handbook is static GitHub markdown — users need a way to discover it from within Claude Code.
 
-### Decision 6: handbook/ stays at repo root despite not shipping with plugin
-All 3 red team providers flagged that `handbook/` at repo root won't be included in marketplace installs. Rejected because: GitHub is the reading surface for docs, not the local filesystem. Nobody reads plugin docs from `~/.claude/plugins/`. The `/compound:help` command (Decision 5) bridges the discoverability gap.
+### Decision 7: handbook/ stays at repo root despite not shipping with plugin
+All 3 red team providers flagged that `handbook/` at repo root won't be included in marketplace installs. Rejected because: GitHub is the reading surface for docs, not the local filesystem. Nobody reads plugin docs from `~/.claude/plugins/`. The `/compound:help` command (Decision 6) bridges the discoverability gap.
 
-### Decision 7: README keeps current content, accept overlap
+### Decision 8: README keeps current content, accept overlap
 README maintains its overview role (command tables, workflow cycle, architecture summary). Handbook goes deeper. Some duplication is accepted as the cost of two entry points. Rationale: the README serves people who land on the GitHub repo; the handbook serves people who want depth. Different contexts, overlapping content is OK.
 
-### Decision 8: Docs serve the author too, not premature
+### Decision 9: Docs serve the author too, not premature
 Opus flagged "no demonstrated user need" for a single-user plugin. Rejected: the handbook consolidates scattered knowledge from CLAUDE.md, memory files, and SKILL.md into a findable reference. It serves the author after context compaction and prepares for future users. There is also 1 external user currently.
 
-### Decision 9: Research agents disagreed on location — acknowledged
+### Decision 10: Research agents disagreed on location — acknowledged
 Research agents proposed three different locations: expand README (context-research), `plugins/.../docs/` (repo-research), and `handbook/` at repo root (brainstorm). The brainstorm chose repo root based on user preference during collaborative dialogue. Research informed the options but the user made the call.
 
 ## Red Team Resolution Summary
@@ -95,7 +98,7 @@ Research agents proposed three different locations: expand README (context-resea
 | 7 | Opus | MINOR | Versioning dodge = distribution problem | Addressed: /compound:help command bridges gap |
 | 8 | Gemini, Opus | MINOR | No in-CLI discoverability | Addressed: /compound:help + post-setup hint |
 | 9 | OpenAI | MINOR | Version alignment wording contradiction | Fixed: clarified "semi-adjacent commits, no standalone releases" |
-| 10 | Opus | MINOR | Research disagreements not reconciled | Fixed: added Decision 9 acknowledging divergent proposals |
+| 10 | Opus | MINOR | Research disagreements not reconciled | Fixed: added Decision 10 acknowledging divergent proposals |
 
 ## Sources
 
