@@ -129,6 +129,7 @@ Instead of agents returning full results into conversation context (which fills 
 | P1 | Quota optimization | Sonnet for research agents, relay wrappers to cut token usage | Plan | Deepen | v2.0 |
 | P1 | Red team model selection | Configurable model routing for multi-provider challenges | Brainstorm | Plan | — |
 | P1 | Memory skill integration | Memory management with cleanup emphasis | Plan | Deepen | — |
+| P2 | Plugin handbook | User-facing docs: getting-started, commands, config, architecture, troubleshooting | Brainstorm | Plan | — |
 | P2 | Command commit hygiene | All commands offer to commit artifacts before handoff | — | Scope | — |
 | P2 | Correction-capture skill | Guide turning one-time corrections into durable rules | — | Brainstorm | — |
 | P3 | Per-agent token tracking | Measure token consumption per subagent dispatch | — | Brainstorm | — |
