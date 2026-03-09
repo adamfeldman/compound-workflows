@@ -95,5 +95,5 @@ After release, update locally via CLI (`claude plugin update compound-workflows@
 - Red team provider method (clink vs pal chat) is runtime-detected, not stored in config
 - Config is split: `compound-workflows.md` (committed) + `compound-workflows.local.md` (gitignored)
 - No git remote configured; local-only development
-- Only commit files you changed in the current session — do not stage unrelated modified files
+- Only commit files you changed in the current session. If untracked or modified files from prior sessions are present, offer to commit them separately (they may have been left behind) — the goal is a clean working tree at session end
 - Do not use auto memory (`~/.claude/projects/.../memory/`) — use repo-level memory instead: `memory/` (committed, project knowledge) + `.claude/memory/` (gitignored, private preferences)
