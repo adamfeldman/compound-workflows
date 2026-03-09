@@ -89,6 +89,10 @@ Only release when files inside `plugins/compound-workflows/` change. Changes to 
 
 After release, update locally via CLI (`claude plugin update compound-workflows@compound-workflows-marketplace`) or the interactive `/plugin` menu inside Claude Code.
 
+## Routing
+
+- When the user asks an exploratory or strategic question ("should we...", "is there an opportunity to...", "what if we..."), route through `/compound:brainstorm` rather than answering directly or spawning ad-hoc research agents.
+
 ## Key Conventions
 
 - Commands use `compound:` namespace prefix
