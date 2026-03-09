@@ -12,35 +12,12 @@ Synthesis findings AND red team findings go through the same triage flow. Summar
 ## Work-Readiness Guidance
 plan.md and deepen-plan.md handoffs assess step sizing for subagent dispatch. work.md Phase 1.1 checks plan structure (single-file builds, large steps, shared reference data) and flags concerns.
 
-## Red Team Dispatch
-- Three providers run independently in parallel — no provider reads another's critique (prevents anchoring)
-- `clink` (Gemini CLI / Codex CLI) gives models direct file access — richer analysis
-- `pal chat` lets you specify exact model. Preferred when user wants a specific model
-- Provider method is a per-session runtime choice, not a stored preference
-- CLIs need one-time per-repo file access permission
-
-## QA Process
-- AGENTS.md has 4 reusable parallel QA checks covering all 9 commands + stale refs + CLAUDE.md consistency
-- Run after ANY change to commands, agents, or skills
-- Planned: `/compound:plugin-changes-qa` command with hybrid architecture (deterministic scripts for structural checks, LLM agents for semantic analysis) + hook-based enforcement
-- See brainstorm: `docs/brainstorms/2026-03-08-context-lean-enforcement-brainstorm.md`
-
 ## Context-Lean Principle
 - Canonical term: "context-lean" (not "disk-persisted" or "context-safe")
 - All commands dispatching agents MUST include OUTPUT INSTRUCTIONS blocks
 - TaskOutput is banned — poll file existence instead
 - MCP tool responses must be wrapped in subagents (empirically confirmed: Task subagents DO inherit MCP tool access)
 - Swarms skill is beta/unreviewed — broader review tracked for when swarms go GA
-
-## Release Process
-1. Bump version in: plugin.json, marketplace.json, CHANGELOG.md, README.md, CLAUDE.md, AGENTS.md
-2. Commit and push to main
-3. Tag: `git tag -a v<version> -m "description"`
-4. Push tag: `git push origin v<version>`
-5. Update marketplace.json `ref` field to new tag
-6. Commit and push the marketplace.json ref bump
-- marketplace.json uses `git-subdir` source with explicit `ref` — users get the pinned version, not HEAD
-- GitHub releases are NOT needed — Claude Code plugins install via git clone, not release artifacts
 
 ## Skill Visibility
 - `user-invocable: false` hides skills from command palette

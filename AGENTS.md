@@ -123,10 +123,11 @@ Only release when files inside `plugins/compound-workflows/` change. Changes to 
 1. Run QA (see above), fix any issues
 2. Update `plugins/compound-workflows/CHANGELOG.md`
 3. Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json`
-4. Bump version + ref in `.claude-plugin/marketplace.json`
+4. Bump version + ref in `.claude-plugin/marketplace.json` (ref pins the tag users install — set to the new version before committing)
 5. Commit
-6. Push: `git push origin main`
-7. Release: `gh release create v<version> --title "v<version>" --notes "<changelog entry>"` (creates tag automatically)
+6. Tag: `git tag v<version>`
+7. Push: `git push origin main --tags`
+8. Release: `gh release create v<version> --title "v<version>" --notes "<changelog entry>"`
 
 After release, update locally via CLI (`claude plugin update compound-workflows@compound-workflows-marketplace`) or the interactive `/plugin` menu inside Claude Code.
 
@@ -139,3 +140,4 @@ After release, update locally via CLI (`claude plugin update compound-workflows@
 - Config is split: `compound-workflows.md` (committed) + `compound-workflows.local.md` (gitignored)
 - No git remote configured; local-only development
 - Only commit files you changed in the current session — do not stage unrelated modified files
+- Do not use auto memory (`~/.claude/projects/.../memory/`) — use repo-level memory instead: `memory/` (committed, project knowledge) + `.claude/memory/` (gitignored, private preferences)
