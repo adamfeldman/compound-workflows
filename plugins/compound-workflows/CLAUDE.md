@@ -2,19 +2,18 @@
 
 ## Versioning
 
-Every change MUST update all three files:
+Every change MUST update all four files:
 
 1. **`.claude-plugin/plugin.json`** -- Bump version (semver)
 2. **`CHANGELOG.md`** -- Document changes
 3. **`README.md`** -- Verify component counts and tables
+4. **`.claude-plugin/marketplace.json`** (repo root) -- Bump version
 
 ### Version Rules
 
 - **MAJOR** (2.0.0): Breaking changes to command interfaces or directory conventions
 - **MINOR** (1.1.0): New commands, agents, or skills
 - **PATCH** (1.0.1): Bug fixes, doc updates, prompt improvements
-
-Also update the marketplace.json version at the repo root.
 
 ## Directory Structure
 
@@ -29,7 +28,8 @@ commands/
 └── compound/ # All slash commands (namespaced, 8 commands)
 
 scripts/
-└── plugin-qa/               # 4 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
+├── plugin-qa/               # 5 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
+└── version-check.sh         # 3-way version comparison (source vs installed vs release) — NOT in plugin-qa/ (makes network calls)
 
 skills/
 ├── agent-browser/           # Browser automation for agents
@@ -45,9 +45,12 @@ skills/
 ├── git-worktree/            # Git worktree management scripts
 ├── memory-management/       # Auto-memory file management
 ├── orchestrating-swarms/    # Multi-agent orchestration patterns
+├── plugin-changes-qa/       # Plugin QA automation (Tier 1-3 checks)
+├── recover/                 # Context recovery from dead/exhausted sessions
 ├── resolve-pr-parallel/     # Parallel PR comment resolution
 ├── setup/                   # Setup configuration reference (disable-model-invocation)
-└── skill-creator/           # Skill packaging scripts
+├── skill-creator/           # Skill packaging scripts
+└── version/                 # Plugin version status check (source vs installed vs release)
 ```
 
 ## Agent Registry

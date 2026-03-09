@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0] - 2026-03-09
+
+### Added
+- **version-check.sh** — 3-way version comparison script (source vs installed vs release) in `scripts/`. Not in `plugin-qa/` because it makes network calls (would slow every commit via the PostToolUse hook)
+- **version-sync.sh** — QA script in `scripts/plugin-qa/` validating version consistency across plugin.json, marketplace.json, and CHANGELOG.md
+- **`/compound-workflows:version` skill** — wraps version-check.sh for interactive version status checks
+- **compact-prep Step 6** now runs version-check.sh (replaces inline `gh` check with structured 3-way comparison)
+- **setup.md Step 1.5** — warns about stale plugin versions before environment detection
+- **work.md Phase 4** post-merge release reminder — prompts user to tag + release after version bumps
+
+### Changed
+- **CLAUDE.md** — versioning checklist aligned to 4-file set (plugin.json, marketplace.json, CHANGELOG.md, README.md), scripts directory listing updated
+- **AGENTS.md** — versioning list aligned to 4-file set, phantom `ref` field removed, QA scripts table updated with version-sync.sh
+- Skills: 18→19, plugin-qa scripts: 4→5
+
 ## [1.10.0] - 2026-03-09
 
 ### Changed

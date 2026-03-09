@@ -397,6 +397,8 @@ After all issues are closed (or all TodoWrite tasks completed):
    )"
    ```
 
+   > **Post-merge reminder:** After the PR is merged, run `/compound-workflows:version` or `/compound:compact-prep` to check for missing GitHub releases. Do not create releases automatically — the user decides when to cut a release.
+
 4. **Update plan status** (if YAML frontmatter has `status` field):
    ```
    status: active  →  status: completed
