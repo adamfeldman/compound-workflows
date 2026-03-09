@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v1.7.0 (plugins/compound-workflows/)
+- Plugin: compound-workflows v1.8.3 (plugins/compound-workflows/)
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
 - GitHub repo: adamfeldman/compound-workflows (public)
@@ -33,12 +33,16 @@
 ## Completed Work (continued)
 - **Context-lean enforcement + QA enhancement (v1.8.0)** — bead `bdr` closed. 12 commits, 17+ files. MCP wrapping, disk-persist, QA command, hook, sentinel, docs, rename, version bump.
 
+## Completed Work (continued)
+- **Finding resolution provenance (v1.9.0-pending)** — bead `emx` closed. PR #3 merged (squash).
+  - 2 commits, 2 files, +19/-3 lines. Provenance pointers added to deepen-plan triage + consolidator preservation.
+  - Plan: `docs/plans/2026-03-08-feat-finding-resolution-provenance-plan.md` (completed)
+
 ## In-Progress Work
-- **Finding resolution provenance** — brainstorm written, ready for `/compound:plan`
-  - Brainstorm: `docs/brainstorms/2026-03-08-finding-resolution-provenance-brainstorm.md`
-  - Bead: `compound-workflows-marketplace-emx` (P1, open)
-- **Deepen-plan convergence guidance** — help user evaluate if another run is advisable
-  - Brainstorm: `docs/brainstorms/2026-03-08-deepen-plan-convergence-brainstorm.md` (red team complete)
-  - Bead: `compound-workflows-marketplace-ruh` (P1, open, blocked on bdr)
-  - Key decisions: hybrid script+agent, bounded reads (current+prior run only), 4 recommendation states, soft round-count guardrails, anti-anchoring (read prior signals not prior recommendation)
-- **Dependency chain (all unblocked):** emx → ruh → aig → h0g
+- **Deepen-plan convergence guidance** — plan written, ready for `/compound:work`
+  - Plan: `docs/plans/2026-03-08-feat-deepen-plan-convergence-plan.md` (active)
+  - Brainstorm: `docs/brainstorms/2026-03-08-deepen-plan-convergence-brainstorm.md`
+  - Bead: `compound-workflows-marketplace-ruh` (P1, open)
+  - Key decisions: hybrid script+agent, bounded reads, 4 recommendation states, anti-anchoring
+- **Dependency chain:** ~~emx~~ → ruh → aig → h0g
+- **New bead:** `1mx` — plan skill should assess whether deepen-plan is advisable (separate from ruh)
