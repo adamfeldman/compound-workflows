@@ -473,7 +473,7 @@ Handle these throughout execution:
 - **Empty session log** (single entry or no user messages): Show in picker but note "no activity". In Phase 2, produce a minimal extract noting the session had no meaningful content.
 - **Very large session** (24MB+): The head + tail strategy with 50KB budget and 2KB per-entry truncation prevents context exhaustion. Do not attempt to read the entire file.
 - **No compact boundaries**: Use last 30 filtered entries from end of file for the tail extraction.
-- **Current session selected**: Warn the user: "This appears to be the current active session. `/compound:recover` is designed for dead sessions — recovering a live session may produce incomplete results." Offer to proceed anyway or pick a different session.
+- **Current session selected**: Warn the user: "This appears to be the current active session. `/compound-workflows:recover` is designed for dead sessions — recovering a live session may produce incomplete results." Offer to proceed anyway or pick a different session.
 - **Session from different branch**: Note the `gitBranch` field from the JSONL in the summary: "Note: This session was on branch `[branch]`, which differs from the current branch `[current]`."
 - **Session from different working directory**: Note the `cwd` field if it differs from current `pwd`: "Note: This session's working directory was `[cwd]`, which differs from the current directory."
 - **Beads unavailable**: Skip beads checks entirely. Note "Beads: not available" in the state snapshot. No error.

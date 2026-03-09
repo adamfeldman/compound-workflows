@@ -137,7 +137,7 @@ Red team provider preferences are detected each session, not stored in config. C
 - Commands detect beads/PAL/CLI availability at runtime and adapt behavior
 - Phase gates enforce resolution of open questions before proceeding
 - Research outputs persist to `.workflows/` directories
-- `/compound:recover` is the reactive counterpart to `/compound:compact-prep` — it recovers context from dead/exhausted sessions by parsing JSONL logs and cross-referencing external state. It does not dispatch any agents from the agent registry.
+- `/compound-workflows:recover` is the reactive counterpart to `/compound:compact-prep` — it recovers context from dead/exhausted sessions by parsing JSONL logs and cross-referencing external state. It does not dispatch any agents from the agent registry.
 
 ## Context-Lean Convention
 

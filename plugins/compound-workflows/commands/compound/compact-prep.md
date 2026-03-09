@@ -10,7 +10,7 @@ Run this before `/compact` to preserve session context. Execute all steps in ord
 
 ## Input
 
-<post_compaction_task> $ARGUMENTS </post_compaction_task>
+<post_compaction_task> #$ARGUMENTS </post_compaction_task>
 
 ## Step 1: Update Memory
 
@@ -94,7 +94,7 @@ bash plugins/compound-workflows/scripts/version-check.sh
 
 ## Step 7: Queue Post-Compaction Task
 
-If the user provided a post-compaction task in `$ARGUMENTS`, confirm it back to them clearly:
+If the user provided a post-compaction task in `#$ARGUMENTS`, confirm it back to them clearly:
 
 > **After compaction, say `resume` and I'll:** [restate the task]
 
