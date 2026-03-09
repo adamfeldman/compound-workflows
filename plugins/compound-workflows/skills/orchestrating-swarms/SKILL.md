@@ -7,6 +7,10 @@ user-invocable: false
 
 # Claude Code Swarm Orchestration
 
+> **Beta / Unreviewed:** This skill is beta. The patterns shown do not include disk-persist
+> for teammate outputs. Do not copy these patterns without adding OUTPUT INSTRUCTIONS per
+> the disk-persist-agents skill. A broader context-lean review is tracked for when swarms go GA.
+
 Master multi-agent orchestration using Claude Code's TeammateTool and Task system.
 
 ---

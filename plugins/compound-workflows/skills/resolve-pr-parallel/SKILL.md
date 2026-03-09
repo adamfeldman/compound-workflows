@@ -45,26 +45,88 @@ Create a TodoWrite list of all unresolved items grouped by type:
 
 ### 3. Implement (PARALLEL)
 
-Spawn a `pr-comment-resolver` agent for each unresolved item in parallel.
+#### 3a. Determine Run Number
+
+Before dispatching agents, determine the run number and create the output directory:
+
+```bash
+# Count existing runs (if any) and increment
+existing=$(ls -d .workflows/resolve-pr/PR_NUMBER/agents/run-* 2>/dev/null | wc -l | tr -d ' ')
+run_num=$((existing + 1))
+mkdir -p .workflows/resolve-pr/PR_NUMBER/agents/run-${run_num}/
+```
+
+Replace `PR_NUMBER` with the actual PR number.
+
+#### 3b. Dispatch Agents with OUTPUT INSTRUCTIONS
+
+Spawn a `pr-comment-resolver` agent for each unresolved item in parallel. Each agent MUST include OUTPUT INSTRUCTIONS that direct output to disk.
 
 If there are 3 comments, spawn 3 agents:
 
-1. Task pr-comment-resolver(comment1)
-2. Task pr-comment-resolver(comment2)
-3. Task pr-comment-resolver(comment3)
+1. Task pr-comment-resolver (run_in_background: true): "
+   [comment 1 context: thread ID, file path, line number, comment body]
 
-Always run all in parallel subagents/Tasks for each Todo item.
+   === OUTPUT INSTRUCTIONS (MANDATORY) ===
+   Write your complete Comment Resolution Report to: .workflows/resolve-pr/PR_NUMBER/agents/run-N/comment-1.md
+   Include the thread ID and all changed file paths in your report.
+   After writing the file, return ONLY a 2-3 sentence summary including the thread ID and changed file paths.
+   "
+
+2. Task pr-comment-resolver (run_in_background: true): "
+   [comment 2 context: thread ID, file path, line number, comment body]
+
+   === OUTPUT INSTRUCTIONS (MANDATORY) ===
+   Write your complete Comment Resolution Report to: .workflows/resolve-pr/PR_NUMBER/agents/run-N/comment-2.md
+   Include the thread ID and all changed file paths in your report.
+   After writing the file, return ONLY a 2-3 sentence summary including the thread ID and changed file paths.
+   "
+
+3. Task pr-comment-resolver (run_in_background: true): "
+   [comment 3 context: thread ID, file path, line number, comment body]
+
+   === OUTPUT INSTRUCTIONS (MANDATORY) ===
+   Write your complete Comment Resolution Report to: .workflows/resolve-pr/PR_NUMBER/agents/run-N/comment-3.md
+   Include the thread ID and all changed file paths in your report.
+   After writing the file, return ONLY a 2-3 sentence summary including the thread ID and changed file paths.
+   "
+
+Replace `PR_NUMBER` with the actual PR number and `N` with the run number from step 3a.
+
+#### 3c. Monitor Completion
+
+**DO NOT call TaskOutput** to retrieve full results. The files on disk ARE the results.
+
+Poll for file existence to track completion:
+
+```bash
+ls .workflows/resolve-pr/PR_NUMBER/agents/run-N/
+```
+
+Compare the files present against the expected list (one `comment-*.md` per dispatched agent). When all expected files exist, proceed to step 4.
+
+If an agent hasn't produced output after 3 minutes, mark it as timed out and proceed with the completed results.
 
 ### 4. Commit & Resolve
 
+Use the agent summaries (which include thread IDs and changed file paths) to commit and resolve:
+
 - Commit changes with a clear message referencing the PR feedback
-- Resolve each thread programmatically:
+- For each resolved comment, use the thread ID from the agent summary to resolve the thread programmatically:
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/resolve-pr-parallel/scripts/resolve-pr-thread THREAD_ID
 ```
 
 - Push to remote
+
+If additional detail is needed beyond the summaries, read the resolution reports from disk:
+
+```bash
+cat .workflows/resolve-pr/PR_NUMBER/agents/run-N/comment-1.md
+```
+
+Resolution reports are typically ~20 lines each — reading them is acceptable when needed for commit message crafting or verifying resolution details.
 
 ### 5. Verify
 
