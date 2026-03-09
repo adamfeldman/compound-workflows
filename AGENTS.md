@@ -104,6 +104,12 @@ Do not use plan mode, ad-hoc research agents, or inline answers for tasks that h
 - **Before `/compact`**: `/compound:compact-prep` to preserve session context
 - **Recovering a dead/exhausted session**: `/compound-workflows:recover`
 
+## Sequential Feature Execution
+
+Run plan→deepen→work for one feature at a time. Do not run parallel feature tracks that touch plugin files.
+
+Plugin files (commands, agents, skills) are prose, not code — git cannot meaningfully merge conflicts in 400-line prompt files. Two branches both modifying `work.md` or `plan.md` means manual rewrite, not a resolvable merge. Plan and deepen-plan immediately before work so the repo doesn't drift between planning and execution.
+
 ## Key Conventions
 
 - Commands use `compound:` namespace prefix
