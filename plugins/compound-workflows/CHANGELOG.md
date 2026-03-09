@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-03-09
+
+### Added
+- **convergence-advisor agent** — Workflow agent that classifies deepen-plan findings as genuine vs edit-induced and produces one of 4 convergence recommendations (converged/ready for work, consolidate then evaluate, recommend another run, recommend another run after consolidation)
+- **convergence-signals.sh script** (`agents/workflow/plan-checks/`) — Bash script computing 5 structured convergence metrics from readiness reports and manifests: new-finding rate, repeat-finding rate, severity trend, unresolved count, and churn ratio
+
+### Changed
+- **deepen-plan.md** — Phase 5.75 (convergence signal dispatch), Phase 6 (present convergence recommendation to user), Phase 1 (read prior signals for anti-anchoring: next run reads prior signals but not prior recommendation)
+- Agents: 24→25, plan-checks scripts: 3→4
+
 ## [1.8.5] - 2026-03-08
 
 ### Added
