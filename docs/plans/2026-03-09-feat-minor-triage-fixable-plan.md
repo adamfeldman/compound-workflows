@@ -1,7 +1,7 @@
 ---
 title: "feat: Three-category MINOR triage with fix proposals"
 type: feat
-status: active
+status: completed
 date: 2026-03-09
 origin: docs/brainstorms/2026-03-09-minor-triage-fixable-vs-defer-brainstorm.md
 ---
@@ -168,50 +168,50 @@ Brainstorm triage points use inline annotations (no provenance pointers — brai
 
 Replace the binary MINOR triage at lines ~315-325 with three-category pattern.
 
-- [ ] Add inline `Task` subagent dispatch block for MINOR categorization before the AskUserQuestion. The subagent reads the 3 red team files from `.workflows/brainstorm-research/<topic-stem>/` and the brainstorm document, filters to MINOR-severity findings, categorizes each using the fixability criteria, proposes fixes for fixable items, and writes output to `.workflows/brainstorm-research/<topic-stem>/minor-triage.md`. The dispatch prompt must include: (a) the fixability criteria and categorization output format from the Shared Definitions sections above, (b) instruction to read all red team files and filter to MINOR findings by severity, (c) instruction to read the brainstorm document to propose location-specific edits, (d) OUTPUT INSTRUCTIONS per disk-persist-agents pattern (write to specified path, return only 2-3 sentence summary). Use `Task` with `run_in_background: true` — this is an inline dispatch, not a named agent.
-- [ ] Replace binary AskUserQuestion ("batch-accept or review individually") with the three-category presentation template. Orchestrator reads categorization file from disk and constructs the presentation.
-- [ ] Add fix application instructions: after user confirms, orchestrator applies accepted fixes to the brainstorm document via Edit tool.
-- [ ] Add post-fix verification: re-read modified sections, verify edits match proposals.
-- [ ] After "needs manual review" items, present individually with the existing Valid/Disagree/Defer options (same as CRITICAL/SERIOUS in brainstorm.md's red team Step 2).
-- [ ] Handle edge cases: zero fixable, all fixable, conflicting proposals (per Edge Cases section above).
-- [ ] Brainstorm uses inline annotations (no provenance pointers) — applied fixes get noted in the Red Team Resolution Summary table.
+- [x] Add inline `Task` subagent dispatch block for MINOR categorization before the AskUserQuestion. The subagent reads the 3 red team files from `.workflows/brainstorm-research/<topic-stem>/` and the brainstorm document, filters to MINOR-severity findings, categorizes each using the fixability criteria, proposes fixes for fixable items, and writes output to `.workflows/brainstorm-research/<topic-stem>/minor-triage.md`. The dispatch prompt must include: (a) the fixability criteria and categorization output format from the Shared Definitions sections above, (b) instruction to read all red team files and filter to MINOR findings by severity, (c) instruction to read the brainstorm document to propose location-specific edits, (d) OUTPUT INSTRUCTIONS per disk-persist-agents pattern (write to specified path, return only 2-3 sentence summary). Use `Task` with `run_in_background: true` — this is an inline dispatch, not a named agent.
+- [x] Replace binary AskUserQuestion ("batch-accept or review individually") with the three-category presentation template. Orchestrator reads categorization file from disk and constructs the presentation.
+- [x] Add fix application instructions: after user confirms, orchestrator applies accepted fixes to the brainstorm document via Edit tool.
+- [x] Add post-fix verification: re-read modified sections, verify edits match proposals.
+- [x] After "needs manual review" items, present individually with the existing Valid/Disagree/Defer options (same as CRITICAL/SERIOUS in brainstorm.md's red team Step 2).
+- [x] Handle edge cases: zero fixable, all fixable, conflicting proposals (per Edge Cases section above).
+- [x] Brainstorm uses inline annotations (no provenance pointers) — applied fixes get noted in the Red Team Resolution Summary table.
 
 ### Phase 2: Update deepen-plan.md (both triage points)
 
 **Synthesis Gate Step 4** (lines ~328-343):
 
-- [ ] Add subagent dispatch for synthesis MINOR categorization. The subagent receives a variant prompt: instead of proposing NEW edits, it reviews the synthesis agent's MINOR changes already applied to the plan and categorizes them. "Fixable now" means the synthesis change needs a small correction or revert. "No action needed" means the change was appropriate (keep as-is). Subagent reads the synthesis summary from `.workflows/deepen-plan/<stem>/run-<N>-synthesis.md` and the current plan, writes output to `.workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md`.
-- [ ] Replace binary AskUserQuestion ("batch-accept or review individually") with three-category presentation. For synthesis MINORs, "Apply fix" means applying a correction to the already-applied synthesis change (not applying the original finding).
-- [ ] Add fix application + post-fix verification for accepted corrections/reverts. For reverts, the categorization output includes both synthesis-applied text (`old_string`) and pre-synthesis original text (`new_string`) sourced from the synthesis summary file. For corrections, synthesis-applied text as `old_string` and corrected text as `new_string`.
-- [ ] Update provenance format: `**Fixed (batch):** M MINOR synthesis corrections applied. [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md]`. Replace existing `**Acknowledged (batch):**` line with the appropriate new format.
-- [ ] Preserve existing deepen-plan Step 5 "Apply" logic — resolution lines for all verdicts remain.
+- [x] Add subagent dispatch for synthesis MINOR categorization. The subagent receives a variant prompt: instead of proposing NEW edits, it reviews the synthesis agent's MINOR changes already applied to the plan and categorizes them. "Fixable now" means the synthesis change needs a small correction or revert. "No action needed" means the change was appropriate (keep as-is). Subagent reads the synthesis summary from `.workflows/deepen-plan/<stem>/run-<N>-synthesis.md` and the current plan, writes output to `.workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md`.
+- [x] Replace binary AskUserQuestion ("batch-accept or review individually") with three-category presentation. For synthesis MINORs, "Apply fix" means applying a correction to the already-applied synthesis change (not applying the original finding).
+- [x] Add fix application + post-fix verification for accepted corrections/reverts. For reverts, the categorization output includes both synthesis-applied text (`old_string`) and pre-synthesis original text (`new_string`) sourced from the synthesis summary file. For corrections, synthesis-applied text as `old_string` and corrected text as `new_string`.
+- [x] Update provenance format: `**Fixed (batch):** M MINOR synthesis corrections applied. [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md]`. Replace existing `**Acknowledged (batch):**` line with the appropriate new format.
+- [x] Preserve existing deepen-plan Step 5 "Apply" logic — resolution lines for all verdicts remain.
 
 **Red Team Step 3** (lines ~589-598):
 
-- [ ] Add subagent dispatch for red team MINOR categorization (same structure as brainstorm variant). Subagent reads 3 red team files from `.workflows/deepen-plan/<stem>/agents/run-<N>/` and the plan, writes output to `.workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md`.
-- [ ] Replace binary AskUserQuestion with three-category presentation template.
-- [ ] Add fix application + post-fix verification.
-- [ ] Update provenance format: replace existing `**Acknowledged (batch):**` line with appropriate new formats. Provider attribution on provenance pointers follows existing convention: `[see .workflows/deepen-plan/<stem>/agents/run-<N>/red-team--<provider>.md]`.
-- [ ] After "needs manual review" items, present individually with existing deepen-plan red team Step 2 options (Valid/Disagree/Defer).
+- [x] Add subagent dispatch for red team MINOR categorization (same structure as brainstorm variant). Subagent reads 3 red team files from `.workflows/deepen-plan/<stem>/agents/run-<N>/` and the plan, writes output to `.workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md`.
+- [x] Replace binary AskUserQuestion with three-category presentation template.
+- [x] Add fix application + post-fix verification.
+- [x] Update provenance format: replace existing `**Acknowledged (batch):**` line with appropriate new formats. Provider attribution on provenance pointers follows existing convention: `[see .workflows/deepen-plan/<stem>/agents/run-<N>/red-team--<provider>.md]`.
+- [x] After "needs manual review" items, present individually with existing deepen-plan red team Step 2 options (Valid/Disagree/Defer).
 
 ### Phase 3: Update plan-consolidator.md (Section 6)
 
 Update Section 6 "Batch User Decisions (Guardrailed Items)" to use three-category inline categorization for MINOR items.
 
-- [ ] Replace binary MINOR batch ("present as a batch with an accept-all option") with inline three-category categorization. The consolidator already has all findings in context — no subagent dispatch needed (nested dispatch doesn't work). Consolidator categorizes MINOR guardrailed items using the shared fixability criteria.
-- [ ] Update fixability criteria language: add shared criteria (unambiguous + low effort + low risk) as the classification standard for MINOR guardrailed items. Clarify relationship to auto-fix criteria (Section 4): auto-fix is the stricter tier (automatic, no confirmation); fixable-now is the lighter tier (with user confirmation).
-- [ ] Add three-category presentation via AskUserQuestion (same template as other triage points, adapted for readiness context).
-- [ ] Add fix application for fixable guardrailed MINORs (consolidator applies via Edit tool, consistent with its existing Section 5 mechanics).
-- [ ] Add a new Section 10d "Batch-fix content check" to the existing re-verify pass: after applying MINOR batch fixes, verify each applied edit matches its proposal by content comparison (not line number). This is distinct from 10a (preservation patterns), 10b (accretion), and 10c (size change).
-- [ ] Note that conflicting fixable items across the same plan section should route to "needs manual review."
-- [ ] If AskUserQuestion is unavailable (per existing Section 6 fallback), write all three categories to the consolidation report with status `requires-user-decision` and return to parent command.
+- [x] Replace binary MINOR batch ("present as a batch with an accept-all option") with inline three-category categorization. The consolidator already has all findings in context — no subagent dispatch needed (nested dispatch doesn't work). Consolidator categorizes MINOR guardrailed items using the shared fixability criteria.
+- [x] Update fixability criteria language: add shared criteria (unambiguous + low effort + low risk) as the classification standard for MINOR guardrailed items. Clarify relationship to auto-fix criteria (Section 4): auto-fix is the stricter tier (automatic, no confirmation); fixable-now is the lighter tier (with user confirmation).
+- [x] Add three-category presentation via AskUserQuestion (same template as other triage points, adapted for readiness context).
+- [x] Add fix application for fixable guardrailed MINORs (consolidator applies via Edit tool, consistent with its existing Section 5 mechanics).
+- [x] Add a new Section 10d "Batch-fix content check" to the existing re-verify pass: after applying MINOR batch fixes, verify each applied edit matches its proposal by content comparison (not line number). This is distinct from 10a (preservation patterns), 10b (accretion), and 10c (size change).
+- [x] Note that conflicting fixable items across the same plan section should route to "needs manual review."
+- [x] If AskUserQuestion is unavailable (per existing Section 6 fallback), write all three categories to the consolidation report with status `requires-user-decision` and return to parent command.
 
 ### Phase 4: Version bump + changelog
 
-- [ ] Bump version in `plugin.json`: 1.9.1 → 1.10.0 (MINOR: new behavior in existing commands)
-- [ ] Bump version in `marketplace.json` to match
-- [ ] Add CHANGELOG.md entry under `[1.10.0]` heading
-- [ ] Verify README.md component counts — no new agents or skills, counts should be unchanged (25 agents, 18 skills, 8 commands)
+- [x] Bump version in `plugin.json`: 1.9.1 → 1.10.0 (MINOR: new behavior in existing commands)
+- [x] Bump version in `marketplace.json` to match
+- [x] Add CHANGELOG.md entry under `[1.10.0]` heading
+- [x] Verify README.md component counts — no new agents or skills, counts should be unchanged (25 agents, 18 skills, 8 commands)
 
 ## Parallel Dispatch Opportunities
 
