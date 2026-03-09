@@ -175,6 +175,7 @@ NEVER strip text recording user decisions and reasoning. These patterns are prot
 - "Rejected because:"
 - "User noted:"
 - "Chose X over Y because"
+- "[see .workflows/"
 
 These may be reorganized (e.g., moved from an annotation block to the spec section) but NEVER deleted. If a fix would remove or overwrite preservation-pattern text, flag it and skip the fix.
 
@@ -186,7 +187,7 @@ After writing all updates to the plan, run a verification pass using Bash and Gr
 
 1. Grep the ORIGINAL plan file (before any edits — use the version you read in step 2, or re-read if needed) for all preservation-pattern lines:
    ```bash
-   grep -n -i -E "(Rationale:|Decision:|Rejected because:|User noted:|Chose .+ over .+ because)" "$original_plan"
+   grep -n -i -E "(Rationale:|Decision:|Rejected because:|User noted:|Chose .+ over .+ because|\[see \.workflows/)" "$original_plan"
    ```
 2. For each match found, verify it exists in the updated plan file (grep the current file on disk).
 3. **Normalize before comparing:** Strip leading/trailing whitespace, collapse internal whitespace, lowercase. This handles rewrapping and minor formatting changes that don't affect meaning.
