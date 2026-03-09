@@ -2,6 +2,17 @@
 
 Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Adds agents that don't exhaust context, session recovery after exhaustion, compaction-safe task tracking, multi-model red team ([PAL](https://github.com/BeehiveInnovations/pal-mcp-server) + Claude), fewer plan iterations via readiness checks, and tiered memory management.
 
+- [What is Compound Engineering?](#what-is-compound-engineering)
+- [Why Fork?](#why-fork)
+- [What's Different](#whats-different)
+- [Install](#install)
+- [Update](#update)
+- [Commands](#commands)
+- [Dependencies](#dependencies)
+- [Key Concept: Disk-Persisted Agents](#key-concept-disk-persisted-agents)
+- [Roadmap](#roadmap)
+- [Attribution](#attribution)
+
 ## What is Compound Engineering?
 
 [Compound engineering](https://every.to/guides/compound-engineering) is a methodology where each unit of engineering work makes subsequent units easier. You document solutions, capture decisions with their rationale, and build institutional knowledge that compounds over time.
@@ -110,6 +121,21 @@ Instead of agents returning full results into conversation context (which fills 
 - **Research survives** — files persist across sessions and compactions
 - **Traceability** — see exactly what informed each decision
 - **Recovery** — disk files + beads = full recovery after compaction
+
+## Roadmap
+
+| Priority | Feature | Description | Done | Next | Target |
+|----------|---------|-------------|------|------|--------|
+| P1 | Quota optimization | Sonnet for research agents, relay wrappers to cut token usage | Brainstorm | Plan | v2.0 |
+| P1 | Red team model selection | Configurable model routing for multi-provider challenges | Brainstorm | Plan | — |
+| P1 | Memory skill integration | Memory management with cleanup emphasis | Plan | Deepen | — |
+| P2 | Command commit hygiene | All commands offer to commit artifacts before handoff | — | Scope | — |
+| P2 | Correction-capture skill | Guide turning one-time corrections into durable rules | — | Brainstorm | — |
+| P3 | Per-agent token tracking | Measure token consumption per subagent dispatch | — | Brainstorm | — |
+| P4 | Orchestrating-swarms review | Context-lean compliance review when swarms GA | — | Deferred | — |
+| P4 | Setup: PRIME.md generation | Generate .beads/PRIME.md to prevent memory instruction conflicts | Scoped | Brainstorm | — |
+| P4 | Setup: tool install guides | Guide PAL, Gemini CLI, Codex CLI installation | Scoped | Brainstorm | — |
+| P4 | Setup: statusline config | Recommend context usage statusline during setup | Scoped | Brainstorm | — |
 
 ## Attribution
 

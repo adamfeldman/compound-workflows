@@ -2,6 +2,16 @@
 
 Self-contained compound engineering workflows for Claude Code. 25 agents, 19 skills, and 8 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
 
+- [What This Adds](#what-this-adds)
+- [Installation](#installation)
+- [Commands](#commands)
+- [Workflow Cycle](#workflow-cycle)
+- [Dependencies](#dependencies)
+- [Directory Conventions](#directory-conventions)
+- [Key Concept: Disk-Persisted Agents](#key-concept-disk-persisted-agents)
+- [Session Recovery](#session-recovery)
+- [Attribution](#attribution)
+
 > **Warning:** Do not install alongside Every's compound engineering plugin. This plugin bundles all agents and skills and is fully self-contained. Installing both will cause agent name conflicts and unpredictable dispatch behavior. Run `/compound:setup` to detect and resolve conflicts.
 
 ## What This Adds
@@ -104,21 +114,6 @@ Context exhaustion is inevitable in long sessions. compound-workflows handles th
 **Reactive: `/compound-workflows:recover`** — When a session dies without compaction (context exhaustion, crash, forgot to compact). Parses the JSONL session log, cross-references git history, beads state, `.workflows/` artifacts, and plan files to reconstruct what happened and what's left to do. Extracts memory-worthy content that would otherwise be lost.
 
 **Why recovery works:** Disk-persisted agent outputs survive in `.workflows/`. Beads issues survive in `.beads/`. Plan checkboxes track progress in `docs/plans/`. Git commits are durable. The only thing lost on context exhaustion is conversation history — and `/compound-workflows:recover` reconstructs that from the JSONL log.
-
-## Roadmap
-
-| Priority | Feature | Description | Done | Next | Target |
-|----------|---------|-------------|------|------|--------|
-| P1 | Quota optimization | Sonnet for research agents, relay wrappers to cut token usage | Brainstorm | Plan | v2.0 |
-| P1 | Red team model selection | Configurable model routing for multi-provider challenges | Brainstorm | Plan | — |
-| P1 | Memory skill integration | Memory management with cleanup emphasis | Plan | Deepen | — |
-| P2 | Command commit hygiene | All commands offer to commit artifacts before handoff | — | Scope | — |
-| P2 | Correction-capture skill | Guide turning one-time corrections into durable rules | — | Brainstorm | — |
-| P3 | Per-agent token tracking | Measure token consumption per subagent dispatch | — | Brainstorm | — |
-| P4 | Orchestrating-swarms review | Context-lean compliance review when swarms GA | — | Deferred | — |
-| P4 | Setup: PRIME.md generation | Generate .beads/PRIME.md to prevent memory instruction conflicts | Scoped | Brainstorm | — |
-| P4 | Setup: tool install guides | Guide PAL, Gemini CLI, Codex CLI installation | Scoped | Brainstorm | — |
-| P4 | Setup: statusline config | Recommend context usage statusline during setup | Scoped | Brainstorm | — |
 
 ## Attribution
 
