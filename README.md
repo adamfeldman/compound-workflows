@@ -47,6 +47,8 @@ Ambitious tasks in Claude Code hit walls:
 /plugin install compound-workflows
 ```
 
+> **Warning:** Do not install alongside compound-engineering. This plugin bundles all agents and skills. Installing both will cause agent name conflicts. Run `/compound:setup` to detect and resolve conflicts.
+
 Then run setup to detect your environment:
 
 ```
@@ -62,8 +64,6 @@ claude plugin update compound-workflows@compound-workflows-marketplace
 ```
 
 Or use the interactive `/plugin` menu inside Claude Code.
-
-> **Warning:** Do not install alongside compound-engineering. This plugin bundles all agents and skills. Installing both will cause agent name conflicts. Run `/compound:setup` to detect and resolve conflicts.
 
 ## Commands
 
