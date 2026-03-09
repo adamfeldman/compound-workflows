@@ -189,9 +189,9 @@ while bd ready shows issues:
   9. Loop
 ```
 
-**Why foreground, not background:** Steps are usually sequential (each builds on the prior commit). Background execution would cause merge conflicts and race conditions. Use foreground so each subagent sees the prior subagent's committed code.
+**Foreground by default:** When steps have dependencies or touch shared files, run them sequentially (foreground) so each subagent sees the prior subagent's committed code.
 
-**Exception — parallel dispatch:** If `bd ready` shows multiple issues with NO dependency between them, you MAY dispatch them in parallel using `run_in_background: true`. But only if they touch completely separate files. When in doubt, run sequentially.
+**Parallel dispatch:** If `bd ready` shows multiple issues with NO dependency between them AND they touch completely separate files, dispatch them in parallel using `run_in_background: true`. Parallel is equally safe in this case and significantly faster. When steps share files or have dependencies, run sequentially.
 
 **TodoWrite mode dispatch loop:**
 ```
@@ -448,7 +448,7 @@ After all issues are closed (or all TodoWrite tasks completed):
 
 4. **No unresolved items cross phase boundaries.** Every open question, concern, or finding must be explicitly resolved, deferred with rationale, or removed before moving to the next phase.
 
-5. **Foreground by default, parallel only when safe.** Sequential dispatch prevents conflicts. Parallel only when issues touch completely separate files with no dependencies.
+5. **Parallel when safe, sequential when shared.** If steps touch completely separate files with no dependencies, parallel dispatch is equally safe and faster. Use sequential only when steps share files or have dependencies.
 
 6. **Fail gracefully.** If a subagent can't complete its task, the orchestrator diagnoses and re-dispatches rather than trying to salvage partial work in its own context.
 
