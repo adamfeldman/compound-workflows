@@ -44,6 +44,9 @@ which gemini 2>/dev/null && echo "GEMINI_CLI=available" || echo "GEMINI_CLI=not_
 
 # Check for Codex CLI (OpenAI)
 which codex 2>/dev/null && echo "CODEX_CLI=available" || echo "CODEX_CLI=not_available"
+
+# Check for ccusage (token/cost tracking)
+which ccusage 2>/dev/null && echo "CCUSAGE=available" || echo "CCUSAGE=not_available"
 ```
 
 Record results for later use.
@@ -438,6 +441,7 @@ Environment:
   Task tracking:  [beads (compaction-safe) | TodoWrite (in-memory)] <!-- context-lean-exempt: display label -->
   Red team:       [Gemini CLI + Codex CLI | PAL MCP | Claude subagent fallback]
   GitHub CLI:     [available | not available]
+  Cost tracking:  [ccusage available | not installed — npm install -g ccusage]
 
 Stack & Review:
   Detected stack: [python | typescript | general]

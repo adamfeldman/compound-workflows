@@ -1,8 +1,8 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v1.13.2 (plugins/compound-workflows/)
-- 25 agents, 19 skills, 8 commands
+- Plugin: compound-workflows v2.0.0 (plugins/compound-workflows/)
+- 26 agents, 19 skills, 8 commands
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
 - GitHub repo: adamfeldman/compound-workflows (public)
@@ -50,9 +50,9 @@
 - **v1.13.0** — Setup routing rules (AGENTS.md), conditional compact-prep release check
 - **v1.13.1** — All remaining hardcoded plugin paths fixed (plan.md, deepen-plan.md, work.md, setup.md, plugin-changes-qa)
 - **v1.13.2** — version-check.sh consumer project bug, QA agent noise reduction (awx), roadmap table in root README
+- **v2.0.0** — Workflow quota optimization (bead 22l): 5 research agents → sonnet, red-team-relay agent, stack-based dynamic agent selection, ccusage tracking, convergence advisor named dispatch
 
 ## In-Progress Work
-- **Workflow quota optimization (bead 22l)** — deepen-plan run 1 complete, review findings consolidated (32% → 16% bloat). Plan at `docs/plans/2026-03-09-feat-workflow-quota-optimization-plan.md`. Next: `/compound:work`. Target v2.0.
 - **Red team model selection (bead aig)** — brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — new P2. Next: `/compound:brainstorm`.
 
@@ -63,5 +63,4 @@
 
 ## Dependency Chain
 - aig → h0g (aig now unblocked)
-- 0ob(done), dud(done), 1q3(done), 4gq(done), n2q(done), 3co(done), d2l(done), awx(done)
-- `.beads/PRIME.md` overrides bd prime to remove conflicting memory instructions
+- 22l(done), 0ob(done), dud(done), 1q3(done), 4gq(done), n2q(done), 3co(done), d2l(done), awx(done)

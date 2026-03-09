@@ -73,6 +73,7 @@ Each step produces documents that feed the next. Solutions feed future brainstor
 | **beads** (`bd`) | Recommended | Compaction-safe task tracking. Without it: TodoWrite fallback (loses state on compaction) |
 | **PAL MCP** | Optional | Multi-model red-team challenges. Without it: Claude subagent fallback (single-model) |
 | **GitHub CLI** (`gh`) | Optional | PR creation in work/review commands |
+| [**ccusage**](https://ccusage.com) | Optional | Daily cost/token tracking in compact-prep. Install: `npm install -g ccusage` |
 
 Run `/compound:setup` to see what's installed and get instructions for anything missing.
 
