@@ -387,9 +387,9 @@ echo "ROUTING_EXISTS=none"
 **If no routing rules found:** Append to `AGENTS.md` (create if needed). Write this section:
 
 ```markdown
-## Compound Workflows Routing
+## Routing
 
-Route through compound commands rather than answering directly or spawning ad-hoc agents:
+Do not use plan mode, ad-hoc research agents, or inline answers for tasks that have a compound command. Route through compound commands instead:
 
 - **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/compound:brainstorm` — do not answer exploratory questions directly
 - **Building a known feature or task**: `/compound:plan` to design, then `/compound:work` to execute — do not implement without a plan
