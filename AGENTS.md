@@ -85,8 +85,8 @@ Only release when files inside `plugins/compound-workflows/` change. Changes to 
 3. Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json`
 4. Bump version in `.claude-plugin/marketplace.json`
 5. Commit
-6. **Wait for user to confirm release**, then:
-7. Tag: `git tag v<version>`
+6. **Ask the user if they want to release now or defer.** Do not assume either way.
+7. If user confirms, tag: `git tag v<version>`
 8. Push: `git push origin main --tags`
 9. Release: `gh release create v<version> --title "v<version>" --notes "<changelog entry>"`
 
