@@ -7,7 +7,7 @@ This repo contains the **compound-workflows** Claude Code plugin. Commands use t
 ```
 plugins/compound-workflows/
 ├── .claude-plugin/plugin.json    # Plugin manifest (version here)
-├── agents/{research,review,workflow}/  # 24 agent YAML files
+├── agents/{research,review,workflow}/  # 25 agent YAML files
 ├── skills/                       # Skill directories (SKILL.md each)
 ├── commands/compound/            # Slash commands (max 8 per dir)
 ├── scripts/plugin-qa/           # Tier 1 QA scripts (4 scripts + lib.sh)

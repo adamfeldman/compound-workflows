@@ -22,8 +22,8 @@ Also update the marketplace.json version at the repo root.
 agents/
 ├── research/     # Research and knowledge agents (6)
 ├── review/       # Code review agents (13)
-└── workflow/     # Workflow utility agents (5)
-    └── plan-checks/  # 3 shell scripts + 1 agent-format .md file (check modules, not standalone agents)
+└── workflow/     # Workflow utility agents (6)
+    └── plan-checks/  # 4 shell scripts + 1 agent-format .md file (check modules, not standalone agents)
 
 commands/
 └── compound/ # All slash commands (namespaced, 8 commands)
@@ -52,7 +52,7 @@ skills/
 
 ## Agent Registry
 
-All 24 agents with their categories, command references, and model configuration.
+All 25 agents with their categories, command references, and model configuration.
 
 | Agent | Category | Dispatched By | Model |
 |-------|----------|---------------|-------|
@@ -76,6 +76,7 @@ All 24 agents with their categories, command references, and model configuration
 | security-sentinel | review | compound, deepen-plan, review, setup | inherit |
 | typescript-reviewer | review | review, setup | inherit |
 | bug-reproduction-validator | workflow | (standalone) | inherit |
+| convergence-advisor | workflow | deepen-plan | inherit |
 | pr-comment-resolver | workflow | (standalone) | inherit |
 | plan-consolidator | workflow | plan, deepen-plan | inherit |
 | plan-readiness-reviewer | workflow | plan, deepen-plan | inherit |
