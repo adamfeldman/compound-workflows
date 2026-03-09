@@ -6,6 +6,7 @@
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
 - GitHub repo: adamfeldman/compound-workflows (public)
+- 1 external user (as of 2026-03-09)
 
 ## Architecture Decisions
 - **Namespace `/compound:*`** — shorter to type. Exception: `plugin-changes-qa` and `recover` are skills under `/compound-workflows:*` due to per-directory command limit (~8).
@@ -26,6 +27,7 @@
 - **bd worktree create uses path as-is** — pass `.worktrees/<name>` explicitly.
 - **Loaded skill staleness** — skills loaded at conversation start from cached plugin version. Mid-session updates don't refresh loaded skills. Also affects new agents — created mid-session won't appear in `subagent_type` list.
 - **Agent tool has no `model` parameter** — cannot override model at dispatch time. `general-purpose` always inherits parent model. Named agents respect `model` field in frontmatter (proven: haiku and sonnet both work — sonnet validated 2026-03-09 by temporarily editing installed cache).
+- **`CLAUDE_CODE_SUBAGENT_MODEL` env var** — only affects agents WITHOUT explicit `model:` field. Does NOT override explicit `model: sonnet` or `model: haiku`. Agents with `model: inherit` or no model field are affected. Discovered during readiness semantic checks (contradicted multiple red team providers who claimed it "overrides all").
 - **worktree-manager.sh uses `cleanup` not `remove`** — `bash worktree-manager.sh cleanup` to remove completed worktrees (interactive y/n).
 - **Worktree blocks `gh pr merge`** — use `gh api repos/.../pulls/N/merge -X PUT -f merge_method=squash` instead.
 
@@ -50,7 +52,7 @@
 - **v1.13.2** — version-check.sh consumer project bug, QA agent noise reduction (awx), roadmap table in root README
 
 ## In-Progress Work
-- **Workflow quota optimization (bead 22l)** — plan complete at `docs/plans/2026-03-09-feat-workflow-quota-optimization-plan.md`. Next: `/compound:deepen-plan`. Key decisions: Sonnet for 5 research agents + relay wrappers (via named `red-team-relay` agent in `agents/workflow/`), Opus for everything else. `model: sonnet` validated empirically. Target v2.0.
+- **Workflow quota optimization (bead 22l)** — deepen-plan run 1 complete, review findings consolidated (32% → 16% bloat). Plan at `docs/plans/2026-03-09-feat-workflow-quota-optimization-plan.md`. Next: `/compound:work`. Target v2.0.
 - **Red team model selection (bead aig)** — brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — new P2. Next: `/compound:brainstorm`.
 
