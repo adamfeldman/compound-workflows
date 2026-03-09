@@ -105,6 +105,21 @@ Context exhaustion is inevitable in long sessions. compound-workflows handles th
 
 **Why recovery works:** Disk-persisted agent outputs survive in `.workflows/`. Beads issues survive in `.beads/`. Plan checkboxes track progress in `docs/plans/`. Git commits are durable. The only thing lost on context exhaustion is conversation history — and `/compound-workflows:recover` reconstructs that from the JSONL log.
 
+## Roadmap
+
+| Priority | Feature | Description | Done | Next | Target |
+|----------|---------|-------------|------|------|--------|
+| P1 | Quota optimization | Sonnet for research agents, relay wrappers to cut token usage | Brainstorm | Plan | v2.0 |
+| P1 | Red team model selection | Configurable model routing for multi-provider challenges | Brainstorm | Plan | — |
+| P1 | Memory skill integration | Memory management with cleanup emphasis | Plan | Deepen | — |
+| P2 | Command commit hygiene | All commands offer to commit artifacts before handoff | — | Scope | — |
+| P2 | Correction-capture skill | Guide turning one-time corrections into durable rules | — | Brainstorm | — |
+| P3 | Per-agent token tracking | Measure token consumption per subagent dispatch | — | Brainstorm | — |
+| P4 | Orchestrating-swarms review | Context-lean compliance review when swarms GA | — | Deferred | — |
+| P4 | Setup: PRIME.md generation | Generate .beads/PRIME.md to prevent memory instruction conflicts | Scoped | Brainstorm | — |
+| P4 | Setup: tool install guides | Guide PAL, Gemini CLI, Codex CLI installation | Scoped | Brainstorm | — |
+| P4 | Setup: statusline config | Recommend context usage statusline during setup | Scoped | Brainstorm | — |
+
 ## Attribution
 
 This plugin includes agents and skills forked from Every's compound engineering plugin (MIT licensed). The brainstorm, plan, work, review, and compound cycle, agent-based review architecture, and knowledge compounding philosophy originate from that project.
