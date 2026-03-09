@@ -54,8 +54,10 @@
 - **v2.0.0** — Workflow quota optimization (bead 22l): 5 research agents → sonnet, red-team-relay agent, stack-based dynamic agent selection, ccusage tracking, convergence advisor named dispatch
 
 ## In-Progress Work
-- **Red team model selection (bead aig)** — brainstorm complete. Next: `/compound:plan`.
-- **Correction-capture skill (bead rhl)** — new P2. Next: `/compound:brainstorm`.
+- **Per-agent token instrumentation (bead voo)** — P1. Task completions already return tokens/tools/duration — just persist them. Also classify complexity per dispatch. Scope: ALL orchestrator commands (work, brainstorm, plan, deepen-plan, review). Next: `/compound:brainstorm`.
+- **Work-step-executor: Sonnet subagents (bead xu2)** — P2. ~80% of work steps are mechanical after well-deepened plans. Depends on voo (need dataset first). Next: `/compound:brainstorm`.
+- **Red team model selection (bead aig)** — P1, brainstorm complete. Next: `/compound:plan`.
+- **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 
 ## Critical Patterns
 - **Plugin paths must use `find` fallback** — all script/file references in commands/skills need dynamic resolution: try local path, then `find "$HOME/.claude/plugins" ...`. Affects any new command referencing plugin scripts.
@@ -63,5 +65,6 @@
 - **`.beads/PRIME.md`** overrides bd prime to remove conflicting memory instructions
 
 ## Dependency Chain
+- xu2 → voo (work-step-executor needs per-agent stats dataset)
 - aig → h0g (aig now unblocked)
 - 22l(done), 0ob(done), dud(done), 1q3(done), 4gq(done), n2q(done), 3co(done), d2l(done), awx(done)
