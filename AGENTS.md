@@ -89,9 +89,9 @@ Only release when files inside `plugins/compound-workflows/` change. Changes to 
 
 After release, update locally via CLI (`claude plugin update compound-workflows@compound-workflows-marketplace`) or the interactive `/plugin` menu inside Claude Code.
 
-## Compound Workflows Routing
+## Routing
 
-Route through compound commands rather than answering directly or spawning ad-hoc agents:
+Do not use plan mode, ad-hoc research agents, or inline answers for tasks that have a compound command. Route through compound commands instead:
 
 - **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/compound:brainstorm` — do not answer exploratory questions directly
 - **Building a known feature or task**: `/compound:plan` to design, then `/compound:work` to execute — do not implement without a plan
