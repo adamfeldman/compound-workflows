@@ -1,7 +1,7 @@
 ---
 title: "feat: Plan handoff recommends deepen-plan based on readiness findings"
 type: feat
-status: active
+status: completed
 date: 2026-03-09
 origin: docs/brainstorms/2026-03-09-plan-deepen-recommendation-brainstorm.md
 ---
@@ -85,12 +85,12 @@ Recommendation decision tree (evaluate in order, first match wins):
    → Message: "Plan readiness checks passed — ready for work. Deepen-plan available for adversarial review if desired (~2-5 min, agent swarm + red team)."
 ```
 
-- [ ] Replace current Phase 7 "Plan readiness status" block with unified recommendation message
-- [ ] Remove existing "Consider running `/compound:deepen-plan`" text from readiness status (replaced by option annotation)
-- [ ] Add `[Recommended]` suffix to exactly one option, matching deepen-plan.md's annotation pattern: `**[Recommended]**` after the em-dash description
-- [ ] Preserve the existing CRITICAL-deferral warning suffix on option 3 ("Start `/compound:work`")
-- [ ] Recommendation message goes in the handoff text above the AskUserQuestion options (facts + guidance), not inside the option text
-- [ ] Cite severity counts and check categories in dirty-plan messages (e.g., "2 CRITICAL (underspecification), 1 SERIOUS (contradictions)")
+- [x] Replace current Phase 7 "Plan readiness status" block with unified recommendation message
+- [x] Remove existing "Consider running `/compound:deepen-plan`" text from readiness status (replaced by option annotation)
+- [x] Add `[Recommended]` suffix to exactly one option, matching deepen-plan.md's annotation pattern: `**[Recommended]**` after the em-dash description
+- [x] Preserve the existing CRITICAL-deferral warning suffix on option 3 ("Start `/compound:work`")
+- [x] Recommendation message goes in the handoff text above the AskUserQuestion options (facts + guidance), not inside the option text
+- [x] Cite severity counts and check categories in dirty-plan messages (e.g., "2 CRITICAL (underspecification), 1 SERIOUS (contradictions)")
 
 #### Brainstorm Existence Detection
 
@@ -108,8 +108,8 @@ This is on disk and survives compaction, unlike relying on in-context memory fro
 
 After the user selects an option from the AskUserQuestion, write a single entry to the recommendation log:
 
-- [ ] After AskUserQuestion response, append entry to `.workflows/plan-research/<plan-stem>/recommendation-log.md`
-- [ ] Entry format:
+- [x] After AskUserQuestion response, append entry to `.workflows/plan-research/<plan-stem>/recommendation-log.md`
+- [x] Entry format:
 
 ```markdown
 ## <date>
@@ -124,9 +124,9 @@ After the user selects an option from the AskUserQuestion, write a single entry 
 
 ### Phase 3: Version Bump and Changelog
 
-- [ ] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` (PATCH bump)
-- [ ] Bump version in `.claude-plugin/marketplace.json` to match
-- [ ] Add CHANGELOG.md entry under new version heading
+- [x] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` (PATCH bump)
+- [x] Bump version in `.claude-plugin/marketplace.json` to match
+- [x] Add CHANGELOG.md entry under new version heading
 
 ## Acceptance Criteria
 
