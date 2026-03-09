@@ -389,10 +389,12 @@ echo "ROUTING_EXISTS=none"
 ```markdown
 ## Compound Workflows Routing
 
-- **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/compound:brainstorm`
-- **Building a known feature or task**: `/compound:plan` to design, then `/compound:work` to execute
+Route through compound commands rather than answering directly or spawning ad-hoc agents:
+
+- **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/compound:brainstorm` — do not answer exploratory questions directly
+- **Building a known feature or task**: `/compound:plan` to design, then `/compound:work` to execute — do not implement without a plan
 - **Plan needs deeper research**: `/compound:deepen-plan` before executing
-- **Reviewing code changes**: `/compound:review`
+- **Reviewing code changes**: `/compound:review` — do not review inline
 - **Solved a non-obvious problem**: `/compound:compound` to capture institutional knowledge
 - **Before `/compact`**: `/compound:compact-prep` to preserve session context
 - **Recovering a dead/exhausted session**: `/compound-workflows:recover`
