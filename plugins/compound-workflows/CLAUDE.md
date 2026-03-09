@@ -43,6 +43,7 @@ skills/
 ├── frontend-design/         # Frontend design patterns
 ├── gemini-imagegen/         # Gemini image generation scripts
 ├── git-worktree/            # Git worktree management scripts
+├── memory-management/       # Auto-memory file management
 ├── orchestrating-swarms/    # Multi-agent orchestration patterns
 ├── resolve-pr-parallel/     # Parallel PR comment resolution
 ├── setup/                   # Setup configuration reference (disable-model-invocation)

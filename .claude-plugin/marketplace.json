@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "compound-workflows",
-      "description": "Self-contained compound engineering workflows with 24 agents, 15 skills, and 10 commands. Disk-persisted agent outputs, multi-model red-team challenges, beads/TodoWrite task tracking, and subagent dispatch.",
+      "description": "Self-contained compound engineering workflows with 24 agents, 16 skills, and 10 commands. Disk-persisted agent outputs, multi-model red-team challenges, beads/TodoWrite task tracking, and subagent dispatch.",
       "version": "1.8.0",
       "author": {
         "name": "Adam Feldman"
