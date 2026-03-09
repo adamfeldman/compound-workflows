@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.0] - 2026-03-09
+
+### Added
+- **Phase 3.3 (Beads Cross-Reference) in plugin-changes-qa** — cross-references aggregated QA findings against open beads after Tier 1 + Tier 2 checks complete. Hybrid matching: deterministic text matching (check-name, file path, provenance token) for Tier 1 findings, LLM subagent for Tier 2 and unmatched findings. Coverage assessment identifies partially-covered beads. Staged batch confirmation via AskUserQuestion (Apply all / Review individually / Skip). Bead operations include `bd create` with provenance tokens, `bd update --append-notes` with dedup, and consecutive failure abort after 3 failures. Gracefully skips when beads is unavailable.
+
 ## [1.11.0] - 2026-03-09
 
 ### Added
