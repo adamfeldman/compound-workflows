@@ -373,6 +373,72 @@ ls .workflows/plugin-qa/bead-cross-ref-coverage.md 2>/dev/null && echo "EXISTS" 
 
 When the file exists, read results from `.workflows/plugin-qa/bead-cross-ref-coverage.md` using the Read tool.
 
+#### Step 3.3.5: Present Tracking Status
+
+Present all proposed bead operations as a batch for user confirmation, or skip if everything is already tracked.
+
+**Read subagent results from disk:**
+- `.workflows/plugin-qa/bead-cross-ref-matches.md` (LLM matching results from Step 3.3.3, if it ran)
+- `.workflows/plugin-qa/bead-cross-ref-coverage.md` (coverage assessment from Step 3.3.4, if it ran)
+
+Combine these with the deterministic matching results from Step 3.3.2 to build the complete tracking picture.
+
+**If all findings are already tracked with full coverage:** skip the batch confirmation entirely. Report the following in the QA summary and proceed directly to Step 3.4:
+
+> All N findings are tracked by existing beads.
+
+**Otherwise,** build the tracking status presentation. Categorize every finding into exactly one of these four groups:
+
+```markdown
+### Tracking Status
+
+**Already tracked (full coverage):**
+- [finding] → bead [id]: [title]
+
+**Already tracked (partial coverage — updates proposed):**
+- [finding] → bead [id]: [title]
+  Proposed update: [description addition]
+
+**Uncertain matches — please confirm:**
+- [finding] → possibly bead [id]: [title]? [Link / Not related]
+
+**Untracked (will create beads):**
+- [SERIOUS] [finding] → new bead: [proposed title] (P2)
+- [MINOR] [finding] → Create bead? / Skip tracking
+```
+
+**Category details:**
+
+1. **Already tracked (full coverage):** Findings matched (deterministic or LLM) to a bead where the coverage assessment said "full coverage." No action needed — listed for completeness.
+
+2. **Already tracked (partial coverage — updates proposed):** Findings matched to a bead where the coverage assessment said "partial coverage." Shows the proposed description addition from the coverage subagent. If confirmed, the bead description will be updated.
+
+3. **Uncertain matches — please confirm:** Findings the LLM subagent classified as `uncertain`. Each has a "Link / Not related" choice for the user. Uncertain matches do NOT include coverage assessment (the coverage subagent ran before the user confirmed these matches). If the user links an uncertain match, the user assesses coverage manually for that finding.
+
+4. **Untracked (will create beads):** Findings with no match (deterministic or LLM). Severity-to-priority mapping: CRITICAL→P1, SERIOUS→P2, MINOR→P3. CRITICAL and SERIOUS findings will create beads if confirmed. MINOR findings have a per-item "Create bead? / Skip tracking" choice.
+
+**Write the batch to disk** (recovery artifact + context-lean):
+
+Write the composed tracking status presentation to `.workflows/plugin-qa/bead-cross-ref-batch.md`. This file serves two purposes: (1) recovery if context compacts during the confirmation flow, and (2) keeping the full presentation data on disk rather than solely in context.
+
+**Present to user via AskUserQuestion** with three options:
+
+1. **Apply all** — execute all proposed operations: create beads for untracked findings (except MINOR items the user chose to skip), update descriptions for partial-coverage beads, add notes on matched beads, and add provenance tokens to confirmed uncertain matches
+2. **Review individually** — present each operation category for individual approval
+3. **Skip bead operations** — do not create or update any beads; just show findings as in the existing QA flow (proceed to Step 3.4)
+
+**If the user chooses "Review individually":**
+
+Present operations grouped by category in this order (most interactive first):
+
+1. **Uncertain matches** — present each one individually for "Link / Not related" decision. These need the most user attention. For confirmed links: include retroactive provenance token addition to the matched bead's description (format: `qa-finding:<check-name>:<file>`) so that future deterministic matching runs find them automatically.
+
+2. **Untracked MINOR findings** — present as a batch with per-item "Create bead? / Skip tracking" choice. CRITICAL and SERIOUS untracked findings are not presented individually — they always create beads.
+
+3. **Coverage updates** — present as a batch. These are description additions on partially-covered beads. User can approve all, reject all, or cherry-pick.
+
+After all confirmations are collected, proceed to Step 3.3.6 (Execute Bead Operations) with the confirmed operation set.
+
 ### Step 3.4: Present Aggregated Summary
 
 Synthesize all findings into a single summary for the user:
