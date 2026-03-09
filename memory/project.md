@@ -47,7 +47,7 @@
 - **v1.12.2** — Dynamic plugin script path resolution via `find` (version-check.sh, plugin-qa)
 - **v1.13.0** — Setup routing rules (AGENTS.md), conditional compact-prep release check
 - **v1.13.1** — All remaining hardcoded plugin paths fixed (plan.md, deepen-plan.md, work.md, setup.md, plugin-changes-qa)
-- **v1.13.2** (unreleased) — version-check.sh consumer project bug, QA agent noise reduction (awx)
+- **v1.13.2** — version-check.sh consumer project bug, QA agent noise reduction (awx), roadmap table in root README
 
 ## In-Progress Work
 - **Workflow quota optimization (bead 22l)** — brainstorm complete. Next: `/compound:plan`. Key decisions: Sonnet for 5 research agents + relay wrappers (via named agents), Opus for everything else.
