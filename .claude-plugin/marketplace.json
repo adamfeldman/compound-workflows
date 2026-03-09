@@ -12,7 +12,7 @@
     {
       "name": "compound-workflows",
       "description": "Compound engineering workflows for Claude Code. Disk-persisted agent outputs, session recovery after context exhaustion, plan readiness checks, multi-model red team, and tiered memory management.",
-      "version": "1.8.0",
+      "version": "1.8.1",
       "author": {
         "name": "Adam Feldman"
       },
@@ -21,7 +21,7 @@
         "source": "git-subdir",
         "url": "https://github.com/adamfeldman/compound-workflows.git",
         "path": "plugins/compound-workflows",
-        "ref": "v1.8.0"
+        "ref": "v1.8.1"
       }
     }
   ]
