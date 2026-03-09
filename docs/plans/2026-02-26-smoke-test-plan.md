@@ -23,7 +23,7 @@ git init
 Install the plugin from the local marketplace:
 ```bash
 # From within a Claude session:
-/install file:///Users/adamf/Dev/compound-workflows-marketplace
+/install file:///path/to/compound-workflows-marketplace
 ```
 
 ## Test 1: Plugin Registration
