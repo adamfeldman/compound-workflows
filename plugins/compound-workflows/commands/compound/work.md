@@ -83,10 +83,11 @@ bd worktree info 2>/dev/null
 
 ```bash
 # Primary: bd worktree (beads handles db redirect automatically)
-bd worktree create <descriptive-name>
+# IMPORTANT: pass .worktrees/<name> — bd uses the path as-is, defaults to repo root otherwise
+bd worktree create .worktrees/<descriptive-name>
 cd .worktrees/<descriptive-name>
 
-# Fallback (if bd not available): use worktree-manager.sh
+# Fallback (if bd not available): use worktree-manager.sh (already defaults to .worktrees/)
 bash plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh create <descriptive-name>
 cd .worktrees/<descriptive-name>
 ```
@@ -409,7 +410,7 @@ After all issues are closed (or all TodoWrite tasks completed):
    # Return to main repo
    cd $(git worktree list --porcelain | head -1 | sed 's/worktree //')
    # Remove the worktree
-   bd worktree remove <worktree-name>
+   bd worktree remove .worktrees/<worktree-name>
    # Fallback (if bd not available):
    bash plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh remove <worktree-name>
    ```
