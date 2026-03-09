@@ -530,6 +530,50 @@ Only proceed when validation passes with zero errors.
 </implementation>
 </validation_pattern>
 
+<disk_persist_agent_pattern>
+<description>
+For skills and commands that dispatch subagents, use the disk-persist pattern to keep the parent context lean. This is REQUIRED for all compound-workflows commands that orchestrate agents.
+</description>
+
+<implementation>
+Every agent prompt must end with an OUTPUT INSTRUCTIONS block. Two variants:
+
+**Analysis variant** (agent does its own research/review):
+```
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+
+Write your COMPLETE findings to this file using the Write tool:
+  .workflows/<workflow-type>/<topic-stem>/agents/<agent-file>.md
+
+Include ALL analysis, code examples, recommendations, and references in that file.
+Structure the file with clear markdown headers.
+
+After writing the file, return ONLY a 2-3 sentence summary.
+
+DO NOT return your full analysis in your response. The file IS the output.
+```
+
+**Relay variant** (agent wraps an MCP call and writes the response):
+```
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+
+Write the response faithfully to this file using the Write tool:
+  .workflows/<workflow-type>/<topic-stem>/agents/<agent-file>.md
+
+After writing the file, return ONLY a 2-3 sentence summary.
+
+DO NOT return the full response in your reply. The file IS the output.
+```
+
+**Monitoring** — poll for file existence, never TaskOutput:
+```bash
+ls .workflows/<workflow-type>/<topic-stem>/agents/
+```
+
+See `skills/disk-persist-agents/SKILL.md` for the full canonical pattern, directory conventions, and anti-patterns.
+</implementation>
+</disk_persist_agent_pattern>
+
 <checklist_pattern>
 <description>
 For complex multi-step workflows, provide a checklist Claude can copy and track progress.

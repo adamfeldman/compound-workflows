@@ -150,6 +150,8 @@ Check:
 - [ ] All referenced files exist
 - [ ] SKILL.md under 500 lines
 - [ ] XML tags properly closed
+- [ ] If dispatching agents: OUTPUT INSTRUCTIONS blocks included (see `skills/disk-persist-agents/SKILL.md`)
+- [ ] If dispatching agents: TaskOutput is never used — poll for file existence instead
 
 ## Step 9: Create Slash Command
 
