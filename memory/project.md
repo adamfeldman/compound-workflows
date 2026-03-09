@@ -40,5 +40,8 @@
 - **Finding resolution provenance** — brainstorm written, ready for `/compound:plan`
   - Brainstorm: `docs/brainstorms/2026-03-08-finding-resolution-provenance-brainstorm.md`
   - Bead: `compound-workflows-marketplace-emx` (P1, open)
-- **Deepen-plan re-run guidance** — help user evaluate if another run is advisable
-  - Bead: `compound-workflows-marketplace-ruh` (P1, open)
+- **Deepen-plan convergence guidance** — help user evaluate if another run is advisable
+  - Brainstorm: `docs/brainstorms/2026-03-08-deepen-plan-convergence-brainstorm.md` (red team complete)
+  - Bead: `compound-workflows-marketplace-ruh` (P1, open, blocked on bdr)
+  - Key decisions: hybrid script+agent, bounded reads (current+prior run only), 4 recommendation states, soft round-count guardrails, anti-anchoring (read prior signals not prior recommendation)
+- **All 4 open P1 beads blocked on context-lean enforcement (bdr):** emx → ruh → aig → h0g
