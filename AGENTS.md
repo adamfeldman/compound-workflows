@@ -128,7 +128,7 @@ Only release when files inside `plugins/compound-workflows/` change. Changes to 
 6. Tag: `git tag v<version>` on the release commit
 7. Push: `git push origin main && git push origin v<version>`
 
-After push, install locally with `/plugin update compound-workflows`.
+After push, update locally via CLI (`claude plugin update compound-workflows@compound-workflows-marketplace`) or the interactive `/plugin` menu inside Claude Code.
 
 ## Key Conventions
 
