@@ -12,9 +12,8 @@
 # Claude memory (private workflow preferences)
 .claude/memory/
 
-# Local command copies (workaround for plugin char budget limit)
-.claude/commands/
-
 # Editor
 *.code-workspace
 
+# bd worktree
+finding-resolution-provenance/
