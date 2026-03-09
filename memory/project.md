@@ -2,7 +2,7 @@
 
 ## Overview
 - Plugin: compound-workflows v1.7.0 (plugins/compound-workflows/)
-- 24 agents, 15 skills, 9 commands under `/compound:*` namespace
+- Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
 - GitHub repo: adamfeldman/compound-workflows (public)
 - Old personal commands archived to .archive/ (aworkflows/, compact-prep.md removed from ~/.claude/commands/)
