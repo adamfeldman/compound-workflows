@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # name: version-check
-# description: 3-way version comparison — source vs installed vs latest release
+# description: Version comparison — source (if in dev repo) vs installed vs latest release
 #
 # Usage: ./version-check.sh [plugin-root-path]
+#
+# When run from the source repo (plugins/compound-workflows/ exists at git root):
+#   3-way comparison: source vs installed vs release
+# When run from a consumer project:
+#   2-way comparison: installed vs release (source is N/A)
 #
 # Does NOT source lib.sh — output format is an informational dashboard,
 # not structured QA findings.
@@ -13,85 +18,95 @@
 
 set -euo pipefail
 
-# --- Resolve plugin root ---
-if [[ -n "${1:-}" ]]; then
-  PLUGIN_ROOT="$1"
-else
-  PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
-fi
-
 # --- Helper: strip leading v from version string ---
 normalize_version() {
   local v="$1"
   echo "${v#v}"
 }
 
-# --- 1. Source version (from working repo) ---
-source_plugin_json="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+# --- Helper: extract version from plugin.json ---
+read_version() {
+  local json_path="$1"
+  grep -oE '"version"\s*:\s*"[^"]+"' "$json_path" | head -1 | grep -oE '"[^"]+"\s*$' | tr -d '"' | xargs
+}
+
+# --- Detect context: source repo or consumer project ---
+git_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+source_plugin_json="$git_root/plugins/compound-workflows/.claude-plugin/plugin.json"
+
 if [[ -f "$source_plugin_json" ]]; then
-  source_version_raw="$(grep -oE '"version"\s*:\s*"[^"]+"' "$source_plugin_json" | head -1 | grep -oE '"[^"]+"\s*$' | tr -d '"' | xargs)"
-  source_version="$(normalize_version "$source_version_raw")"
+  # In source repo — read source version from working copy
+  in_source_repo=true
+  source_version="$(normalize_version "$(read_version "$source_plugin_json")")"
 else
-  echo "ERROR: Source plugin.json not found at $source_plugin_json"
-  exit 1
+  # Consumer project — no source version
+  in_source_repo=false
+  source_version=""
 fi
 
-# --- 2. Installed version (from marketplace clone) ---
+# --- Installed version (from marketplace clone) ---
 installed_plugin_json="$HOME/.claude/plugins/marketplaces/compound-workflows-marketplace/plugins/compound-workflows/.claude-plugin/plugin.json"
 if [[ -f "$installed_plugin_json" ]]; then
-  installed_version_raw="$(grep -oE '"version"\s*:\s*"[^"]+"' "$installed_plugin_json" | head -1 | grep -oE '"[^"]+"\s*$' | tr -d '"' | xargs)"
-  installed_version="$(normalize_version "$installed_version_raw")"
+  installed_version="$(normalize_version "$(read_version "$installed_plugin_json")")"
 else
   installed_version="not installed"
 fi
 
-# --- 3. Latest release (from GitHub via gh CLI) ---
+# --- Latest release (from GitHub via gh CLI) ---
 if command -v gh &>/dev/null; then
   release_tag="$(gh release list --repo adamfeldman/compound-workflows --json tagName,isLatest --jq '.[] | select(.isLatest) | .tagName' 2>/dev/null || true)"
   if [[ -n "$release_tag" ]]; then
-    release_version_raw="$release_tag"
-    release_version="$(normalize_version "$release_version_raw")"
+    release_version="$(normalize_version "$release_tag")"
   else
     release_version="unknown (no releases found)"
-    release_version_raw=""
   fi
 else
   release_version="unknown (gh CLI unavailable)"
-  release_version_raw=""
 fi
 
 # --- Determine status labels and actions ---
 actions=()
 exit_code=0
 
-# Check installed vs source
-installed_label=""
-if [[ "$installed_version" == "not installed" ]]; then
-  installed_label="  <- NOT INSTALLED"
-  actions+=("Plugin is not installed. Run: claude plugin update compound-workflows@compound-workflows-marketplace")
-  exit_code=1
-elif [[ "$installed_version" != "$source_version" ]]; then
-  installed_label="  <- STALE (loaded plugin is behind source)"
-  actions+=("Plugin is stale. Run: claude plugin update compound-workflows@compound-workflows-marketplace")
-  exit_code=1
-fi
-
-# Check release vs source
-release_label=""
-if [[ "$release_version" != unknown* ]]; then
-  if [[ "$release_version" != "$source_version" ]]; then
-    release_label="  <- UNRELEASED (source version has no matching release)"
-    actions+=("Version $source_version has no GitHub release. Run: git tag v$source_version && git push origin v$source_version && gh release create v$source_version")
+if [[ "$in_source_repo" == true ]]; then
+  # Source repo: compare source vs installed, source vs release
+  installed_label=""
+  if [[ "$installed_version" == "not installed" ]]; then
+    installed_label="  <- NOT INSTALLED"
+    actions+=("Plugin is not installed. Run: claude plugin update compound-workflows@compound-workflows-marketplace")
+    exit_code=1
+  elif [[ "$installed_version" != "$source_version" ]]; then
+    installed_label="  <- STALE (installed is behind source)"
+    actions+=("Plugin is stale. Run: claude plugin update compound-workflows@compound-workflows-marketplace")
     exit_code=1
   fi
-fi
 
-# --- Output ---
-echo "Source:     $source_version"
-echo "Installed:  $installed_version$installed_label"
-if [[ -n "$release_version_raw" ]]; then
-  echo "Release:    $release_version_raw$release_label"
+  release_label=""
+  if [[ "$release_version" != unknown* ]]; then
+    if [[ "$release_version" != "$source_version" ]]; then
+      release_label="  <- UNRELEASED (source has no matching release)"
+      actions+=("Version $source_version has no GitHub release. Run: git tag v$source_version && git push origin v$source_version && gh release create v$source_version")
+      exit_code=1
+    fi
+  fi
+
+  echo "Source:     $source_version"
+  echo "Installed:  $installed_version$installed_label"
+  echo "Release:    ${release_version}${release_label:-}"
 else
+  # Consumer project: compare installed vs release only
+  installed_label=""
+  if [[ "$installed_version" == "not installed" ]]; then
+    installed_label="  <- NOT INSTALLED"
+    actions+=("Plugin is not installed. Run: claude plugin update compound-workflows@compound-workflows-marketplace")
+    exit_code=1
+  elif [[ "$release_version" != unknown* ]] && [[ "$installed_version" != "$release_version" ]]; then
+    installed_label="  <- STALE (behind latest release)"
+    actions+=("Plugin is stale. Run: claude plugin update compound-workflows@compound-workflows-marketplace")
+    exit_code=1
+  fi
+
+  echo "Installed:  $installed_version$installed_label"
   echo "Release:    $release_version"
 fi
 
