@@ -1,7 +1,7 @@
 ---
 name: context-researcher
 description: "Searches all project knowledge — solutions, brainstorms, plans, memory, and resources — for relevant context. Tags results by source type and validation status. Use before implementing features, making decisions, or starting brainstorms to surface institutional knowledge across the full knowledge base, not just docs/solutions/."
-model: haiku
+model: sonnet
 ---
 
 <examples>

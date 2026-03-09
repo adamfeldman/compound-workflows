@@ -21,7 +21,7 @@ Every change MUST update all four files:
 agents/
 ├── research/     # Research and knowledge agents (6)
 ├── review/       # Code review agents (13)
-└── workflow/     # Workflow utility agents (6)
+└── workflow/     # Workflow utility agents (7)
     └── plan-checks/  # 4 shell scripts + 1 agent-format .md file (check modules, not standalone agents)
 
 commands/
@@ -55,16 +55,16 @@ skills/
 
 ## Agent Registry
 
-All 25 agents with their categories, command references, and model configuration.
+All 26 agents with their categories, command references, and model configuration.
 
 | Agent | Category | Dispatched By | Model |
 |-------|----------|---------------|-------|
-| best-practices-researcher | research | plan, setup | inherit |
-| context-researcher | research | brainstorm | haiku |
-| framework-docs-researcher | research | plan, setup | inherit |
+| best-practices-researcher | research | plan, setup | sonnet |
+| context-researcher | research | brainstorm | sonnet |
+| framework-docs-researcher | research | plan, setup | sonnet |
 | git-history-analyzer | research | (standalone) | inherit |
-| learnings-researcher | research | plan | haiku |
-| repo-research-analyst | research | brainstorm, plan, setup | inherit |
+| learnings-researcher | research | plan | sonnet |
+| repo-research-analyst | research | brainstorm, plan, setup | sonnet |
 | agent-native-reviewer | review | review | inherit |
 | architecture-strategist | review | review, setup | inherit |
 | code-simplicity-reviewer | review | review, setup, work | inherit |
@@ -81,11 +81,12 @@ All 25 agents with their categories, command references, and model configuration
 | bug-reproduction-validator | workflow | (standalone) | inherit |
 | convergence-advisor | workflow | deepen-plan | inherit |
 | pr-comment-resolver | workflow | (standalone) | inherit |
+| red-team-relay | workflow | brainstorm, deepen-plan | sonnet |
 | plan-consolidator | workflow | plan, deepen-plan | inherit |
 | plan-readiness-reviewer | workflow | plan, deepen-plan | inherit |
 | spec-flow-analyzer | workflow | plan | inherit |
 
-**Model column key:** `haiku` = cost-optimized for well-scoped tasks (Haiku model). `inherit` = uses the default model from the calling context. Override in agent YAML frontmatter if needed.
+**Model column key:** `haiku` = cost-optimized for well-scoped tasks (Haiku model). `sonnet` = balanced cost/quality for research and relay tasks (Sonnet model). `inherit` = uses the default model from the calling context. Override in agent YAML frontmatter if needed.
 
 **Standalone agents** are not dispatched by any command directly but are available for manual Task dispatch or dynamic discovery by deepen-plan.
 
