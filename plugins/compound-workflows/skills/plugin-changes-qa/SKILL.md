@@ -1,6 +1,7 @@
 ---
-name: compound:plugin-changes-qa
+name: plugin-changes-qa
 description: Run QA checks on the compound-workflows plugin
+disable-model-invocation: true
 ---
 
 # Plugin Changes QA
