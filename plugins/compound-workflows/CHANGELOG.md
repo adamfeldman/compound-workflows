@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.5] - 2026-03-08
+
+### Added
+- Release check in `/compound:compact-prep` — detects missing GitHub releases when plugin version was bumped
+
 ## [1.8.4] - 2026-03-08
 
 ### Fixed
