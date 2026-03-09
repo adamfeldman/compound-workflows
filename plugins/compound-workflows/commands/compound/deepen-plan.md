@@ -325,11 +325,130 @@ After synthesis, read the synthesis summary and the enhanced plan. Collect ALL f
 - **Reject** — remove the change from the plan (record why)
 - **Defer** — move to Open Questions with rationale
 
-**Step 4: MINOR findings as a batch.** Present all MINOR findings together:
+**Step 4: MINOR findings — three-category triage.** Synthesis MINOR changes are already applied to the plan. The triage reviews these applied changes and categorizes them as needing correction, being appropriate (keep), or needing complex adjustment.
 
-**AskUserQuestion:** "N MINOR findings were applied to the plan by synthesis. Review individually, or batch-accept?"
-- **Batch-accept**: Keep all (record why if the user gives a reason — e.g., "all cosmetic" or "out of scope for this iteration").
-- **Review individually**: Present each with the same options as CRITICAL/SERIOUS.
+**Step 4a: Dispatch MINOR categorization subagent.** Launch a Task subagent to categorize synthesis MINOR findings:
+
+```
+Task general-purpose: "
+You are a MINOR finding triage agent reviewing synthesis changes ALREADY APPLIED to a plan. Your job is to categorize each MINOR change — not propose new edits.
+
+## Source Files
+
+Read the synthesis summary at: .workflows/deepen-plan/<stem>/run-<N>-synthesis.md
+Read the current plan at: <plan_path>
+
+## Categorization
+
+For each MINOR finding the synthesis agent applied, categorize it into one of three categories:
+
+### Category 1: Fixable Now
+The synthesis change needs a small correction or revert. All three criteria must hold:
+1. **Unambiguous** — only one reasonable correction exists
+2. **Low effort** — a one-line or few-line edit, not a structural change
+3. **Low risk** — safe to change without ripple effects; no user decisions or reasoning involved
+
+For each fixable item, provide BOTH:
+- `old_string`: the text currently in the plan (the synthesis-applied version)
+- `new_string`: the corrected text (either the pre-synthesis original from the synthesis summary for reverts, or a corrected version for corrections)
+
+### Category 2: Needs Manual Review
+The synthesis change needs complex adjustment — fails at least one fixability criterion. Note which criterion fails.
+
+### Category 3: No Action Needed
+The synthesis change was appropriate — keep as-is. Note why (e.g., 'accurate addition', 'correctly captures agent finding').
+
+## Conflict Detection
+If two fixable items propose conflicting edits to the same section, re-categorize both as 'needs manual review' with the conflict noted.
+
+## Output Format
+
+Write your categorization to: .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md
+
+Use this structure (numbers are sequential across all categories):
+
+# MINOR Triage Categorization (Synthesis)
+
+## Summary
+- Total: N MINOR findings
+- Fixable now: M items
+- Needs manual review: K items
+- No action needed: J items
+
+## Fixable Now
+
+### 1. [Finding summary]
+- Source: [synthesis agent / original agent name]
+- Issue: [what needs correction or revert]
+- old_string: |
+  [exact text currently in plan to replace]
+- new_string: |
+  [corrected or reverted text]
+
+## Needs Manual Review
+
+### M+1. [Finding summary]
+- Source: [agent name]
+- Why manual: [which fixability criterion fails]
+
+## No Action Needed
+
+### M+K+1. [Finding summary]
+- Source: [agent name]
+- Reason: [why the change was appropriate]
+
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write your COMPLETE categorization to: .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md
+After writing the file, return ONLY a 2-3 sentence summary.
+DO NOT return your full analysis in your response. The file IS the output.
+"
+```
+
+**Step 4b: Present three-category triage to user.** Read the categorization file from `.workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md`. Present to the user (omit any empty category section):
+
+**AskUserQuestion:**
+
+"N MINOR synthesis changes triaged:
+
+**Fixable now** (M items — corrections/reverts to synthesis changes):
+1. [summary] → [proposed correction]
+2. [summary] → [proposed correction]
+
+**Needs manual review** (K items):
+3. [summary]
+
+**No action needed** (J items — synthesis changes to keep as-is):
+4. [summary] — [reason]
+
+What would you like to do?"
+
+Options:
+1. **Apply all fixes + acknowledge no-action items** (Recommended)
+2. **Apply specific fixes** (e.g., "1, 2") + acknowledge rest
+3. **Review all individually**
+4. **Acknowledge all** (no corrections)
+
+**Edge cases:**
+- **Zero fixable items:** Omit "Fixable now" section. Remove "Apply all fixes" option. Recommend "Review all individually" if manual-review items exist, or "Acknowledge all" if only no-action items.
+- **All fixable items:** Omit empty sections.
+- **User rejects all proposed fixes:** Record as `**Acknowledged (batch):**` with "(M fixable declined)" annotation.
+
+**Partial acceptance parsing:** Interpret the user's natural language response (e.g., "1, 3", "all except 2", "first two"). If ambiguous, ask for clarification rather than guessing.
+
+**Step 4c: Apply corrections and verify.** For each accepted fix:
+
+1. Apply using the Edit tool with the `old_string`/`new_string` from the categorization output (one edit per fix, sequential). For reverts: `old_string` is the synthesis-applied text, `new_string` is the pre-synthesis original from the synthesis summary. For corrections: `old_string` is the synthesis-applied text, `new_string` is the corrected text.
+2. After all edits applied, re-read the modified sections of the plan.
+3. Verify each applied edit matches the proposal by content (not line number — earlier edits may shift lines).
+4. If drift detected (edit doesn't match proposal), flag to user before proceeding.
+
+**Step 4d: Present "needs manual review" items individually.** For each item categorized as "needs manual review," present via **AskUserQuestion** with the same options as CRITICAL/SERIOUS findings (Step 3):
+
+"[Finding summary — synthesis change needs complex adjustment]. How should we handle it?"
+- **Accept** — keep the synthesis change as-is
+- **Modify** — the user provides corrections; update the plan accordingly (record their reasoning)
+- **Reject** — revert the synthesis change from the plan (record why)
+- **Defer** — move to Open Questions with rationale
 
 **Step 5: Apply.** Update the plan with all accepted/modified findings. For rejected, deferred, and modified findings, replace the original finding text with a resolution line that includes a provenance pointer. Record the user's reasoning for all non-trivial decisions.
 
@@ -339,7 +458,12 @@ After synthesis, read the synthesis summary and the enhanced plan. Collect ALL f
 - **Rejected:** `[finding summary]. User: [reasoning]. [agent-name, see .workflows/deepen-plan/<stem>/run-<N>-synthesis.md]`
 - **Deferred:** `[finding summary]. User: [reasoning]. [agent-name, see .workflows/deepen-plan/<stem>/run-<N>-synthesis.md]`
 
-**Batch-accept format:** `**Acknowledged (batch):** N MINOR findings accepted. [see .workflows/deepen-plan/<stem>/run-<N>-synthesis.md]`
+**MINOR triage provenance formats:**
+- **Applied fixes:** `**Fixed (batch):** M MINOR synthesis corrections applied. [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md]`
+- **No-action items:** `**Acknowledged (batch):** J MINOR synthesis changes kept as-is. [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md]`
+- **User declines all fixes:** `**Acknowledged (batch):** N MINOR synthesis changes accepted (M fixable declined). [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md]`
+- **Partial acceptance:** `**Fixed (batch):** M of N fixable MINOR corrections applied (items 1, 3). [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md]`
+- **Manual review items:** individual resolution lines using the Step 3 CRITICAL/SERIOUS format above
 
 **Best-effort fallback:** If the source file path is unavailable, use the agent name only (omit the `see` clause).
 
@@ -586,16 +710,147 @@ Apply the user's decision to the plan file. **Include the user's stated reasonin
 
 **Any CRITICAL items the user defers MUST appear in the Phase 6 report.** The `/compound:work` command needs to know about unresolved challenges before implementation begins.
 
-### Step 3: Surface MINOR Findings
+### Step 3: Surface MINOR Findings — Three-Category Triage
 
 After all CRITICAL and SERIOUS items are resolved, check for MINOR findings across all three red team critiques.
 
-If MINOR findings exist, present them as a batch:
+If MINOR findings exist, use the three-category triage pattern:
 
-**AskUserQuestion:** "N MINOR findings remain from red team review. Review individually, or batch-accept as acknowledged?"
+**Step 3a: Dispatch MINOR categorization subagent.** Launch a Task subagent to categorize red team MINOR findings:
 
-- **Batch-accept**: Note all as "acknowledged" in the resolution summary (record the user's reasoning if given). No plan changes needed. Include provenance pointer: `**Acknowledged (batch):** N MINOR findings accepted. [see .workflows/deepen-plan/<stem>/agents/run-<N>/red-team--<provider>.md]` (list all provider files if findings span multiple providers).
-- **Review individually**: Present each MINOR finding via AskUserQuestion with the same options as CRITICAL/SERIOUS items. Each resolution line gets the same provenance pointer format as Step 2.
+```
+Task general-purpose: "
+You are a MINOR finding triage agent reviewing red team findings for a plan. Your job is to categorize each MINOR finding and propose fixes where possible.
+
+## Source Files
+
+Read all three red team files from: .workflows/deepen-plan/<stem>/agents/run-<N>/
+- red-team--gemini.md
+- red-team--openai.md
+- red-team--opus.md
+
+Read the plan at: <plan_path>
+
+## Categorization
+
+Deduplicate MINOR findings across providers — if multiple models flag the same issue, note it once. For each unique MINOR finding, categorize it into one of three categories:
+
+### Category 1: Fixable Now
+The finding suggests a concrete edit that meets all three criteria:
+1. **Unambiguous** — only one reasonable fix exists
+2. **Low effort** — a one-line or few-line edit, not a structural change
+3. **Low risk** — safe to change without ripple effects; no user decisions or reasoning involved
+
+For each fixable item, provide BOTH:
+- `old_string`: the text currently in the plan to replace
+- `new_string`: the corrected text
+
+### Category 2: Needs Manual Review
+Valid finding but fails at least one fixability criterion. Note which criterion fails and which provider(s) flagged it.
+
+### Category 3: No Action Needed
+Observation with no concrete edit implied. Note why (e.g., 'already addressed in Phase 3', 'cosmetic preference not a deficiency', 'out of scope for this plan').
+
+## Conflict Detection
+If two fixable items propose conflicting edits to the same section, re-categorize both as 'needs manual review' with the conflict noted.
+
+## Output Format
+
+Write your categorization to: .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md
+
+Use this structure (numbers are sequential across all categories):
+
+# MINOR Triage Categorization (Red Team)
+
+## Summary
+- Total: N MINOR findings (deduplicated from P providers)
+- Fixable now: M items
+- Needs manual review: K items
+- No action needed: J items
+
+## Fixable Now
+
+### 1. [Finding summary]
+- Source: [provider(s)]
+- Proposed fix: [concrete edit — what to change, where in the document]
+- Location: [section/heading in plan]
+- old_string: |
+  [exact text in plan to replace]
+- new_string: |
+  [corrected text]
+
+## Needs Manual Review
+
+### M+1. [Finding summary]
+- Source: [provider(s)]
+- Why manual: [which fixability criterion fails]
+
+## No Action Needed
+
+### M+K+1. [Finding summary]
+- Source: [provider(s)]
+- Reason: [why no action is needed]
+
+=== OUTPUT INSTRUCTIONS (MANDATORY) ===
+Write your COMPLETE categorization to: .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md
+After writing the file, return ONLY a 2-3 sentence summary.
+DO NOT return your full analysis in your response. The file IS the output.
+"
+```
+
+**Step 3b: Present three-category triage to user.** Read the categorization file from `.workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md`. Present to the user (omit any empty category section):
+
+**AskUserQuestion:**
+
+"N MINOR findings from red team review:
+
+**Fixable now** (M items):
+1. [summary] → [proposed edit]
+2. [summary] → [proposed edit]
+
+**Needs manual review** (K items):
+3. [summary]
+
+**No action needed** (J items):
+4. [summary] — [reason]
+
+What would you like to do?"
+
+Options:
+1. **Apply all fixes + acknowledge no-action items** (Recommended)
+2. **Apply specific fixes** (e.g., "1, 2") + acknowledge rest
+3. **Review all individually**
+4. **Acknowledge all** (no fixes)
+
+**Edge cases:**
+- **Zero fixable items:** Omit "Fixable now" section. Remove "Apply all fixes" option. Recommend "Review all individually" if manual-review items exist, or "Acknowledge all" if only no-action items.
+- **All fixable items:** Omit empty sections.
+- **User rejects all proposed fixes:** Record as `**Acknowledged (batch):**` with "(M fixable declined)" annotation.
+
+**Partial acceptance parsing:** Interpret the user's natural language response (e.g., "1, 3", "all except 2", "first two"). If ambiguous, ask for clarification rather than guessing.
+
+**Step 3c: Apply fixes and verify.** For each accepted fix:
+
+1. Apply using the Edit tool with the `old_string`/`new_string` from the categorization output (one edit per fix, sequential).
+2. After all edits applied, re-read the modified sections of the plan.
+3. Verify each applied edit matches the proposal by content (not line number — earlier edits may shift lines).
+4. If drift detected (edit doesn't match proposal), flag to user before proceeding.
+
+**Step 3d: Present "needs manual review" items individually.** For each item categorized as "needs manual review," present via **AskUserQuestion** with the same options as CRITICAL/SERIOUS findings (Step 2):
+
+"[Finding summary — note which provider(s) flagged it]. How should we handle this?"
+- **Valid — update the plan** (edit the plan to address it)
+- **Disagree — note why** (add a footnote with the counterargument)
+- **Defer — flag for implementation** (add to a "Risks and Open Questions" section in the plan)
+
+Apply the user's decision to the plan file. Include the user's stated reasoning.
+
+**MINOR triage provenance formats:**
+- **Applied fixes:** `**Fixed (batch):** M MINOR red team fixes applied. [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md]`
+- **No-action items:** `**Acknowledged (batch):** J MINOR red team findings, no action needed. [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md]`
+- **User declines all fixes:** `**Acknowledged (batch):** N MINOR red team findings accepted (M fixable declined). [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md]`
+- **Partial acceptance:** `**Fixed (batch):** M of N fixable MINOR red team items applied (items 1, 3). [see .workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md]`
+- **Manual review items:** individual resolution lines using the Step 2 provenance pointer format: `[red-team--<provider>, see .workflows/deepen-plan/<stem>/agents/run-<N>/red-team--<provider>.md]`
 
 ## Phase 5: Recovery (Resume After Compaction)
 
