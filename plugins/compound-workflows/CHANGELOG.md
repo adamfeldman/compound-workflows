@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.6] - 2026-03-08
+
+### Fixed
+- Pass `.worktrees/<name>` to `bd worktree create/remove` — bd uses the path as-is and defaults to repo root, causing worktrees outside `.worktrees/`
+
 ## [1.8.5] - 2026-03-08
 
 ### Added
