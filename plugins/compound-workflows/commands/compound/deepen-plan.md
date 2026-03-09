@@ -1,10 +1,10 @@
 ---
 name: compound:deepen-plan
-description: Context-safe plan enhancement with parallel research agents that persist outputs to disk
+description: Context-lean plan enhancement with parallel research agents that persist outputs to disk
 argument-hint: "[path to plan file]"
 ---
 
-# Deepen Plan — Context-Safe Edition
+# Deepen Plan — Context-Lean Edition
 
 ## Introduction
 
@@ -150,7 +150,7 @@ Update `manifest.json` status to `"agents_planned"`. Write the file to disk.
 
 ## Phase 3: Launch Agents in Batches
 
-**CRITICAL: Context-safe agent launch pattern.**
+**CRITICAL: Context-lean agent launch pattern.**
 
 ### The Disk-Write Instruction Block
 

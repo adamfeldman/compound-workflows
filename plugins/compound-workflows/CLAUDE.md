@@ -26,7 +26,10 @@ agents/
     └── plan-checks/  # 3 shell scripts + 1 agent-format .md file (check modules, not standalone agents)
 
 commands/
-└── compound/ # All slash commands (namespaced, 9 commands)
+└── compound/ # All slash commands (namespaced, 10 commands)
+
+scripts/
+└── plugin-qa/               # 4 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
 
 skills/
 ├── agent-browser/           # Browser automation for agents
@@ -81,6 +84,8 @@ All 24 agents with their categories, command references, and model configuration
 
 **Standalone agents** are not dispatched by any command directly but are available for manual Task dispatch or dynamic discovery by deepen-plan.
 
+All agents expect callers to include OUTPUT INSTRUCTIONS per the `disk-persist-agents` skill. See Context-Lean Convention below.
+
 ## Setup Command/Skill Split
 
 The setup command and setup skill coexist with distinct roles:
@@ -128,6 +133,26 @@ Red team provider preferences are detected each session, not stored in config. C
 - Phase gates enforce resolution of open questions before proceeding
 - Research outputs persist to `.workflows/` directories
 - `/compound:recover` is the reactive counterpart to `/compound:compact-prep` — it recovers context from dead/exhausted sessions by parsing JSONL logs and cross-referencing external state. It does not dispatch any agents from the agent registry.
+
+## Context-Lean Convention
+
+**"Context-lean"** is the canonical design principle for this plugin: orchestrator commands dispatch agents that write complete outputs to disk and return only brief summaries, keeping the parent context small enough to avoid compaction.
+
+> Some command file subtitles use "context-safe" — this is the same principle, renamed for clarity.
+
+### Rules
+
+1. **All commands dispatching agents MUST include OUTPUT INSTRUCTIONS blocks.** Two variants exist:
+   - **Relay variant** (MCP dispatch agents): "Write the response faithfully" wording — the agent relays an external tool's output to disk without interpreting it.
+   - **Analysis variant** (research/review agents): "Write your COMPLETE findings" wording — the agent performs analysis and writes its own conclusions.
+
+2. **TaskOutput is banned.** Never use TaskOutput to retrieve full agent results into the orchestrator context. Instead, poll for file existence (`ls .workflows/...`) to detect completion.
+
+3. **MCP tool responses must be wrapped in Task subagents.** Any MCP tool that returns large content (context7 docs, web fetches, etc.) must be called from within a Task subagent that writes the response to disk. The orchestrator never receives the raw MCP response.
+
+4. **Zero exceptions policy.** If a future command legitimately needs MCP responses in orchestrator context for routing/triage decisions, add a documented exception at that time with rationale. Currently: zero exceptions.
+
+See `skills/disk-persist-agents/SKILL.md` for the canonical pattern and output instruction templates.
 
 ## Testing Changes
 

@@ -1,10 +1,10 @@
 ---
 name: compound:review
-description: Context-safe code review using multi-agent analysis with disk-persisted outputs
+description: Context-lean code review using multi-agent analysis with disk-persisted outputs
 argument-hint: "[PR number, GitHub URL, branch name, or latest]"
 ---
 
-# Review Command — Context-Safe Edition
+# Review Command — Context-Lean Edition
 
 Perform exhaustive code reviews using multi-agent analysis. All agent outputs are persisted to disk to avoid context exhaustion from 13+ parallel agent transcripts.
 

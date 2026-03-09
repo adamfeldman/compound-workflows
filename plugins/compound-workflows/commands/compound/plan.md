@@ -1,10 +1,10 @@
 ---
 name: compound:plan
-description: Transform feature descriptions into plans with context-safe research agents
+description: Transform feature descriptions into plans with context-lean research agents
 argument-hint: "[feature description, bug report, or improvement idea]"
 ---
 
-# Create a Plan — Context-Safe Edition
+# Create a Plan — Context-Lean Edition
 
 **Note: Use the current year** when dating plans and searching for recent documentation.
 
