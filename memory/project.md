@@ -26,11 +26,13 @@
 - **`bd update --append-notes`** — appends (not overwrites). Use instead of `--notes`.
 - **bd worktree create uses path as-is** — pass `.worktrees/<name>` explicitly.
 - **Loaded skill staleness** — skills loaded at conversation start from cached plugin version. Mid-session updates don't refresh loaded skills. Also affects new agents — created mid-session won't appear in `subagent_type` list.
-- **Agent tool has no `model` parameter** — cannot override model at dispatch time. `general-purpose` always inherits parent model. Named agents respect `model` field in frontmatter (proven: haiku and sonnet both work — sonnet validated 2026-03-09 by temporarily editing installed cache).
+- **Agent tool HAS `model` parameter** — `model: enum["sonnet", "opus", "haiku"]` overrides agent frontmatter at dispatch time. Validated 2026-03-09: dispatched code-simplicity-reviewer with `model: "haiku"`, completed in 995ms (vs 13s at opus). Previous memory entry ("has no model parameter") was outdated — parameter was added in a Claude Code update. Named agents still respect `model` field in frontmatter when no dispatch override (proven: haiku and sonnet both work).
 - **`CLAUDE_CODE_SUBAGENT_MODEL` env var** — only affects agents WITHOUT explicit `model:` field. Does NOT override explicit `model: sonnet` or `model: haiku`. Agents with `model: inherit` or no model field are affected. Discovered during readiness semantic checks (contradicted multiple red team providers who claimed it "overrides all").
 - **worktree-manager.sh uses `cleanup` not `remove`** — `bash worktree-manager.sh cleanup` to remove completed worktrees (interactive y/n).
 - **Worktree blocks `gh pr merge`** — use `gh api repos/.../pulls/N/merge -X PUT -f merge_method=squash` instead.
 - **`claude plugin update` unreliable** — command exits 0 silently but doesn't always pull latest. Fallback: `git -C ~/.claude/plugins/marketplaces/<name> pull origin main` then `/reload-plugins`.
+- **Agent tool background completions include `<usage>`** — identical format to Task completion notifications (`total_tokens`, `tool_uses`, `duration_ms`). Validated 2026-03-09 with 3 dispatches (repo-research-analyst, context-researcher, code-simplicity-reviewer). Switching Task→Agent does not break `<usage>` capture.
+- **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format
 - Path: `~/.claude/projects/<path-with-dashes>/<session-id>.jsonl`
@@ -54,11 +56,13 @@
 - **v2.0.0** — Workflow quota optimization (bead 22l): 5 research agents → sonnet, red-team-relay agent, stack-based dynamic agent selection, ccusage tracking, convergence advisor named dispatch
 
 ## In-Progress Work
-- **Per-agent token instrumentation (bead voo)** — P1. Plan complete at `docs/plans/2026-03-09-feat-per-agent-token-instrumentation-plan.md`. 10 implementation steps: settings, stats-capture reference file, 5 command instrumentations (work→brainstorm→plan→review→deepen-plan), compact-prep ccusage snapshot, classify-stats skill (`/compound-workflows:classify-stats` — command dir at capacity). Stop-gate between Steps 3-4 (verify background `<usage>` before instrumenting background commands). Readiness checks: 6 auto-fixes applied (underspecification), verify clean. Next: `/compound:deepen-plan`.
+- **Per-agent token instrumentation (bead voo)** — P1. Plan complete at `docs/plans/2026-03-09-feat-per-agent-token-instrumentation-plan.md`. 10 implementation steps: settings, stats-capture reference file, 5 command instrumentations (work→brainstorm→plan→review→deepen-plan), compact-prep ccusage snapshot, classify-stats skill (`/compound-workflows:classify-stats` — command dir at capacity). Stop-gate between Steps 3-4 (verify background `<usage>` before instrumenting background commands). Readiness checks: 6 auto-fixes applied (underspecification), verify clean. **voo plan needs update:** incorporate Agent dispatch migration from native-agent-discovery brainstorm (all 5 commands switch Task→Agent for `model` override + standardization). Next: `/compound:deepen-plan`.
+- **Native agent discovery (needs bead)** — brainstorm complete at `docs/brainstorms/2026-03-09-native-agent-discovery-brainstorm.md`. Replace deepen-plan Phase 2 filesystem discovery + skills discovery with subagent_type registry. Dynamic discovery (D) primary for user-defined agents, hardcoded fallback (A) with invariant check. Agent tool dispatch (not Task) for `model` parameter. Ships before voo. Next: `/compound:plan`.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P2. ~80% of work steps are mechanical after well-deepened plans. Depends on voo (need dataset first). Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P1, brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 - **Evaluate red team in plan (bead nn3)** — P3. Plan can introduce new assumptions not in brainstorm; optional red team step like brainstorm's Yes/Skip gate. Next: think about it.
+- **Compact-prep version check config toggle (bead xzn)** — P2. Add config toggle for version check, disabled by default.
 - **Check upstream compound-engineering (bead odn)** — P3. Review EveryInc/compound-engineering-plugin for changes since fork.
 
 ## Critical Patterns
