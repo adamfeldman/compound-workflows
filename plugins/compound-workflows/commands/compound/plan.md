@@ -90,6 +90,45 @@ Use **AskUserQuestion tool** to ask questions one at a time:
 
 ## Main Tasks
 
+### Stats Setup
+
+Before any dispatches, initialize stats capture infrastructure:
+
+```bash
+mkdir -p .workflows/stats
+PLUGIN_ROOT="plugins/compound-workflows"
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+```
+
+Read `stats_capture` from `compound-workflows.local.md`. If `stats_capture` is `false`, skip all stats capture for this run. If missing or any other value, proceed with capture.
+
+If stats capture is enabled:
+
+```bash
+RUN_ID=$(uuidgen | cut -c1-8)
+echo "RUN_ID=$RUN_ID"
+echo $CLAUDE_CODE_SUBAGENT_MODEL
+```
+
+Cache the model value: if `CLAUDE_CODE_SUBAGENT_MODEL` is set, that is the default model for `inherit`-model agents. Otherwise default to `opus`. Construct the stats file path: `STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-plan-<plan-stem>.yaml"`. Initialize a dispatch counter at 0.
+
+### Stats Capture
+
+If stats_capture ≠ false in compound-workflows.local.md: after each Task/Agent completion, extract the `<usage>...</usage>` line and call `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" plan <agent> <step> <model> <stem> null $RUN_ID "<usage-line>"`. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules. Increment the dispatch counter for each capture call.
+
+**Model resolution per dispatch:** Use `sonnet` for agents with `model: sonnet` in their YAML frontmatter or an explicit `model: sonnet` dispatch parameter. Use the cached model value (env var or `opus` default) for `inherit`-model agents. For red-team-relay dispatches with `model: sonnet`, record `sonnet`.
+
+**Step field:** Use the agent role name as the step value. For verify-only re-dispatches (Phase 6.7), use `"<agent>-verify"` suffixes. For re-check dispatches (Phase 6.9), use `"<agent>-recheck"` suffixes. For red team MINOR triage, use `"red-team-minor-triage"`.
+
+After all dispatches complete, validate entry count matches completed dispatch count:
+
+```bash
+ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+```
+
+If ENTRY_COUNT does not match the dispatch counter, warn with the names of missing agents. Do not fail the command.
+
 ### 1. Local Research (Parallel, Disk-Persisted)
 
 Derive a plan stem from the feature description (e.g., `api-rate-limiting` or `user-dashboard-reporting`).
@@ -133,6 +172,8 @@ After writing the file, return ONLY a 2-3 sentence summary.
 ls .workflows/plan-research/<plan-stem>/agents/
 ```
 
+When each background Task completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`repo-research-analyst` step=`"repo-research-analyst"` model=`sonnet`, and agent=`learnings-researcher` step=`"learnings-researcher"` model=`sonnet`. Increment dispatch counter for each.
+
 ### 1.5. Research Decision
 
 Based on signals from Step 0 and local research files:
@@ -166,6 +207,8 @@ Write your COMPLETE findings to: .workflows/plan-research/<plan-stem>/agents/fra
 After writing the file, return ONLY a 2-3 sentence summary.
 "
 ```
+
+When each background Task completion notification arrives (if these agents were dispatched), capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`best-practices-researcher` step=`"best-practices-researcher"` model=`sonnet`, and agent=`framework-docs-researcher` step=`"framework-docs-researcher"` model=`sonnet`. Increment dispatch counter for each.
 
 ### 1.6. Consolidate Research
 
@@ -223,6 +266,8 @@ Write your COMPLETE analysis to: .workflows/plan-research/<plan-stem>/agents/spe
 After writing the file, return ONLY a 2-3 sentence summary.
 "
 ```
+
+When the background Task completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`spec-flow-analyzer` step=`"spec-flow-analyzer"` model=cached (inherit agent). Increment dispatch counter.
 
 Read the specflow output file. Incorporate gaps and edge cases into the plan.
 
@@ -293,12 +338,7 @@ Run plan readiness checks and aggregate findings to verify the plan is work-read
 **Dispatch:**
 
 1. Read config from compound-workflows.md under the `## Plan Readiness` heading. Read flat keys (`plan_readiness_skip_checks`, `plan_readiness_provenance_expiry_days`, `plan_readiness_verification_source_policy`) and construct the parameter objects to pass to agents. Apply skip_checks filtering.
-2. Resolve plugin root for plan-checks scripts:
-   ```bash
-   PLUGIN_ROOT="plugins/compound-workflows"
-   [[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
-   echo "PLUGIN_ROOT=$PLUGIN_ROOT"
-   ```
+2. Use `$PLUGIN_ROOT` resolved in the Stats Setup section above.
 3. Create output directory: `mkdir -p .workflows/plan-research/<plan-stem>/readiness/checks/`
 4. Run 3 mechanical check scripts in parallel (bash), using the resolved `$PLUGIN_ROOT`:
    - `$PLUGIN_ROOT/agents/workflow/plan-checks/stale-values.sh <plan-path> <output-dir>/checks/stale-values.md`
@@ -307,9 +347,11 @@ Run plan readiness checks and aggregate findings to verify the plan is work-read
 5. If all 5 semantic passes are in skip_checks, skip the semantic agent dispatch entirely. Otherwise, dispatch 1 semantic checks agent (background Task):
    - Agent: `$PLUGIN_ROOT/agents/workflow/plan-checks/semantic-checks.md`
    - Pass: plan file path, output path (`<output-dir>/checks/semantic-checks.md`), mode (`full`), skip_checks, provenance settings
+   - When the background Task completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`semantic-checks` step=`"semantic-checks"` model=cached (inherit agent). Increment dispatch counter.
 5. Wait for all checks to complete (3-minute timeout for scripts, 5-10 minutes for semantic agent due to WebSearch latency). After timeout, remove any orphaned .tmp files: `rm -f <output-dir>/checks/*.tmp`. If rate limits are hit, retry with exponential backoff.
 6. Dispatch plan-readiness-reviewer (foreground Task):
    - Pass: plan file path, plan stem, output directory, check output file paths, mode, config
+   - After the foreground Task response, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`plan-readiness-reviewer` step=`"plan-readiness-reviewer"` model=cached (inherit agent). Increment dispatch counter.
 7. Show the reviewer's summary to the user: "Plan readiness check: [summary]"
 
 Keep Phase 6.7 focused on dispatch + response handling. The detailed analysis logic lives in the check scripts and agent files.
@@ -317,8 +359,11 @@ Keep Phase 6.7 focused on dispatch + response handling. The detailed analysis lo
 **If issues found:**
 
 1. Dispatch plan-consolidator (foreground). Pass: plan file path, reviewer report path, consolidation report output path.
+   After the foreground Task response, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`plan-consolidator` step=`"plan-consolidator"` model=cached (inherit agent). Increment dispatch counter.
 2. Consolidator applies auto-fixes, then presents guardrailed items to user.
 3. After consolidation, re-run checks in `verify-only` mode: re-run all 3 mechanical scripts (type: mechanical), re-dispatch semantic agent with `mode: verify-only` (runs contradictions + underspecification only; skips unresolved-disputes, accretion, external-verification). Dispatch reviewer again.
+   - When the semantic-checks verify background Task completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`semantic-checks` step=`"semantic-checks-verify"` model=cached. Increment dispatch counter.
+   - After the plan-readiness-reviewer verify foreground Task response, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`plan-readiness-reviewer` step=`"plan-readiness-reviewer-verify"` model=cached. Increment dispatch counter.
 4. If verify finds new issues: present remaining findings to user directly.
    User options: resolve now, defer to Open Questions, or dismiss.
 5. **Track deferred finding severities** for Phase 7 recommendation: when the user defers a finding, note its severity level (CRITICAL, SERIOUS, MINOR). Carry these deferred severity counts forward to Phase 7 alongside the final reviewer summary.
@@ -568,6 +613,12 @@ ls .workflows/plan-research/<plan-stem>/red-team--*.md 2>/dev/null
 
 When all expected red team files exist (up to 3), proceed to Step 6.8.3. If a task-notification arrives, note it but check for the output file rather than processing the notification content.
 
+When each background Agent completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` for each completed provider:
+- Gemini: agent=`red-team-relay` step=`"red-team-relay-gemini"` model=`sonnet`
+- OpenAI: agent=`red-team-relay` step=`"red-team-relay-openai"` model=`sonnet`
+- Claude Opus: agent=`general-purpose` step=`"red-team-opus"` model=cached (inherit agent)
+Increment dispatch counter for each.
+
 **Provider failure fallback chain:**
 1. All 3 providers available — normal 3-provider red team
 2. Gemini/OpenAI fail — Opus-only red team (proceed with whatever completed)
@@ -575,7 +626,7 @@ When all expected red team files exist (up to 3), proceed to Step 6.8.3. If a ta
 
 **If PAL MCP is not available:** Run only the Claude Opus Agent subagent (Provider 3 above). The red team will have a single perspective instead of three, but this is an acceptable fallback.
 
-**Timeout:** Set a 5-minute timeout per provider agent. If a provider hasn't produced output after 5 minutes, proceed with whatever providers completed. Log any timeouts in the recommendation log. If all providers time out, treat as "red team failed" and proceed to Phase 7 with red team status "failed."
+**Timeout:** Set a 5-minute timeout per provider agent. If a provider hasn't produced output after 5 minutes, proceed with whatever providers completed. Log any timeouts in the recommendation log. If all providers time out, treat as "red team failed" and proceed to Phase 7 with red team status "failed." For timed-out providers, call `capture-stats.sh --timeout` with the appropriate agent/step values. Increment dispatch counter for each.
 
 #### 6.8.3: CRITICAL and SERIOUS Triage
 
@@ -684,6 +735,8 @@ DO NOT return your full analysis in your response. The file IS the output.
 ")
 ```
 
+After the foreground Agent response, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`general-purpose` step=`"red-team-minor-triage"` model=cached (inherit agent). Increment dispatch counter.
+
 **Step 3b: Present three-category triage to user.** Read the categorization file from `.workflows/plan-research/<plan-stem>/minor-triage-redteam.md`. Present to the user (omit any empty category section):
 
 **AskUserQuestion:**
@@ -771,6 +824,11 @@ If `PLAN_CHANGED=true`, proceed to Phase 6.9. If `PLAN_CHANGED=false`, skip to P
 1. **Output directory:** `.workflows/plan-research/<plan-stem>/readiness/re-check/checks/` (NOT Phase 6.7's `.workflows/plan-research/<plan-stem>/readiness/checks/`). Both passes are preserved for traceability.
 2. **Mode:** Full readiness (same as Phase 6.7 — all 3 mechanical scripts + full 5-pass semantic agent + reviewer + consolidator if issues found). NOT verify-only.
 
+**Stats capture for re-check dispatches:** Use `"-recheck"` step suffixes to distinguish from Phase 6.7:
+- Semantic-checks agent (background Task): agent=`semantic-checks` step=`"semantic-checks-recheck"` model=cached. Increment dispatch counter.
+- plan-readiness-reviewer (foreground Task): agent=`plan-readiness-reviewer` step=`"plan-readiness-reviewer-recheck"` model=cached. Increment dispatch counter.
+- plan-consolidator (foreground Task, if issues found): agent=`plan-consolidator` step=`"plan-consolidator-recheck"` model=cached. Increment dispatch counter.
+
 **Triage:** Same process as Phase 6.7 — present consolidated findings, resolve/defer/dismiss each.
 
 **Deferred severity tracking:** Re-check findings are readiness-type issues (structural/consistency) even though they were caused by red team edits. Track re-check deferred severities under the **readiness** counter, not the red team counter.
@@ -781,6 +839,16 @@ If `PLAN_CHANGED=true`, proceed to Phase 6.9. If `PLAN_CHANGED=false`, skip to P
 3. Proceed to Phase 7 — do NOT re-hash or re-check again
 
 This prevents infinite loops: red team → triage edits → re-check → triage edits → re-check → ... The single re-check pass catches structural regressions from red team fixes. Any remaining issues surface in Phase 7's recommendation as deferred readiness findings.
+
+### 6.95. Stats Validation
+
+If stats capture is enabled, validate entry count against dispatch counter:
+
+```bash
+ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+```
+
+Compare `ENTRY_COUNT` to the dispatch counter. If they don't match, warn: "Stats capture: expected N entries but found M. Missing agents: [list agent names that were dispatched but not captured]." Do not fail the command. Account for conditional dispatches — only count agents that were actually dispatched (external research 0-2, consolidator 0-1, verify 0-2, red team 0-4, re-check 0-3).
 
 ### 7. Post-Generation Options
 

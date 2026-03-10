@@ -39,8 +39,40 @@ If prior runs exist, increment the run number (e.g., if `run-2-manifest.json` ex
 
 ```bash
 mkdir -p .workflows/deepen-plan/<plan-stem>/agents/run-<N>
+mkdir -p .workflows/stats
+PLUGIN_ROOT="plugins/compound-workflows"
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+RUN_ID=$(uuidgen | cut -c1-8)
+STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-deepen-plan-<plan-stem>.yaml"
+CACHED_MODEL="${CLAUDE_CODE_SUBAGENT_MODEL:-opus}"
+echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+echo "RUN_ID=$RUN_ID"
+echo "STATS_FILE=$STATS_FILE"
+echo "CACHED_MODEL=$CACHED_MODEL"
 [[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
 ```
+
+#### Phase 0a: Stats Capture Config Check
+
+Read `compound-workflows.local.md` and check the `stats_capture` key. If `stats_capture` is explicitly set to `false`, skip all stats capture for this run. If missing or any other value, proceed with capture.
+
+If stats capture is enabled, read `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules and `capture-stats.sh` usage. Initialize a dispatch counter at 0.
+
+### Stats Capture
+
+If stats_capture ≠ false in compound-workflows.local.md: after each Agent completion, extract the `<usage>...</usage>` line and call `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" deepen-plan <agent> <step> <model> <stem> null $RUN_ID "<usage-line>"`. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules. Increment the dispatch counter for each capture call.
+
+**Model resolution per dispatch:** Use `sonnet` for agents with `model: sonnet` in their YAML frontmatter or an explicit `model: sonnet` dispatch parameter. Use the cached model value (env var or `opus` default) for `inherit`-model agents.
+
+**Step field:** Use category--agent-name format. Categories: `research` (research agents), `review` (review agents), `synthesis` (synthesis + convergence-advisor), `red-team` (red team providers + MINOR triage), `readiness` (semantic-checks, plan-readiness-reviewer, plan-consolidator).
+
+**Post-dispatch validation (end of command):**
+
+```bash
+ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+```
+
+If ENTRY_COUNT does not match the dispatch counter, warn with the names of missing agents. Do not fail the command.
 
 **Check for interrupted current run:** If `.workflows/deepen-plan/<plan-stem>/manifest.json` exists AND its `status` is NOT `"readiness_complete"`, this may be an interrupted run. Skip to Phase 5 (Recovery).
 
@@ -324,6 +356,18 @@ If a background agent sends a task-notification, note the status but do not proc
 
 After each batch completes, update the corresponding agent entries in `manifest.json` to `"status": "completed"`.
 
+#### Stats Capture — Phase 3 Batched Agent Dispatches
+
+If stats capture is enabled: when you receive each background Agent completion notification containing `<usage>`, extract the `<usage>...</usage>` line and call `capture-stats.sh`. DO NOT call TaskOutput. The completion notification content beyond `<usage>` is not needed — the agent outputs are on disk.
+
+For each agent in the batch, derive the step field from the agent's manifest entry: `<category>--<agent-name>` (e.g., `research--repo-research-analyst`, `review--security-sentinel`, `research--learnings-researcher`). The category comes from the manifest entry's `type` field (`research` or `review`).
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "<agent-name>" "<category>--<agent-name>" "<model>" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Model: use `sonnet` for research agents with `model: sonnet` in their YAML frontmatter. Use `$CACHED_MODEL` for review agents with `model: inherit`. Increment dispatch counter for each capture call.
+
 ### Handling Slow/Failed Agents
 
 - If an agent hasn't produced output after 3 minutes, mark it as `"status": "timeout"` in the manifest and move on.
@@ -388,6 +432,16 @@ Include:
 After writing both files, return a brief summary of the top 5 findings.
 ")
 ```
+
+#### Stats Capture — Synthesis Agent
+
+If stats capture is enabled: the synthesis agent is a foreground `general-purpose` Agent dispatch. Extract `<usage>` from the inline response and call:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "synthesis--plan-synthesizer" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Increment dispatch counter.
 
 **After synthesis, archive the current run tracking files:**
 
@@ -499,6 +553,14 @@ After writing the file, return ONLY a 2-3 sentence summary.
 DO NOT return your full analysis in your response. The file IS the output.
 ")
 ```
+
+**Stats Capture — Synthesis MINOR Triage:** If stats capture is enabled, this is a foreground `general-purpose` Agent dispatch. Extract `<usage>` from the inline response and call:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "synthesis--minor-triage" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Increment dispatch counter.
 
 **Step 4b: Present three-category triage to user.** Read the categorization file from `.workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-synthesis.md`. Present to the user (omit any empty category section):
 
@@ -794,6 +856,25 @@ When all expected red team files exist (up to 3), proceed to Step 2. If a task-n
 
 Update `manifest.json` to include all three red team agent entries with `"status": "completed"` as each finishes.
 
+#### Stats Capture — Red Team Dispatches
+
+If stats capture is enabled: when you receive each background Agent completion notification containing `<usage>`, extract the `<usage>...</usage>` line and call `capture-stats.sh`. DO NOT call TaskOutput.
+
+For the 2 `red-team-relay` agents (Gemini, OpenAI) — model is `sonnet` (dispatch parameter override):
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "red-team-relay" "red-team--gemini" "sonnet" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "red-team-relay" "red-team--openai" "sonnet" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+For the `general-purpose` agent (Claude Opus) — no explicit model, use `CACHED_MODEL`:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "red-team--opus" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Track the number of red team agents actually dispatched (2-3 depending on PAL availability). Increment dispatch counter for each.
+
 ### Step 2: Surface CRITICAL and SERIOUS Items
 
 Read all three red team critiques (or whichever completed). Deduplicate findings across providers — if multiple models flag the same issue, note it once with the strongest severity rating.
@@ -899,6 +980,14 @@ DO NOT return your full analysis in your response. The file IS the output.
 ")
 ```
 
+**Stats Capture — Red Team MINOR Triage:** If stats capture is enabled, this is a foreground `general-purpose` Agent dispatch. Extract `<usage>` from the inline response and call:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "red-team--minor-triage" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Increment dispatch counter.
+
 **Step 3b: Present three-category triage to user.** Read the categorization file from `.workflows/deepen-plan/<stem>/agents/run-<N>/minor-triage-redteam.md`. Present to the user (omit any empty category section):
 
 **AskUserQuestion:**
@@ -987,12 +1076,7 @@ After all synthesis and red team edits are applied, verify the plan is work-read
 Set manifest status to `readiness_checking`.
 
 1. Read config from compound-workflows.md under the `## Plan Readiness` heading. Read flat keys (`plan_readiness_skip_checks`, `plan_readiness_provenance_expiry_days`, `plan_readiness_verification_source_policy`) and construct the parameter objects to pass to agents. Apply skip_checks filtering.
-2. Resolve plugin root for plan-checks scripts:
-   ```bash
-   PLUGIN_ROOT="plugins/compound-workflows"
-   [[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
-   echo "PLUGIN_ROOT=$PLUGIN_ROOT"
-   ```
+2. Use the `$PLUGIN_ROOT` already resolved in Phase 0.
 3. Create output directory: `mkdir -p .workflows/plan-research/<plan-stem>/readiness/run-<N>/checks/`
 4. Run 3 mechanical check scripts in parallel (bash), using the resolved `$PLUGIN_ROOT`:
    - `$PLUGIN_ROOT/agents/workflow/plan-checks/stale-values.sh <plan-path> <output-dir>/checks/stale-values.md`
@@ -1011,9 +1095,36 @@ The readiness run number is the deepen-plan run number, not an independent count
 
 Keep Phase 5.5 focused on dispatch + response handling. The detailed logic lives in the check scripts and agent files.
 
+#### Stats Capture — Readiness Dispatches
+
+If stats capture is enabled: capture stats for each readiness agent dispatch.
+
+**Semantic-checks agent** (background Agent — capture from completion notification):
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "semantic-checks" "readiness--semantic-checks" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+**Plan-readiness-reviewer** (foreground Agent — extract `<usage>` from inline response):
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "plan-readiness-reviewer" "readiness--plan-readiness-reviewer" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Increment dispatch counter for each. If semantic-checks was skipped (all 5 passes in skip_checks), do not increment for it.
+
 **If issues found:**
 
 1. Dispatch plan-consolidator (foreground Agent): `Agent(subagent_type: "compound-workflows:workflow:plan-consolidator", prompt: "You are a plan consolidator applying auto-fixes and presenting guardrailed items. [pass: plan file path, reviewer report path, consolidation report output path]...")`. Pass: plan file path, reviewer report path, consolidation report output path.
+
+   **Stats Capture — Plan Consolidator:** If stats capture is enabled, extract `<usage>` from the inline response:
+
+   ```bash
+   bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "plan-consolidator" "readiness--plan-consolidator" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+   ```
+
+   Increment dispatch counter.
+
 2. Consolidator applies auto-fixes, then presents guardrailed items to user.
 3. After consolidation, re-run checks in `verify-only` mode: re-run all 3 mechanical scripts (type: mechanical), re-dispatch semantic agent with `mode: verify-only` (runs contradictions + underspecification only; skips unresolved-disputes, accretion, external-verification). Dispatch reviewer again.
 4. If verify finds new issues: present remaining findings to user directly.
@@ -1038,7 +1149,7 @@ After readiness checks complete, run convergence analysis to give the user data-
 
 Compute the 5 structured convergence metrics by running the script:
 
-Use the `$PLUGIN_ROOT` resolved in Phase 5.5:
+Use the `$PLUGIN_ROOT` resolved in Phase 0:
 
 ```bash
 bash "$PLUGIN_ROOT/agents/workflow/plan-checks/convergence-signals.sh" \
@@ -1095,6 +1206,18 @@ Check every 15-20 seconds. When the file exists, the agent has completed. Procee
 
 If a task-notification arrives, note the status but verify file existence rather than processing the notification content.
 
+**Stats Capture — Convergence Advisor:** If stats capture is enabled: when the background Agent completion notification arrives containing `<usage>`, extract the `<usage>...</usage>` line and call:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "convergence-advisor" "synthesis--convergence-advisor" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Increment dispatch counter. If the agent times out, record with `--timeout`:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh --timeout "$STATS_FILE" "deepen-plan" "convergence-advisor" "synthesis--convergence-advisor" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID"
+```
+
 ### Step 4: Fallback on failure or timeout
 
 If the convergence-advisor agent fails or times out (3 minutes), write a script-only convergence file using the metrics already captured from Step 1:
@@ -1149,6 +1272,16 @@ After synthesis, red team challenge, plan readiness check, and convergence analy
    - **Revert**: `git checkout <plan_path>`
 
    **Precedence rule:** The convergence recommendation takes precedence for "next step" guidance since it already incorporates readiness as an input signal. If readiness passes clean but convergence recommends another run (e.g., genuine CRITICAL findings remain), the convergence recommendation governs. If no convergence file exists, omit the [Recommended] annotation entirely.
+
+### Post-Dispatch Stats Validation
+
+If stats capture is enabled: after all phases complete, validate the total entry count against the dispatch counter.
+
+```bash
+ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+```
+
+If ENTRY_COUNT does not match the dispatch counter, warn with the names of missing agents (not just the count delta). Example: "Stats capture: expected 22 entries but found 20. Missing agents: review--performance-oracle, readiness--plan-consolidator". Do not fail the command — this is a diagnostic warning only.
 
 ## Rules
 

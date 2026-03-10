@@ -135,6 +135,8 @@ Write `compound-workflows.local.md`:
 ---
 review_agents: [{computed agent list}]
 plan_review_agents: [{computed plan agent list}]
+stats_capture: true
+stats_classify: true
 ---
 
 # Review Context
@@ -146,6 +148,19 @@ Examples:
 - "Our API is public — extra scrutiny on input validation"
 - "Performance-critical: we serve 10k req/s on this endpoint"
 ```
+
+### Migration: Stats Keys
+
+If `compound-workflows.local.md` exists but lacks `stats_capture`, append both stats keys with `true` defaults:
+
+```bash
+if [ -f compound-workflows.local.md ] && ! grep -q 'stats_capture' compound-workflows.local.md; then
+  echo 'stats_capture: true' >> compound-workflows.local.md
+  echo 'stats_classify: true' >> compound-workflows.local.md
+fi
+```
+
+Stats toggles default to enabled — missing keys are treated as enabled by orchestrator commands (Decision 6: "Missing keys = enabled"). The migration adds keys for explicitness.
 
 ## Step 5: Confirm
 

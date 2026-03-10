@@ -126,6 +126,37 @@ If JSON parsing fails for any reason, show the raw summary output rather than er
 
 > **Limitation:** ccusage tracks daily aggregate usage across all sessions, not per-session or per-agent breakdowns.
 
+### Step 7b: Persist ccusage Snapshot
+
+If ccusage data was successfully retrieved and parsed in Step 7 (i.e., ccusage was available AND JSON parsing succeeded), persist a snapshot to the stats directory. If ccusage was not available or parsing failed, skip this entirely — do not error.
+
+```bash
+mkdir -p .workflows/stats
+```
+
+Write the snapshot via atomic append (`cat >>`). Use today's date for the filename:
+
+```bash
+SNAPSHOT_FILE=".workflows/stats/$(date +%Y-%m-%d)-ccusage-snapshot.yaml"
+TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+cat >> "$SNAPSHOT_FILE" <<EOF
+---
+type: ccusage-snapshot
+timestamp: $TIMESTAMP
+total_cost_usd: <total cost from parsed data>
+input_tokens: <total input tokens from parsed data>
+output_tokens: <total output tokens from parsed data>
+EOF
+```
+
+**Core fields (always include):** `type`, `timestamp`, `total_cost_usd`, `input_tokens`, `output_tokens`.
+
+**Extensible fields:** If the parsed ccusage output includes additional data (e.g., `cache_read_tokens`, `cache_write_tokens`, per-model cost breakdown), append them as additional YAML keys in the same `cat >>` block. The schema is extensible — unknown fields are preserved for future analysis.
+
+After writing, add a brief note to the Step 7 output: "ccusage snapshot saved to .workflows/stats/"
+
+If the file already exists (multiple compact-prep runs on the same day), the `cat >>` naturally appends with the `---` YAML document separator — each run becomes a separate document in the same file.
+
 ## Step 8: Queue Post-Compaction Task
 
 If the user provided a post-compaction task in `#$ARGUMENTS`, confirm it back to them clearly:

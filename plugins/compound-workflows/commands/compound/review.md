@@ -33,6 +33,32 @@ Derive a short topic stem from the review target: use branch name for branches (
 mkdir -p .workflows/code-review/<topic-stem>/agents
 ```
 
+### 2.1 Stats Capture Setup
+
+Initialize per-dispatch stats collection. This runs once at command start; all dispatches in this run share the same identifiers.
+
+```bash
+mkdir -p .workflows/stats
+RUN_ID=$(uuidgen | cut -c1-8)
+CACHED_SUBAGENT_MODEL=$(echo $CLAUDE_CODE_SUBAGENT_MODEL)
+echo "RUN_ID=$RUN_ID SUBAGENT_MODEL=${CACHED_SUBAGENT_MODEL:-unset}"
+```
+
+Resolve plugin root for `capture-stats.sh` and schema reference:
+```bash
+PLUGIN_ROOT="plugins/compound-workflows"
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+```
+
+**Config check:** Read `compound-workflows.local.md` and check the `stats_capture` key. If the value is `false`, skip all stats capture for this run (do not read the schema file, do not call `capture-stats.sh`). If the key is missing or any other value, proceed with stats capture.
+
+**Stats file path:** `STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-review-${TOPIC_STEM}.yaml"` — use the topic-stem derived in Step 2 above.
+
+**Model resolution:** For each dispatch, resolve the `model` field using the cached `$CACHED_SUBAGENT_MODEL`. All review agents use `model: inherit`, so: if `$CACHED_SUBAGENT_MODEL` is set, use that; otherwise default to `opus`. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for the full 4-step model resolution algorithm.
+
+**Dispatch counter:** Initialize `DISPATCH_COUNT=0` and a list of dispatched agent names. Increment the counter and append the agent name each time a standard or conditional agent is launched. This tracks the expected entry count for post-dispatch validation.
+
 ### 3. Launch Review Agents (Disk-Persisted)
 
 **CRITICAL: Every agent writes to disk, returns only a summary.**
@@ -82,6 +108,35 @@ ls .workflows/code-review/<topic-stem>/agents/
 Compare against expected agent files. When all files exist (or after 3 minutes for stragglers), proceed.
 
 Mark timed-out agents and move on — don't let one slow agent block everything.
+
+#### Stats Capture (Background Completions)
+
+If stats_capture ≠ false: when you receive a background Task completion notification containing `<usage>`, extract the `<usage>...</usage>` line and call:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" review "<agent-name>" "<agent-name>" "<model>" "$TOPIC_STEM" "null" "$RUN_ID" "<usage-line>"
+```
+
+Where `<agent-name>` is the dispatched agent (e.g., `typescript-reviewer`, `security-sentinel`). Both the `agent` and `step` arguments use the agent name (step = agent role name for review, per schema). The `bead` argument is always `null` for review. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules.
+
+For agents that time out (no completion notification within 3 minutes), call the timeout variant:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh --timeout "$STATS_FILE" review "<agent-name>" "<agent-name>" "<model>" "$TOPIC_STEM" "null" "$RUN_ID"
+```
+
+DO NOT call TaskOutput to retrieve `<usage>` — it arrives automatically in the completion notification.
+
+### 4.1 Post-Dispatch Stats Validation
+
+After all agents have completed (or timed out), if stats capture is enabled, validate that the stats file contains the expected number of entries:
+
+```bash
+ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+echo "Stats validation: $ENTRY_COUNT entries in $STATS_FILE (expected: $DISPATCH_COUNT)"
+```
+
+If `ENTRY_COUNT` does not match `DISPATCH_COUNT`, warn with the names of missing agents — do not fail the command. This is a diagnostic warning only. Compare the list of dispatched agent names against agents with stats entries to identify which agents are missing.
 
 ### 5. Synthesize Findings
 
