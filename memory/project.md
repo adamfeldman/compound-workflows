@@ -54,10 +54,12 @@
 - **v2.0.0** — Workflow quota optimization (bead 22l): 5 research agents → sonnet, red-team-relay agent, stack-based dynamic agent selection, ccusage tracking, convergence advisor named dispatch
 
 ## In-Progress Work
-- **Per-agent token instrumentation (bead voo)** — P1. Task completions already return tokens/tools/duration — just persist them. Also classify complexity per dispatch. Scope: ALL orchestrator commands (work, brainstorm, plan, deepen-plan, review). Next: `/compound:brainstorm`.
+- **Per-agent token instrumentation (bead voo)** — P1. Brainstorm complete. Key decisions: YAML format (not JSONL — LLMs write YAML fluently), per-command-run files in `.workflows/stats/`, 4-tier complexity (rote/mechanical/analytical/judgment) + output_type dimension, classification decoupled from compact-prep as standalone skill reading stats + artifacts + session logs, ccusage snapshots persisted for delta math. Next: `/compound:plan`.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P2. ~80% of work steps are mechanical after well-deepened plans. Depends on voo (need dataset first). Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P1, brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
+- **Evaluate red team in plan (bead nn3)** — P3. Plan can introduce new assumptions not in brainstorm; optional red team step like brainstorm's Yes/Skip gate. Next: think about it.
+- **Check upstream compound-engineering (bead odn)** — P3. Review EveryInc/compound-engineering-plugin for changes since fork.
 
 ## Critical Patterns
 - **Plugin paths must use `find` fallback** — all script/file references in commands/skills need dynamic resolution: try local path, then `find "$HOME/.claude/plugins" ...`. Affects any new command referencing plugin scripts.
