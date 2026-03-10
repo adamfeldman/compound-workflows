@@ -30,6 +30,7 @@
 - **`CLAUDE_CODE_SUBAGENT_MODEL` env var** — only affects agents WITHOUT explicit `model:` field. Does NOT override explicit `model: sonnet` or `model: haiku`. Agents with `model: inherit` or no model field are affected. Discovered during readiness semantic checks (contradicted multiple red team providers who claimed it "overrides all").
 - **worktree-manager.sh uses `cleanup` not `remove`** — `bash worktree-manager.sh cleanup` to remove completed worktrees (interactive y/n).
 - **Worktree blocks `gh pr merge`** — use `gh api repos/.../pulls/N/merge -X PUT -f merge_method=squash` instead.
+- **clink CLIs read repo files independently** — Gemini uses `read_file` tool, Codex uses `cat`. Verified: both browse beyond the brainstorm file passed via `absolute_file_paths` — they reference CLAUDE.md, README.md, command files, directory structure. 100% of red team dispatches used clink, never PAL chat. PAL chat would need `absolute_file_paths` explicitly; CLIs don't.
 - **`claude plugin update` unreliable** — command exits 0 silently but doesn't always pull latest. Fallback: `git -C ~/.claude/plugins/marketplaces/<name> pull origin main` then `/reload-plugins`.
 - **Agent tool background completions include `<usage>`** — identical format to Task completion notifications (`total_tokens`, `tool_uses`, `duration_ms`). Validated 2026-03-09 with 3 dispatches (repo-research-analyst, context-researcher, code-simplicity-reviewer). Switching Task→Agent does not break `<usage>` capture.
 - **Background agents get Write/Edit permission denied** — agents launched with `run_in_background: true` cannot prompt for interactive permission approval. If `.claude/settings.local.json` doesn't pre-allow the Write/Edit paths, agents silently fail to write output files. Fix: add `Write(//.workflows/**)` and `Edit(//.workflows/**)` to project settings. Captured as bead 3k3 to add to `/compound:setup`. User: "in general i want to be hitting 'yes' less often."
@@ -61,10 +62,11 @@
 ## In-Progress Work
 - **Per-agent token instrumentation (bead voo)** — P1, in-progress. Plan complete and work-ready at `docs/plans/2026-03-10-feat-per-agent-token-instrumentation-plan.md`. Full red team (3 providers) + re-check passed clean. Key architecture: `capture-stats.sh` bash script for atomic append, `run_id` field, JSONL deferred to bead ct0. 10 implementation steps. Decision tree recommended work. Next: `/compound:work`.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P2. ~80% of work steps are mechanical after well-deepened plans. Depends on voo (need dataset first). Next: `/compound:brainstorm`.
-- **Red team model selection (bead aig)** — P1, brainstorm complete. Next: `/compound:plan`.
+- **Red team model selection (bead aig)** — P3 (lowered: clink handles model selection, not urgent). Brainstorm complete. Accumulated notes: Opus model bug, ad-hoc red team skill idea, cost configurability, CLI file access verified. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
-- **Compact-prep version check config toggle (bead xzn)** — P2. Add config toggle for version check, disabled by default.
-- **Check upstream compound-engineering (bead odn)** — P3. Review EveryInc/compound-engineering-plugin for changes since fork.
+- **Config toggles for optional compact-prep steps (bead xzn)** — P2. Version check + daily cost summary both optional.
+- **User input gates before automated work (bead 42s)** — P2. Plan command applies fixes before presenting manual review items. Audit all 8 commands + add QA check.
+- **Cheaper-model dispatch audit (bead 5b6)** — P2, blocked on voo. Need per-agent data first.
 
 ## Critical Patterns
 - **Plugin paths must use `find` fallback** — all script/file references in commands/skills need dynamic resolution: try local path, then `find "$HOME/.claude/plugins" ...`. Affects any new command referencing plugin scripts.
@@ -73,5 +75,6 @@
 
 ## Dependency Chain
 - xu2 → voo (work-step-executor needs per-agent stats dataset)
-- aig → h0g (aig now unblocked)
+- 5b6 → voo (cheaper-model audit needs per-agent data)
+- h0g unblocked (removed aig dependency — memory skill doesn't need red team model selection first)
 - 22l(done), 0ob(done), dud(done), 1q3(done), 4gq(done), n2q(done), 3co(done), d2l(done), awx(done)
