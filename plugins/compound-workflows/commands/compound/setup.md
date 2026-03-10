@@ -61,11 +61,11 @@ Use **AskUserQuestion**: "Beads is installed but not initialized in this project
 
 ### CLI Activation (Gemini / Codex)
 
-If Gemini CLI or Codex CLI are detected, they can be used for red team reviews via `clink` — giving each model direct file access in the repo (richer analysis than API-only calls).
+If Gemini CLI or Codex CLI are detected, they can be used for red team reviews via `clink` — giving each model direct file access in the repo. CLIs can independently read files referenced in prompts (verified: Gemini uses `read_file`, Codex uses `cat`). Without CLIs, red team falls back to PAL chat where file contents must be explicitly passed via `absolute_file_paths`.
 
 **First-run setup:** These CLIs sandbox file access per project. If this is the first time using them in this repo, they need a one-time permission grant:
 
-> **Gemini CLI and/or Codex CLI detected.** To use them for red team reviews, each CLI needs one-time permission to read files in this project. Open a terminal in your project root and run:
+> **Gemini CLI and/or Codex CLI detected.** CLIs give red team reviewers direct access to your repo files — they can read plans, brainstorms, and source code independently. Each CLI needs one-time permission. Open a terminal in your project root and run:
 > ```bash
 > gemini    # accept file access when prompted, then exit
 > codex     # accept file access when prompted, then exit
@@ -75,7 +75,7 @@ If Gemini CLI or Codex CLI are detected, they can be used for red team reviews v
 Use **AskUserQuestion**: "Have you activated Gemini/Codex CLI in this repo (or want to skip CLI-based red team)?"
 - **Already activated** — record as available
 - **Will do it now** — pause setup, let user activate, then continue
-- **Skip** — use PAL API calls instead (or Claude-only fallback)
+- **Skip** — use PAL chat instead (file contents must be passed explicitly, models cannot browse repo)
 
 ## Step 1.5: Plugin Version Check
 
