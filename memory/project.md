@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v2.0.0 (plugins/compound-workflows/)
+- Plugin: compound-workflows v2.1.0 (plugins/compound-workflows/)
 - 26 agents, 19 skills, 8 commands
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -32,6 +32,7 @@
 - **Worktree blocks `gh pr merge`** — use `gh api repos/.../pulls/N/merge -X PUT -f merge_method=squash` instead.
 - **`claude plugin update` unreliable** — command exits 0 silently but doesn't always pull latest. Fallback: `git -C ~/.claude/plugins/marketplaces/<name> pull origin main` then `/reload-plugins`.
 - **Agent tool background completions include `<usage>`** — identical format to Task completion notifications (`total_tokens`, `tool_uses`, `duration_ms`). Validated 2026-03-09 with 3 dispatches (repo-research-analyst, context-researcher, code-simplicity-reviewer). Switching Task→Agent does not break `<usage>` capture.
+- **Background agents get Write/Edit permission denied** — agents launched with `run_in_background: true` cannot prompt for interactive permission approval. If `.claude/settings.local.json` doesn't pre-allow the Write/Edit paths, agents silently fail to write output files. Fix: add `Write(//.workflows/**)` and `Edit(//.workflows/**)` to project settings. Captured as bead 3k3 to add to `/compound:setup`. User: "in general i want to be hitting 'yes' less often."
 - **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format
@@ -61,7 +62,7 @@
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P2. ~80% of work steps are mechanical after well-deepened plans. Depends on voo (need dataset first). Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P1, brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
-- **Red team + readiness in plan (bead nn3)** — P1. Add optional red team (3 providers) + post-edit readiness re-check to `/compound:plan`. Goal: make plan self-sufficient so deepen-plan becomes optional. User: "goal is to avoid deepen-plan if possible" / "deepen-plan repeats a lot of work that plan does, wastes tokens." Scope: Phase 6.8 (optional red team), Phase 6.9 (post-edit re-check), decision tree adjustment. Convergence not needed — plan is single-pass, not iterative. Next: `/compound:brainstorm`.
+- **Red team + readiness in plan (bead nn3)** — P1. Brainstorm complete at `docs/brainstorms/2026-03-10-plan-red-team-readiness-brainstorm.md`. 14 key decisions, red-teamed by 3 providers, all findings resolved. Key: Phase 6.8 (optional red team, 7-dimension prompt), Phase 6.9 (full readiness re-check if edits applied, not verify-only), decision tree routes to work when red team clean (CRITICAL/SERIOUS both trigger deepen-plan routing). Deepen-plan keeps its own independent red team. Target: v2.2.0 (MINOR bump). Next: `/compound:plan`.
 - **Compact-prep version check config toggle (bead xzn)** — P2. Add config toggle for version check, disabled by default.
 - **Check upstream compound-engineering (bead odn)** — P3. Review EveryInc/compound-engineering-plugin for changes since fork.
 
