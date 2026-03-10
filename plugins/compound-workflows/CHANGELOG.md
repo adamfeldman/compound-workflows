@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0] - 2026-03-10
+
+### Features
+- **deepen-plan: native agent discovery** — replaced filesystem-based agent/skill discovery (Phase 2) with Claude Code's native subagent_type registry. Eliminates `find ~/.claude/plugins/cache` commands that hit sandbox restrictions and caused bash approval cascades. Agent roster now built by reading available subagent_types from the system prompt, with invariant check (security-sentinel + architecture-strategist always present), hardcoded 19-agent fallback, and deterministic post-discovery validation pipeline (dedup, C1 hallucination check, 30-agent cap).
+- **deepen-plan: user-defined agent support** — non-compound-workflows agents matching `*:review:*` or `*:research:*` are now discovered and included in the roster (e.g., third-party plugin review agents).
+- **deepen-plan: Agent tool dispatch** — migrated all Task dispatches to Agent tool across Phases 3, 4, 4.5, 5, 5.5, and 5.75. Enables `model` parameter override at dispatch time. Phase 5 (Recovery) backward-compatible with pre-migration manifests.
+- **deepen-plan: skills discovery** — plugin-cache skills discovery replaced with system prompt reading. Local skills discovery retained (`find .claude/skills ~/.claude/skills -name "SKILL.md"`). Learnings discovery unchanged.
+- **QA scripts: Agent dispatch detection** — `stale-references.sh` and `context-lean-grep.sh` now detect both `Task` and `Agent(subagent_type:` dispatch patterns, preventing false negatives after Agent migration.
+
 ## [2.0.0] - 2026-03-09
 
 ### Breaking Changes

@@ -87,13 +87,15 @@ for f in "$cmd_dir"/*.md; do
   fi
 done
 
-# --- Check 4: Task dispatches missing OUTPUT INSTRUCTIONS or [disk-write ---
-# For each Task dispatch line, check if OUTPUT INSTRUCTIONS or [disk-write or
+# --- Check 4: Task/Agent dispatches missing OUTPUT INSTRUCTIONS or [disk-write ---
+# For each Task or Agent dispatch line, check if OUTPUT INSTRUCTIONS or [disk-write or
 # "Write your" or "Write to:" appears within the next 50 lines. If not, flag it.
 #
 # A "Task dispatch" is a line where Task is at the start (after optional whitespace),
 # e.g., `Task general-purpose: "` or `Task subagent (run_in_background: true): "`.
-# Lines where "Task" appears mid-sentence (prose descriptions) are skipped.
+# An "Agent dispatch" is a line where Agent( starts (after optional whitespace),
+# e.g., `Agent(subagent_type: "compound-workflows:workflow:red-team-relay", ...)`.
+# Lines where "Task" or "Agent" appear mid-sentence (prose descriptions) are skipped.
 # Lines containing "context-lean-exempt" are skipped (legitimate exceptions).
 
 for f in "$cmd_dir"/*.md; do
@@ -109,46 +111,51 @@ for f in "$cmd_dir"/*.md; do
     echo "$line" >> "$lines_file"
   done < "$f"
 
-  # Now scan for Task dispatches
+  # Now scan for Task and Agent dispatches
   current_line=0
   while IFS= read -r line; do
     current_line=$((current_line + 1))
 
-    # Only match lines where Task starts the line (after optional whitespace)
-    # This skips prose like "Run only the Claude Opus Task subagent"
+    # Detect dispatch type: Task or Agent
+    dispatch_name=""
     if echo "$line" | grep -qE '^\s*Task [a-z][a-z0-9-]+' 2>/dev/null; then
-      task_name="$(echo "$line" | grep -oE 'Task [a-z][a-z0-9-]+' | head -1 || true)"
-      [[ -z "$task_name" ]] && continue
+      dispatch_name="$(echo "$line" | grep -oE 'Task [a-z][a-z0-9-]+' | head -1 || true)"
+    elif echo "$line" | grep -qE '^\s*Agent\(subagent_type:' 2>/dev/null; then
+      # Extract subagent_type value for display
+      local_type="$(echo "$line" | grep -oE 'subagent_type: *"[^"]*"' | sed 's/subagent_type: *"//;s/"$//' | head -1 || true)"
+      dispatch_name="Agent(${local_type:-unknown})"
+    fi
 
-      # Skip lines marked as legitimate exceptions
-      if echo "$line" | grep -qF 'context-lean-exempt' 2>/dev/null; then
-        continue
-      fi
+    [[ -z "$dispatch_name" ]] && continue
 
-      # Look ahead 50 lines for OUTPUT INSTRUCTIONS, [disk-write, or Write your/to:
-      # (MINOR triage Task blocks can be 40+ lines due to categorization instructions)
-      found_output=false
-      end_line=$((current_line + 50))
-      if [[ "$end_line" -gt "$line_count" ]]; then
-        end_line="$line_count"
-      fi
+    # Skip lines marked as legitimate exceptions
+    if echo "$line" | grep -qF 'context-lean-exempt' 2>/dev/null; then
+      continue
+    fi
 
-      # Read the relevant window from the lines file
-      window="$(sed -n "${current_line},${end_line}p" "$lines_file" || true)"
-      if echo "$window" | grep -qE 'OUTPUT INSTRUCTIONS' 2>/dev/null; then
-        found_output=true
-      fi
-      if echo "$window" | grep -qE '\[disk-write' 2>/dev/null; then
-        found_output=true
-      fi
-      if echo "$window" | grep -qE 'Write (your|to:)' 2>/dev/null; then
-        found_output=true
-      fi
+    # Look ahead 50 lines for OUTPUT INSTRUCTIONS, [disk-write, or Write your/to:
+    # (MINOR triage Task blocks can be 40+ lines due to categorization instructions)
+    found_output=false
+    end_line=$((current_line + 50))
+    if [[ "$end_line" -gt "$line_count" ]]; then
+      end_line="$line_count"
+    fi
 
-      if [[ "$found_output" = false ]]; then
-        add_finding "SERIOUS" "$f" "$current_line" "task-missing-output-instructions" \
-          "$task_name dispatch has no OUTPUT INSTRUCTIONS or disk-write within 50 lines"
-      fi
+    # Read the relevant window from the lines file
+    window="$(sed -n "${current_line},${end_line}p" "$lines_file" || true)"
+    if echo "$window" | grep -qE 'OUTPUT INSTRUCTIONS' 2>/dev/null; then
+      found_output=true
+    fi
+    if echo "$window" | grep -qE '\[disk-write' 2>/dev/null; then
+      found_output=true
+    fi
+    if echo "$window" | grep -qE 'Write (your|to:)' 2>/dev/null; then
+      found_output=true
+    fi
+
+    if [[ "$found_output" = false ]]; then
+      add_finding "SERIOUS" "$f" "$current_line" "dispatch-missing-output-instructions" \
+        "$dispatch_name dispatch has no OUTPUT INSTRUCTIONS or disk-write within 50 lines"
     fi
   done < "$lines_file"
 

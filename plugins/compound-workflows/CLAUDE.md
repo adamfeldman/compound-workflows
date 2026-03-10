@@ -88,7 +88,7 @@ All 26 agents with their categories, command references, and model configuration
 
 **Model column key:** `haiku` = cost-optimized for well-scoped tasks (Haiku model). `sonnet` = balanced cost/quality for research and relay tasks (Sonnet model). `inherit` = uses the default model from the calling context. Override in agent YAML frontmatter if needed.
 
-**Standalone agents** are not dispatched by any command directly but are available for manual Task dispatch or dynamic discovery by deepen-plan.
+**Standalone agents** are not dispatched by any command directly but are available for manual dispatch or dynamic discovery by deepen-plan.
 
 All agents expect callers to include OUTPUT INSTRUCTIONS per the `disk-persist-agents` skill. See Context-Lean Convention below.
 
