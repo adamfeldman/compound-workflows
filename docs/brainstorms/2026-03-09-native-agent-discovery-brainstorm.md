@@ -3,7 +3,7 @@ title: "Native Agent Discovery for deepen-plan"
 type: feat
 status: active
 date: 2026-03-09
-bead: null
+bead: wgl
 ---
 
 # Native Agent Discovery for deepen-plan
