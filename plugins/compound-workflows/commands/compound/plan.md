@@ -20,6 +20,38 @@ Transform feature descriptions into well-structured plan files. Research agents 
 
 Do not proceed until you have a clear feature description from the user.
 
+### 0a. Existing Plan Check
+
+Before brainstorm lookup or idea refinement, check if a plan already exists for this feature:
+
+```bash
+ls -la docs/plans/*.md 2>/dev/null | head -20
+```
+
+Scan filenames and (if ambiguous) YAML frontmatter titles for semantic overlap with the feature description. Ignore files in `docs/plans/archive/`.
+
+**If a matching plan exists:**
+
+Use **AskUserQuestion**:
+
+"Found an existing plan that matches this feature: `[filename]` ([status from frontmatter, e.g. 'active', 'completed']). What would you like to do?"
+
+1. **Archive and re-plan** — Move the existing plan to `docs/plans/archive/` and create a fresh plan
+2. **Run `/compound:deepen-plan` instead** — Enhance the existing plan with parallel research agents
+3. **Continue anyway** — Create a new plan alongside the existing one (e.g., different approach)
+
+- If **Archive and re-plan**: Archive the plan and clear stale research artifacts:
+  ```bash
+  mkdir -p docs/plans/archive && mv <existing-plan> docs/plans/archive/
+  # Clear stale research — tied to the archived plan, would confuse new research
+  rm -rf .workflows/plan-research/<plan-stem>/
+  ```
+  Announce: "Archived [filename] and cleared stale research. Proceeding with fresh plan." Continue to Step 0.
+- If **Deepen-plan**: Stop planning. Tell the user: "Run `/compound:deepen-plan` to enhance the existing plan." Do not proceed further.
+- If **Continue anyway**: Proceed to Step 0 as normal. The new plan will have today's date, avoiding filename collision.
+
+**If no matching plan exists:** Proceed to Step 0.
+
 ### 0. Idea Refinement
 
 **Check for brainstorm output first:**
