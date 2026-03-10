@@ -119,4 +119,7 @@ Plugin files (commands, agents, skills) are prose, not code — git cannot meani
 - Config is split: `compound-workflows.md` (committed) + `compound-workflows.local.md` (gitignored)
 - No git remote configured; local-only development
 - Only commit files you changed in the current session. If untracked or modified files from prior sessions are present, offer to commit them separately (they may have been left behind) — the goal is a clean working tree at session end
+- **Suggest squash before push** — when multiple commits on the same topic accumulate during a session, suggest squashing to the user before pushing. Never auto-squash. Wait for the user to say the change is done before committing — don't commit mid-iteration while still refining.
 - Do not use auto memory (`~/.claude/projects/.../memory/`) — use repo-level memory instead: `memory/` (committed, project knowledge) + `.claude/memory/` (gitignored, private preferences)
+- **Always add `--estimate` when creating beads** — estimate total remaining workflow time in minutes (not just the next step). See `memory/estimation-heuristics.md` for per-phase timing data.
+- **Show estimates when listing beads** — when the user asks to see open beads, include the estimate alongside each bead for context (e.g., `nn3 P1 90m — Evaluate red team step in plan`).

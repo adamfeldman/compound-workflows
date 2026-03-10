@@ -118,6 +118,8 @@ Check for all three field names when extracting cost data.
 
 **Display format:** "Today's cost: $X.XX (input: Nk tokens, output: Mk tokens)" — include per-model breakdown if `--breakdown` data is available.
 
+**Sonnet savings estimate:** If breakdown data shows both Opus and Sonnet usage, calculate estimated savings: `sonnet_cost * 4` (what those tokens would have cost on Opus minus what they actually cost on Sonnet — Sonnet is ~5x cheaper, so savings = sonnet_cost * 4). Calculate percentage: `savings / (total_cost + savings) * 100`. Display as: "Estimated Sonnet savings: ~$X.XX (N% — Sonnet tokens would have cost ~$Y.YY on Opus)".
+
 If JSON parsing fails for any reason, show the raw summary output rather than erroring.
 
 **If ccusage is not available:** "ccusage not installed — skip token tracking. Install: `npm install -g ccusage`"
@@ -145,7 +147,7 @@ Ready to compact.
 - Compound: [done / run NOW before compacting / nothing to compound]
 - Git: [clean / uncommitted changes — user declined commit]
 - Versions: [all match / updated plugin / released vX.Y.Z / user declined]
-- Cost: [today $X.XX / ccusage not installed / parse error — raw output shown]
+- Cost: [today $X.XX, saved ~$Y.YY via Sonnet / ccusage not installed / parse error — raw output shown]
 - After compaction: [task description / general resume]
 
 Run /compact when ready.
