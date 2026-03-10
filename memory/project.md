@@ -54,7 +54,7 @@
 - **v2.0.0** — Workflow quota optimization (bead 22l): 5 research agents → sonnet, red-team-relay agent, stack-based dynamic agent selection, ccusage tracking, convergence advisor named dispatch
 
 ## In-Progress Work
-- **Per-agent token instrumentation (bead voo)** — P1. Brainstorm complete. Key decisions: YAML format (not JSONL — LLMs write YAML fluently), per-command-run files in `.workflows/stats/`, 4-tier complexity (rote/mechanical/analytical/judgment) + output_type dimension, classification decoupled from compact-prep as standalone skill reading stats + artifacts + session logs, ccusage snapshots persisted for delta math. Next: `/compound:plan`.
+- **Per-agent token instrumentation (bead voo)** — P1. Plan complete at `docs/plans/2026-03-09-feat-per-agent-token-instrumentation-plan.md`. 10 implementation steps: settings, stats-capture reference file, 5 command instrumentations (work→brainstorm→plan→review→deepen-plan), compact-prep ccusage snapshot, classify-stats skill (`/compound-workflows:classify-stats` — command dir at capacity). Stop-gate between Steps 3-4 (verify background `<usage>` before instrumenting background commands). Readiness checks: 6 auto-fixes applied (underspecification), verify clean. Next: `/compound:deepen-plan`.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P2. ~80% of work steps are mechanical after well-deepened plans. Depends on voo (need dataset first). Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P1, brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
