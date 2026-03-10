@@ -1,7 +1,7 @@
 ---
 title: "Native Agent Discovery for deepen-plan"
 type: feat
-status: active
+status: completed
 date: 2026-03-09
 origin: docs/brainstorms/2026-03-09-native-agent-discovery-brainstorm.md
 bead: wgl
@@ -40,11 +40,11 @@ Replace filesystem-based agent discovery with subagent_type registry reading. Th
 
 **New (replace with):**
 
-- [ ] Replace Step 2c with the following instruction prose for the command prompt:
+- [x] Replace Step 2c with the following instruction prose for the command prompt:
   > "Read the list of available subagent_types from your system prompt. For each entry whose subagent_type contains `:review:` or `:research:` in its path, extract: the agent name (last colon-delimited segment, e.g., `security-sentinel` from `compound-workflows:review:security-sentinel`) and the description (from the subagent_type listing). Skip entries containing `:workflow:`, `:design:`, or `:docs:` in their path. Build the agent roster from these filtered entries."
-- [ ] The instruction must be explicit about what to look for — LLMs do not automatically enumerate subagent_types unless prompted (specflow Gap 2)
-- [ ] For each discovered agent, extract: name (last segment after `:`) and description (from system prompt)
-- [ ] Write discoveries into manifest.json `agents` array with format:
+- [x] The instruction must be explicit about what to look for — LLMs do not automatically enumerate subagent_types unless prompted (specflow Gap 2)
+- [x] For each discovered agent, extract: name (last segment after `:`) and description (from system prompt)
+- [x] Write discoveries into manifest.json `agents` array with format:
   ```json
   {
     "name": "security-sentinel",
@@ -57,12 +57,12 @@ Replace filesystem-based agent discovery with subagent_type registry reading. Th
     "status": "pending"
   }
   ```
-- [ ] Add `subagent_type` field to manifest entries (new — needed for Agent tool dispatch in Phase 3)
+- [x] Add `subagent_type` field to manifest entries (new — needed for Agent tool dispatch in Phase 3)
 
 **Invariant check (hardcoded fallback):**
 
-- [ ] After dynamic discovery, verify that the roster includes at minimum: `security-sentinel` and `architecture-strategist`
-- [ ] If any invariant agent is missing, merge with a hardcoded fallback list of compound-workflows core agents:
+- [x] After dynamic discovery, verify that the roster includes at minimum: `security-sentinel` and `architecture-strategist`
+- [x] If any invariant agent is missing, merge with a hardcoded fallback list of compound-workflows core agents:
   ```
   compound-workflows:review:security-sentinel
   compound-workflows:review:architecture-strategist
@@ -84,26 +84,26 @@ Replace filesystem-based agent discovery with subagent_type registry reading. Th
   compound-workflows:research:learnings-researcher
   compound-workflows:research:git-history-analyzer
   ```
-- [ ] For fallback agents, set description from hardcoded defaults (sourced from current CLAUDE.md Agent Registry descriptions)
-- [ ] Log to user: "Dynamic discovery found N agents. Invariant check: [passed / merged M agents from fallback]."
+- [x] For fallback agents, set description from hardcoded defaults (sourced from current CLAUDE.md Agent Registry descriptions)
+- [x] Log to user: "Dynamic discovery found N agents. Invariant check: [passed / merged M agents from fallback]."
 
 **User-defined agent support:**
 
-- [ ] Also include subagent_types that do NOT have a `compound-workflows:` prefix but match `*:review:*` or `*:research:*` patterns — these are user-defined agents (e.g., from `.claude/agents/review/go-reviewer.md`)
-- [ ] User-defined agents are NOT in the invariant check — their absence is expected
-- [ ] Discovery guardrails: compound-workflows agents take priority in name conflicts. The 30-agent cap is enforced deterministically after the manifest is written (not by the LLM — LLMs count unreliably). After the deterministic post-discovery validation writes the final manifest, count entries and truncate at 30 if exceeded (compound-workflows agents kept first, user-defined agents trimmed). (Red team S6 — Opus: cap removal creates unbounded resource risk. Deterministic enforcement is cheap insurance.)
-- [ ] Deduplication: compound-workflows agents always take priority in name conflicts. If a user-defined agent collides, drop it with a log note: "Skipped user-defined <name> (compound-workflows version takes priority)." Better extensibility (user overrides) can be added later. (Red team S4 — Opus flagged silent dropping as contradicting extensibility; disagreed: simpler to always prioritize compound-workflows now.)
+- [x] Also include subagent_types that do NOT have a `compound-workflows:` prefix but match `*:review:*` or `*:research:*` patterns — these are user-defined agents (e.g., from `.claude/agents/review/go-reviewer.md`)
+- [x] User-defined agents are NOT in the invariant check — their absence is expected
+- [x] Discovery guardrails: compound-workflows agents take priority in name conflicts. The 30-agent cap is enforced deterministically after the manifest is written (not by the LLM — LLMs count unreliably). After the deterministic post-discovery validation writes the final manifest, count entries and truncate at 30 if exceeded (compound-workflows agents kept first, user-defined agents trimmed). (Red team S6 — Opus: cap removal creates unbounded resource risk. Deterministic enforcement is cheap insurance.)
+- [x] Deduplication: compound-workflows agents always take priority in name conflicts. If a user-defined agent collides, drop it with a log note: "Skipped user-defined <name> (compound-workflows version takes priority)." Better extensibility (user overrides) can be added later. (Red team S4 — Opus flagged silent dropping as contradicting extensibility; disagreed: simpler to always prioritize compound-workflows now.)
 
 **Invariant check matching logic:**
 
-- [ ] Match on agent name portion only (last segment after `:`), not full subagent_type string. E.g., check for `security-sentinel` in the roster regardless of prefix (`compound-workflows:review:security-sentinel` or `compound:review:security-sentinel`)
-- [ ] Merge semantics: add-missing-only (union). If dynamic discovery found 12 agents but missed security-sentinel, add only security-sentinel from the fallback list. Preserve all dynamically-discovered agents including user-defined ones. Never replace the entire roster.
-- [ ] If both invariant agents are missing AND the total roster is < 5, treat as total failure — replace with the full fallback list (19 agents). (Red team S3 — OpenAI + Opus flagged invariant as too weak for partial failure; disagreed: the C1 deterministic post-discovery validation already catches hallucinated/invalid names, making the invariant check a secondary defense.)
+- [x] Match on agent name portion only (last segment after `:`), not full subagent_type string. E.g., check for `security-sentinel` in the roster regardless of prefix (`compound-workflows:review:security-sentinel` or `compound:review:security-sentinel`)
+- [x] Merge semantics: add-missing-only (union). If dynamic discovery found 12 agents but missed security-sentinel, add only security-sentinel from the fallback list. Preserve all dynamically-discovered agents including user-defined ones. Never replace the entire roster.
+- [x] If both invariant agents are missing AND the total roster is < 5, treat as total failure — replace with the full fallback list (19 agents). (Red team S3 — OpenAI + Opus flagged invariant as too weak for partial failure; disagreed: the C1 deterministic post-discovery validation already catches hallucinated/invalid names, making the invariant check a secondary defense.)
 
 **File path derivation from subagent_type:**
 
-- [ ] Convert subagent_type to output file path: extract category (second segment) and name (third segment), format as `<category>--<name>.md`. E.g., `compound-workflows:review:security-sentinel` → `review--security-sentinel.md`
-- [ ] For user-defined agents without the standard 3-segment format, use `review--<full-name>.md` (assume review category for `*:review:*` matched agents)
+- [x] Convert subagent_type to output file path: extract category (second segment) and name (third segment), format as `<category>--<name>.md`. E.g., `compound-workflows:review:security-sentinel` → `review--security-sentinel.md`
+- [x] For user-defined agents without the standard 3-segment format, use `review--<full-name>.md` (assume review category for `*:review:*` matched agents)
 
 **Deterministic post-discovery validation (red team C1 — all 3 providers):**
 
@@ -117,8 +117,8 @@ After the LLM writes the initial manifest, run the following three-step determin
 2. **C1 validation** — Read each agent's `name` and `subagent_type` from manifest.json. Any discovered name that: (a) has a `compound-workflows:` prefix in its `subagent_type` AND (b) does NOT appear in the hardcoded fallback list (19 known agents) → flag as potentially hallucinated and drop with warning: "Dropped unknown compound-workflows agent: <name> (not in known agent registry)". User-defined agents (non-`compound-workflows:` prefix) are exempt — they are expected to be unknown.
 3. **30-agent cap** — Count remaining manifest entries. If total > 30, keep all compound-workflows entries first, then truncate user-defined entries (alphabetically) to fit within 30. Log if truncated.
 
-- [ ] Implement this pipeline as a bash block after the LLM discovery write (not by the LLM — LLMs count and deduplicate unreliably)
-- [ ] This catches the undetectable failure mode: hallucinated names that pass both the invariant check and count threshold
+- [x] Implement this pipeline as a bash block after the LLM discovery write (not by the LLM — LLMs count and deduplicate unreliably)
+- [x] This catches the undetectable failure mode: hallucinated names that pass both the invariant check and count threshold
 
 #### Step 1b: Skills Discovery (replaces current Step 2a)
 
@@ -128,12 +128,12 @@ Replace filesystem-based skills discovery with system prompt reading.
 
 **New (replace with):**
 
-- [ ] Replace Step 2a with the following instruction prose:
+- [x] Replace Step 2a with the following instruction prose:
   > "Read the list of available skills from your system prompt. Skills appear in a separate section from subagent_types — they are listed with names and descriptions (e.g., 'compound-workflows:brainstorming', 'compound-workflows:disk-persist-agents'). For each skill, check if its name or description overlaps with the plan's technologies or domain areas. Include matched skills in the manifest."
-- [ ] Skills are NOT subagent_types — they appear in a different system prompt section (the available skills list, not the subagent_type registry). The filter pattern is name/description keyword matching, not `:review:`/`:research:` pattern matching.
-- [ ] For matched skills, add manifest entries with type `"skill"` and fields: `name`, `description`, `type: "skill"`, `file: "agents/run-<N>/skill--<name>.md"`, `status: "pending"`. No `subagent_type` field for skills (they are dispatched differently).
-- [ ] Retain local skills discovery using `find .claude/skills ~/.claude/skills -name "SKILL.md" 2>/dev/null` for project-local skills — `ls` alone won't recurse into skill subdirectories (skills are stored as `skills/my-skill/SKILL.md`). These search the project/user directory (not plugin cache) and don't hit sandbox issues. (Red team S2 — Gemini: `ls` doesn't recurse.)
-- [ ] Remove only the `find ~/.claude/plugins/cache -type d -name "skills"` line
+- [x] Skills are NOT subagent_types — they appear in a different system prompt section (the available skills list, not the subagent_type registry). The filter pattern is name/description keyword matching, not `:review:`/`:research:` pattern matching.
+- [x] For matched skills, add manifest entries with type `"skill"` and fields: `name`, `description`, `type: "skill"`, `file: "agents/run-<N>/skill--<name>.md"`, `status: "pending"`. No `subagent_type` field for skills (they are dispatched differently).
+- [x] Retain local skills discovery using `find .claude/skills ~/.claude/skills -name "SKILL.md" 2>/dev/null` for project-local skills — `ls` alone won't recurse into skill subdirectories (skills are stored as `skills/my-skill/SKILL.md`). These search the project/user directory (not plugin cache) and don't hit sandbox issues. (Red team S2 — Gemini: `ls` doesn't recurse.)
+- [x] Remove only the `find ~/.claude/plugins/cache -type d -name "skills"` line
 
 **Note:** Learnings discovery (Step 2b: `find docs/solutions/ -name "*.md"`) stays as-is — it searches the project directory, not the plugin cache, and doesn't hit sandbox issues (see brainstorm Decision 5).
 
@@ -141,9 +141,9 @@ Replace filesystem-based skills discovery with system prompt reading.
 
 Add a conditional dispatch check in the Phase 5 recovery flow:
 
-- [ ] When reading a manifest entry for re-dispatch: if the entry has a `subagent_type` field, dispatch via Agent tool using that value. If not (pre-migration manifest), dispatch via Task using the `name` field with inline role description (old syntax). This ensures runs started before the migration can still be recovered.
-- [ ] When dispatching via Agent tool, filter the `model` field: if `model` is `"inherit"` or absent, omit the `model` parameter entirely (let the Agent tool use the agent's frontmatter setting). Only pass `model` when it is a valid Agent tool enum value (`"sonnet"`, `"opus"`, `"haiku"`). (Red team S1 — Gemini + Opus: literal `"inherit"` is not a valid Agent tool model value and will cause dispatch errors.)
-- [ ] If a pre-migration manifest entry lacks a `description` field, use the hardcoded fallback descriptions from Step 1a (sourced from CLAUDE.md Agent Registry). (Red team S7 — Opus: old manifests may lack description; Recovery needs it for inline role descriptions.)
+- [x] When reading a manifest entry for re-dispatch: if the entry has a `subagent_type` field, dispatch via Agent tool using that value. If not (pre-migration manifest), dispatch via Task using the `name` field with inline role description (old syntax). This ensures runs started before the migration can still be recovered.
+- [x] When dispatching via Agent tool, filter the `model` field: if `model` is `"inherit"` or absent, omit the `model` parameter entirely (let the Agent tool use the agent's frontmatter setting). Only pass `model` when it is a valid Agent tool enum value (`"sonnet"`, `"opus"`, `"haiku"`). (Red team S1 — Gemini + Opus: literal `"inherit"` is not a valid Agent tool model value and will cause dispatch errors.)
+- [x] If a pre-migration manifest entry lacks a `description` field, use the hardcoded fallback descriptions from Step 1a (sourced from CLAUDE.md Agent Registry). (Red team S7 — Opus: old manifests may lack description; Recovery needs it for inline role descriptions.)
 
 #### Step 1c: Stack Filtering (Step 2e unchanged)
 
@@ -153,11 +153,11 @@ Stack-based relevance assessment stays exactly as-is. The filtering logic is app
 
 The manifest.json agent entry format gains new fields to support subagent_type dispatch.
 
-- [ ] Add `subagent_type` field (string, e.g., `"compound-workflows:review:security-sentinel"`) — needed for Agent tool dispatch
-- [ ] Add `source` field: `"dynamic"` for D-discovered, `"fallback"` for A-merged, `"user-defined"` for non-compound-workflows agents — replaces `source_plugin` which was filesystem-specific
-- [ ] Add `model` field: the model to pass to Agent dispatch (e.g., `"sonnet"`, `"inherit"`, `"opus"`)
-- [ ] Keep existing fields: `name`, `description`, `type`, `file`, `status`
-- [ ] Remove `source_plugin` field — replaced by `source` (no longer relevant when discovery isn't filesystem-based)
+- [x] Add `subagent_type` field (string, e.g., `"compound-workflows:review:security-sentinel"`) — needed for Agent tool dispatch
+- [x] Add `source` field: `"dynamic"` for D-discovered, `"fallback"` for A-merged, `"user-defined"` for non-compound-workflows agents — replaces `source_plugin` which was filesystem-specific
+- [x] Add `model` field: the model to pass to Agent dispatch (e.g., `"sonnet"`, `"inherit"`, `"opus"`)
+- [x] Keep existing fields: `name`, `description`, `type`, `file`, `status`
+- [x] Remove `source_plugin` field — replaced by `source` (no longer relevant when discovery isn't filesystem-based)
 
 ### Step 2: Update All Task Dispatches to Agent Tool
 
@@ -167,7 +167,7 @@ Change every `Task` dispatch in deepen-plan.md to `Agent` with `subagent_type` p
 
 #### Phase 3 dispatches (review/research agents):
 
-- [ ] Change dispatch syntax from `Task [agent-name]` to `Agent(subagent_type: "<value from manifest>", ...)`. Phase 3 iterates over manifest.json entries at runtime — the subagent_type value comes from each entry's `subagent_type` field. The example below shows a hardcoded value for illustration only; the actual command text reads from the manifest:
+- [x] Change dispatch syntax from `Task [agent-name]` to `Agent(subagent_type: "<value from manifest>", ...)`. Phase 3 iterates over manifest.json entries at runtime — the subagent_type value comes from each entry's `subagent_type` field. The example below shows a hardcoded value for illustration only; the actual command text reads from the manifest:
   ```
   Agent(subagent_type: "compound-workflows:review:security-sentinel", run_in_background: true, prompt: "
   You are a security auditor focused on vulnerabilities and OWASP compliance...
@@ -175,28 +175,28 @@ Change every `Task` dispatch in deepen-plan.md to `Agent` with `subagent_type` p
   ...")
   ```
   (Note: `model` parameter omitted for review agents with `model: inherit` in frontmatter — see rule below.)
-- [ ] For research agents with `model: sonnet` in frontmatter: pass `model: "sonnet"` explicitly in the Agent dispatch
-- [ ] For review agents with `model: inherit` in frontmatter: omit the `model` parameter — let the Agent tool use the agent's frontmatter setting (consistent with brainstorm Decision 4: model override is opt-in for cost optimization, not forced). Cost optimization experiments (e.g., running review agents at sonnet) are voo scope — need per-agent stats dataset first. (Red team M5 — Opus.)
-- [ ] Inline role descriptions MUST still be included in the prompt — they give context even with `subagent_type` routing
+- [x] For research agents with `model: sonnet` in frontmatter: pass `model: "sonnet"` explicitly in the Agent dispatch
+- [x] For review agents with `model: inherit` in frontmatter: omit the `model` parameter — let the Agent tool use the agent's frontmatter setting (consistent with brainstorm Decision 4: model override is opt-in for cost optimization, not forced). Cost optimization experiments (e.g., running review agents at sonnet) are voo scope — need per-agent stats dataset first. (Red team M5 — Opus.)
+- [x] Inline role descriptions MUST still be included in the prompt — they give context even with `subagent_type` routing
 
 #### Phase 4 dispatches (synthesis, MINOR triage):
 
-- [ ] Change `Task general-purpose` synthesis dispatch to `Agent(subagent_type: "general-purpose", prompt: "...")`
-- [ ] Change `Task general-purpose` MINOR triage dispatch similarly
+- [x] Change `Task general-purpose` synthesis dispatch to `Agent(subagent_type: "general-purpose", prompt: "...")`
+- [x] Change `Task general-purpose` MINOR triage dispatch similarly
 
 #### Phase 4.5 dispatches (red team):
 
-- [ ] Change `Task red-team-relay (run_in_background: true)` to `Agent(subagent_type: "compound-workflows:workflow:red-team-relay", model: "sonnet", run_in_background: true, prompt: "...")`
-- [ ] Change `Task general-purpose (run_in_background: true)` (Opus red team) to `Agent(subagent_type: "general-purpose", run_in_background: true, prompt: "...")`
-- [ ] Keep all other red team logic unchanged (runtime detection, 3-provider parallel, MCP wrapper pattern preserved — both clink AND chat fallback paths stay wrapped)
+- [x] Change `Task red-team-relay (run_in_background: true)` to `Agent(subagent_type: "compound-workflows:workflow:red-team-relay", model: "sonnet", run_in_background: true, prompt: "...")`
+- [x] Change `Task general-purpose (run_in_background: true)` (Opus red team) to `Agent(subagent_type: "general-purpose", run_in_background: true, prompt: "...")`
+- [x] Keep all other red team logic unchanged (runtime detection, 3-provider parallel, MCP wrapper pattern preserved — both clink AND chat fallback paths stay wrapped)
 
 #### Phase 5.75/6 dispatches (readiness):
 
-- [ ] Change `Task convergence-advisor` to `Agent(subagent_type: "compound-workflows:workflow:convergence-advisor", ...)`
-- [ ] Change `Task plan-readiness-reviewer` to `Agent(subagent_type: "compound-workflows:workflow:plan-readiness-reviewer", ...)`
-- [ ] Change `Task plan-consolidator` to `Agent(subagent_type: "compound-workflows:workflow:plan-consolidator", ...)`
-- [ ] Change semantic checks dispatch to use Agent tool
-- [ ] Keep foreground vs background dispatch decisions unchanged — only the tool syntax changes
+- [x] Change `Task convergence-advisor` to `Agent(subagent_type: "compound-workflows:workflow:convergence-advisor", ...)`
+- [x] Change `Task plan-readiness-reviewer` to `Agent(subagent_type: "compound-workflows:workflow:plan-readiness-reviewer", ...)`
+- [x] Change `Task plan-consolidator` to `Agent(subagent_type: "compound-workflows:workflow:plan-consolidator", ...)`
+- [x] Change semantic checks dispatch to use Agent tool
+- [x] Keep foreground vs background dispatch decisions unchanged — only the tool syntax changes
 
 **Context-lean convention preserved:** Agent dispatches include OUTPUT INSTRUCTIONS blocks identical to current Task dispatches. The context-lean pattern is tool-agnostic. `context-lean-grep.sh` must be updated if it checks for `Task` keyword specifically — verify during QA (Step 4).
 
@@ -204,16 +204,16 @@ Change every `Task` dispatch in deepen-plan.md to `Agent` with `subagent_type` p
 
 ### Step 3: Prefix and Syntax Validation (Run BEFORE writing Phase 2)
 
-- [ ] **Run this step before Step 1's rewrite** — the prefix must be confirmed before hardcoding it throughout the Phase 2 block. A post-hoc find-and-replace would contradict the single-pass rewrite principle. (Red team M4 — Opus: reorder to validate first.)
-- [ ] Validate both the prefix format AND the dispatch syntax:
+- [x] **Run this step before Step 1's rewrite** — the prefix must be confirmed before hardcoding it throughout the Phase 2 block. A post-hoc find-and-replace would contradict the single-pass rewrite principle. (Red team M4 — Opus: reorder to validate first.)
+- [x] Validate both the prefix format AND the dispatch syntax:
   1. Dispatch a trivial Agent call to confirm the syntax works: `Agent(subagent_type: "compound-workflows:review:code-simplicity-reviewer", model: "haiku", run_in_background: true, prompt: "Return 'ok'")`
   2. If `compound-workflows:` fails, try `compound:` prefix
   3. Confirm `run_in_background: true` produces an async completion notification (not a blocking call)
   4. Confirm `<usage>` appears in the completion notification
-- [ ] If the prefix must change, do a find-and-replace across the entire Phase 2 rewrite block (including the hardcoded fallback list in Step 1a)
-- [ ] Add a defensive note in the command text: "Use `compound-workflows:` prefix for subagent_type. If dispatch fails with unknown subagent_type, try `compound:` prefix."
-- [ ] Validate skills discovery from system prompt: confirm skills appear in a structured listing with names and descriptions. If skills are not in the system prompt or lack descriptions, keep `find` for plugin-cache skills discovery (remove only the agent `find`, not the skills `find`). (Red team S2 — Opus: skills format unvalidated.)
-- [ ] Confirm that Agent tool error handling matches Task: 3-minute timeout, `status: "timeout"` or `status: "failed"` manifest values. If Agent has different failure modes, document them in the Phase 2 rewrite's Phase 3 dispatch section (Step 2 > Phase 3 dispatches).
+- [x] If the prefix must change, do a find-and-replace across the entire Phase 2 rewrite block (including the hardcoded fallback list in Step 1a)
+- [x] Add a defensive note in the command text: "Use `compound-workflows:` prefix for subagent_type. If dispatch fails with unknown subagent_type, try `compound:` prefix."
+- [x] Validate skills discovery from system prompt: confirm skills appear in a structured listing with names and descriptions. If skills are not in the system prompt or lack descriptions, keep `find` for plugin-cache skills discovery (remove only the agent `find`, not the skills `find`). (Red team S2 — Opus: skills format unvalidated.)
+- [x] Confirm that Agent tool error handling matches Task: 3-minute timeout, `status: "timeout"` or `status: "failed"` manifest values. If Agent has different failure modes, document them in the Phase 2 rewrite's Phase 3 dispatch section (Step 2 > Phase 3 dispatches).
 
 ### Step 3b: Update QA Scripts for Agent Dispatch Syntax (red team C2 — Gemini + Opus)
 
@@ -221,25 +221,25 @@ Both QA scripts only match `Task` dispatch patterns. After migration, Agent disp
 
 **File:** `plugins/compound-workflows/scripts/plugin-qa/stale-references.sh`
 
-- [ ] Update Check 3 regex to also match Agent dispatches. Target pattern: `Agent\(subagent_type:\s*"[^"]+"` — extract the agent name as the last colon-delimited segment of the subagent_type value. Validate it exists alongside existing `Task [a-z][a-z0-9]*-[a-z][a-z0-9-]*` matching.
-- [ ] Ensure stale Agent dispatches (referencing non-existent subagent_types) are detected
+- [x] Update Check 3 regex to also match Agent dispatches. Target pattern: `Agent\(subagent_type:\s*"[^"]+"` — extract the agent name as the last colon-delimited segment of the subagent_type value. Validate it exists alongside existing `Task [a-z][a-z0-9]*-[a-z][a-z0-9-]*` matching.
+- [x] Ensure stale Agent dispatches (referencing non-existent subagent_types) are detected
 
 **File:** `plugins/compound-workflows/scripts/plugin-qa/context-lean-grep.sh`
 
-- [ ] Update Check 4 regex to also match Agent dispatches. Target pattern: `^\s*Agent\(subagent_type:` alongside existing `^\s*Task [a-z][a-z0-9-]+` matching.
-- [ ] Verify OUTPUT INSTRUCTIONS checks apply to Agent dispatches the same as Task dispatches
+- [x] Update Check 4 regex to also match Agent dispatches. Target pattern: `^\s*Agent\(subagent_type:` alongside existing `^\s*Task [a-z][a-z0-9-]+` matching.
+- [x] Verify OUTPUT INSTRUCTIONS checks apply to Agent dispatches the same as Task dispatches
 
 ### Step 4: Version Bump + QA
 
-- [ ] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` (PATCH — internal refactor, no new features)
-- [ ] Bump version in `.claude-plugin/marketplace.json`
-- [ ] Update `plugins/compound-workflows/CHANGELOG.md` with changes
-- [ ] Run `/compound-workflows:plugin-changes-qa` — all Tier 1 + Tier 2 checks
-- [ ] Fix any findings — watch specifically for:
+- [x] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` (PATCH — internal refactor, no new features)
+- [x] Bump version in `.claude-plugin/marketplace.json`
+- [x] Update `plugins/compound-workflows/CHANGELOG.md` with changes
+- [x] Run `/compound-workflows:plugin-changes-qa` — all Tier 1 + Tier 2 checks
+- [x] Fix any findings — watch specifically for:
   - `stale-references.sh`: confirm it now detects both Task and Agent dispatches (Step 3b)
   - `context-lean-grep.sh`: confirm OUTPUT INSTRUCTIONS checks cover Agent dispatches (Step 3b)
   - Tier 2 role description reviewer: verify agent names in Agent dispatches still match
-- [ ] Update CLAUDE.md Agent Registry: verify "Dispatched By" column reflects Agent dispatch for deepen-plan entries (documentation accuracy only)
+- [x] Update CLAUDE.md Agent Registry: verify "Dispatched By" column reflects Agent dispatch for deepen-plan entries (documentation accuracy only)
 
 ## Design Decisions
 
@@ -296,17 +296,17 @@ This is an internal refactor of deepen-plan's discovery mechanism. No new comman
 
 ## Acceptance Criteria
 
-- [ ] deepen-plan Phase 2 agent discovery uses subagent_type registry (no `find ~/.claude/plugins/cache -path "*/agents/*.md"`)
-- [ ] deepen-plan Phase 2 skills discovery uses system prompt (no `find ~/.claude/plugins/cache -type d -name "skills"`)
-- [ ] Invariant check verifies security-sentinel and architecture-strategist are always present
-- [ ] Hardcoded fallback activates when invariant agents are missing
-- [ ] User-defined agents (non-compound-workflows subagent_types matching `*:review:*` or `*:research:*`) are included in discovery
-- [ ] Phase 3 uses Agent tool dispatch with `subagent_type` and `model` parameters
-- [ ] Manifest.json entries include `subagent_type`, `description`, `source`, and `model` fields
-- [ ] Red team and readiness dispatches also use Agent tool
-- [ ] Stack-based filtering (Step 2e) works identically to before
-- [ ] No `find` commands touch `~/.claude/plugins/cache` anywhere in deepen-plan.md
-- [ ] Plugin QA passes with zero findings
+- [x] deepen-plan Phase 2 agent discovery uses subagent_type registry (no `find ~/.claude/plugins/cache -path "*/agents/*.md"`)
+- [x] deepen-plan Phase 2 skills discovery uses system prompt (no `find ~/.claude/plugins/cache -type d -name "skills"`)
+- [x] Invariant check verifies security-sentinel and architecture-strategist are always present
+- [x] Hardcoded fallback activates when invariant agents are missing
+- [x] User-defined agents (non-compound-workflows subagent_types matching `*:review:*` or `*:research:*`) are included in discovery
+- [x] Phase 3 uses Agent tool dispatch with `subagent_type` and `model` parameters
+- [x] Manifest.json entries include `subagent_type`, `description`, `source`, and `model` fields
+- [x] Red team and readiness dispatches also use Agent tool
+- [x] Stack-based filtering (Step 2e) works identically to before
+- [x] No `find` commands touch `~/.claude/plugins/cache` anywhere in deepen-plan.md
+- [x] Plugin QA passes with zero findings
 
 ## Out of Scope
 
