@@ -59,7 +59,7 @@
 - **v2.2.0** — Red team + readiness re-check in plan (bead nn3): Phase 6.8 (3-provider red team with Yes/Skip gate, 7-dimension prompt, MINOR triage), Phase 6.9 (conditional full readiness re-check via SHA-256 hash), 7-rule decision tree, deepen-plan 7th dimension, brainstorm 6th dimension
 
 ## In-Progress Work
-- **Per-agent token instrumentation (bead voo)** — P1. Existing plan at `docs/plans/2026-03-09-feat-per-agent-token-instrumentation-plan.md` is **stale** — predates v2.0 (quota optimization), v2.1 (Agent dispatch), v2.2 (red team in plan). All 5 instrumentation targets (plan, deepen-plan, brainstorm, review, work) have structurally changed. Brainstorm at `docs/brainstorms/2026-03-09-per-agent-token-instrumentation-brainstorm.md`. Next: re-plan via `/compound:plan`.
+- **Per-agent token instrumentation (bead voo)** — P1, in-progress. Fresh plan at `docs/plans/2026-03-10-feat-per-agent-token-instrumentation-plan.md` (old plan archived). Red team CRITICAL/SERIOUS triage done — major architecture change: `capture-stats.sh` bash script for atomic append replaces LLM-mediated read-then-write-all (all 3 red team providers flagged this). Added `run_id` field, dropped JSONL session log from classifier v1 (new bead ct0 for v2). MINOR triage remaining, then hash comparison + conditional re-check + Phase 7 handoff. Next: finish `/compound:plan` red team MINOR triage.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P2. ~80% of work steps are mechanical after well-deepened plans. Depends on voo (need dataset first). Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P1, brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
