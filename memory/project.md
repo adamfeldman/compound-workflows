@@ -35,7 +35,9 @@
 - **clink CLIs read repo files independently** — Gemini uses `read_file` tool, Codex uses `cat`. Verified: both browse beyond the brainstorm file passed via `absolute_file_paths` — they reference CLAUDE.md, README.md, command files, directory structure. 100% of red team dispatches used clink, never PAL chat. PAL chat would need `absolute_file_paths` explicitly; CLIs don't.
 - **`claude plugin update` unreliable** — command exits 0 silently but doesn't always pull latest. Fallback: `git -C ~/.claude/plugins/marketplaces/<name> pull origin main` then `/reload-plugins`.
 - **Agent tool background completions include `<usage>`** — identical format to Task completion notifications (`total_tokens`, `tool_uses`, `duration_ms`). Validated 2026-03-09 with 3 dispatches (repo-research-analyst, context-researcher, code-simplicity-reviewer). Switching Task→Agent does not break `<usage>` capture.
-- **Subagent Write permission inconsistent** — some background agents successfully write to `.workflows/` with `Write(//.workflows/**)` in settings.local.json, others get denied. The repo-research-analyst couldn't write during 42s brainstorm (had to save findings manually). Root cause unclear — may be permission inheritance, timing, or approval prompt missed. Bead 3k3 (P1) tracks shipping permissions in committed settings.json to reduce failures.
+- **Subagent settings inheritance verified** — subagents DO load `.claude/settings.json` from the project root. Empirically tested 2026-03-10: added a distinctive allow rule, spawned a subagent, confirmed it auto-approved. Write failures were transient permission denials, not systemic inheritance issues.
+- **Deny rules in settings.json are BROKEN** — multiple GitHub issues (#27040, #6699, #8961) confirm deny rules are non-functional. PreToolUse hooks are the ONLY reliable way to block dangerous operations. Hook output format: `{"hookSpecificOutput": {"permissionDecision": "allow"}}`.
+- **PreToolUse hooks are officially recommended** — Claude Code v2.0+ docs recommend hooks over static rules or `--dangerously-skip-permissions`. Since v2.0.10, hooks can also modify tool inputs before execution.
 - **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format
@@ -79,6 +81,6 @@
 - xu2 unblocked (voo done — dataset available)
 - 5b6 unblocked (voo done — dataset available)
 - h0g unblocked (removed aig dependency)
-- **3k3 escalated to P1** — subagent Write permission failure confirmed. Disk-persist agents silently lose output.
+- **3k3 absorbed into permission-prompt-optimization brainstorm** — brainstorm covers committed baseline, PreToolUse hooks, and setup command permission profiles.
 - **cn5 created** — P3. Make stats collection off by default.
 - voo(done), 22l(done), 0ob(done), dud(done), 1q3(done), 4gq(done), n2q(done), 3co(done), d2l(done), awx(done)
