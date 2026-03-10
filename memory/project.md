@@ -23,6 +23,8 @@
 - **Marketplace clone** — cache at `~/.claude/plugins/marketplaces/<name>/` is a full git clone. Use `claude plugin update compound-workflows@compound-workflows-marketplace`.
 - **`bd list --json` does NOT produce JSON** — use `bd search "" --status open --json` instead.
 - **`bd search` default limit is 50** — pass `--limit N` for more.
+- **`bd search --json` field names** — `estimated_minutes` (not `estimate`), `dependency_count` (not `dependencies`), `issue_type` (not `type`). Empty string query `""` fails; use `"a"` or any non-empty query with `--status open` to list all.
+- **What's Next table rendering** — `bd search "a" --status open --json --limit 100`, pipe to python3 via heredoc (`<< 'PYEOF'`), filter out in_progress/P4/blocked (`dependency_count > 0`), compute `eff = impact_score / (estimated_minutes / 60)`, sort by eff descending.
 - **`bd update --append-notes`** — appends (not overwrites). Use instead of `--notes`.
 - **bd worktree create uses path as-is** — pass `.worktrees/<name>` explicitly.
 - **Loaded skill staleness** — skills loaded at conversation start from cached plugin version. Mid-session updates don't refresh loaded skills. Also affects new agents — created mid-session won't appear in `subagent_type` list.
@@ -33,7 +35,7 @@
 - **clink CLIs read repo files independently** — Gemini uses `read_file` tool, Codex uses `cat`. Verified: both browse beyond the brainstorm file passed via `absolute_file_paths` — they reference CLAUDE.md, README.md, command files, directory structure. 100% of red team dispatches used clink, never PAL chat. PAL chat would need `absolute_file_paths` explicitly; CLIs don't.
 - **`claude plugin update` unreliable** — command exits 0 silently but doesn't always pull latest. Fallback: `git -C ~/.claude/plugins/marketplaces/<name> pull origin main` then `/reload-plugins`.
 - **Agent tool background completions include `<usage>`** — identical format to Task completion notifications (`total_tokens`, `tool_uses`, `duration_ms`). Validated 2026-03-09 with 3 dispatches (repo-research-analyst, context-researcher, code-simplicity-reviewer). Switching Task→Agent does not break `<usage>` capture.
-- **Background agent Write permission is transient, not systemic** — earlier memory said "background agents get Write/Edit permission denied." Tested 2026-03-10: background Agent (both general-purpose and named subagent_type like repo-research-analyst) successfully wrote to `.workflows/` with `Write(//.workflows/**)` in settings. The earlier failures were transient permission denials (user likely denied a prompt without noticing). Not an Agent vs Task distinction. Bead 3k3 still valid — shipping permissions in settings.json reduces prompt frequency.
+- **Subagent Write permission inconsistent** — some background agents successfully write to `.workflows/` with `Write(//.workflows/**)` in settings.local.json, others get denied. The repo-research-analyst couldn't write during 42s brainstorm (had to save findings manually). Root cause unclear — may be permission inheritance, timing, or approval prompt missed. Bead 3k3 (P1) tracks shipping permissions in committed settings.json to reduce failures.
 - **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format
@@ -65,7 +67,7 @@
 - **Red team model selection (bead aig)** — P3 (lowered: clink handles model selection, not urgent). Brainstorm complete. Accumulated notes: Opus model bug, ad-hoc red team skill idea, cost configurability, CLI file access verified. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 - **Config toggles for optional compact-prep steps (bead xzn)** — P2. Version check + daily cost summary both optional.
-- **User input gates before automated work (bead 42s)** — P2. Plan command applies fixes before presenting manual review items. Audit all 8 commands + add QA check.
+- **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Key finding: the bug is execution sequencing (Step 3c runs before 3d), not display order. Scope narrowed to 3 commands (brainstorm, plan, deepen-plan — review.md has no triage flow). Next: `/compound:plan`.
 - **Cheaper-model dispatch audit (bead 5b6)** — P2. voo done — dataset now available. Next: `/compound:brainstorm`.
 
 ## Critical Patterns
@@ -77,4 +79,6 @@
 - xu2 unblocked (voo done — dataset available)
 - 5b6 unblocked (voo done — dataset available)
 - h0g unblocked (removed aig dependency)
+- **3k3 escalated to P1** — subagent Write permission failure confirmed. Disk-persist agents silently lose output.
+- **cn5 created** — P3. Make stats collection off by default.
 - voo(done), 22l(done), 0ob(done), dud(done), 1q3(done), 4gq(done), n2q(done), 3co(done), d2l(done), awx(done)
