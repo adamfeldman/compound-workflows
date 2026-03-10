@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v2.1.0 (plugins/compound-workflows/)
+- Plugin: compound-workflows v2.2.0 (plugins/compound-workflows/)
 - 26 agents, 19 skills, 8 commands
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -59,7 +59,7 @@
 - **v2.2.0** — Red team + readiness re-check in plan (bead nn3): Phase 6.8 (3-provider red team with Yes/Skip gate, 7-dimension prompt, MINOR triage), Phase 6.9 (conditional full readiness re-check via SHA-256 hash), 7-rule decision tree, deepen-plan 7th dimension, brainstorm 6th dimension
 
 ## In-Progress Work
-- **Per-agent token instrumentation (bead voo)** — P1. Plan complete at `docs/plans/2026-03-09-feat-per-agent-token-instrumentation-plan.md`. 10 implementation steps: settings, stats-capture reference file, 5 command instrumentations (work→brainstorm→plan→review→deepen-plan), compact-prep ccusage snapshot, classify-stats skill (`/compound-workflows:classify-stats` — command dir at capacity). Stop-gate between Steps 3-4 (verify background `<usage>` before instrumenting background commands). Readiness checks: 6 auto-fixes applied (underspecification), verify clean. **voo plan needs update:** incorporate Agent dispatch migration from native-agent-discovery brainstorm (all 5 commands switch Task→Agent for `model` override + standardization). Next: `/compound:deepen-plan`.
+- **Per-agent token instrumentation (bead voo)** — P1. Existing plan at `docs/plans/2026-03-09-feat-per-agent-token-instrumentation-plan.md` is **stale** — predates v2.0 (quota optimization), v2.1 (Agent dispatch), v2.2 (red team in plan). All 5 instrumentation targets (plan, deepen-plan, brainstorm, review, work) have structurally changed. Brainstorm at `docs/brainstorms/2026-03-09-per-agent-token-instrumentation-brainstorm.md`. Next: re-plan via `/compound:plan`.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P2. ~80% of work steps are mechanical after well-deepened plans. Depends on voo (need dataset first). Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P1, brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
