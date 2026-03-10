@@ -146,6 +146,7 @@ Read the brainstorm document at <brainstorm-file-path> and identify:
 3. **Weak arguments** — Where is the reasoning thin or based on hope rather than evidence?
 4. **Hidden risks** — What could go wrong that isn't acknowledged?
 5. **Contradictions** — Does the document contradict itself anywhere?
+6. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Quote the section you're challenging. For each challenge, rate severity:
 - CRITICAL — Blocks the approach or invalidates a key conclusion
@@ -179,6 +180,7 @@ Read the brainstorm document at <brainstorm-file-path> and identify:
 3. **Weak arguments** — Where is the reasoning thin or based on hope rather than evidence?
 4. **Hidden risks** — What could go wrong that isn't acknowledged?
 5. **Contradictions** — Does the document contradict itself anywhere?
+6. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Quote the section you're challenging. For each challenge, rate severity:
 - CRITICAL — Blocks the approach or invalidates a key conclusion
@@ -215,6 +217,7 @@ Read the brainstorm document at <brainstorm-file-path> and identify:
 3. **Weak arguments** — Where is the reasoning thin or based on hope rather than evidence?
 4. **Hidden risks** — What could go wrong that isn't acknowledged?
 5. **Contradictions** — Does the document contradict itself anywhere?
+6. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Quote the section you're challenging. For each challenge, rate severity:
 - CRITICAL — Blocks the approach or invalidates a key conclusion
@@ -248,6 +251,7 @@ Read the brainstorm document at <brainstorm-file-path> and identify:
 3. **Weak arguments** — Where is the reasoning thin or based on hope rather than evidence?
 4. **Hidden risks** — What could go wrong that isn't acknowledged?
 5. **Contradictions** — Does the document contradict itself anywhere?
+6. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Quote the section you're challenging. For each challenge, rate severity:
 - CRITICAL — Blocks the approach or invalidates a key conclusion
@@ -277,6 +281,7 @@ Read the brainstorm document at <brainstorm-file-path> and identify:
 3. **Weak arguments** — Where is the reasoning thin or based on hope rather than evidence?
 4. **Hidden risks** — What could go wrong that isn't acknowledged?
 5. **Contradictions** — Does the document contradict itself anywhere?
+6. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Quote the section you're challenging. For each challenge, rate severity:
 - CRITICAL — Blocks the approach or invalidates a key conclusion

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2026-03-10
+
+### Features
+- **plan: Phase 6.8 red team challenge** — added a red team gate to `/compound:plan` with Yes/Skip AskUserQuestion, 3-provider parallel dispatch (Gemini, OpenAI, Claude Opus), 7-dimension challenge prompt (assumptions, risks, alternatives, complexity, gaps, dependencies, problem selection), and CRITICAL/SERIOUS/MINOR triage with auto-fix for trivially-fixable MINORs.
+- **plan: Phase 6.9 conditional readiness re-check** — after red team triage, detects plan modifications via SHA-256 hash comparison and re-runs the full readiness check pipeline (Phase 6.7) if the plan changed. Skips gracefully when hash matches.
+- **plan: Phase 7 decision tree update** — expanded the handoff decision tree from 5 rules to 7, adding red-team-specific routing: red team clean with no deferred findings routes directly to work, red team with deferred SERIOUS findings routes to deepen-plan.
+- **deepen-plan: 7th red team dimension** — added "problem selection" dimension to the deepen-plan red team challenge prompt, questioning whether the plan solves the right problem.
+- **brainstorm: 6th red team dimension** — added "problem selection" dimension to the brainstorm red team challenge prompt, consistent with deepen-plan.
+- **CLAUDE.md registry update** — added `plan` to the `red-team-relay` agent's "Dispatched By" column, reflecting the new Phase 6.8 dispatch.
+
 ## [2.1.0] - 2026-03-10
 
 ### Features

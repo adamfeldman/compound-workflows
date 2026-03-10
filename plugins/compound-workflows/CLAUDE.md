@@ -81,7 +81,7 @@ All 26 agents with their categories, command references, and model configuration
 | bug-reproduction-validator | workflow | (standalone) | inherit |
 | convergence-advisor | workflow | deepen-plan | inherit |
 | pr-comment-resolver | workflow | (standalone) | inherit |
-| red-team-relay | workflow | brainstorm, deepen-plan | sonnet |
+| red-team-relay | workflow | brainstorm, deepen-plan, plan | sonnet |
 | plan-consolidator | workflow | plan, deepen-plan | inherit |
 | plan-readiness-reviewer | workflow | plan, deepen-plan | inherit |
 | spec-flow-analyzer | workflow | plan | inherit |
