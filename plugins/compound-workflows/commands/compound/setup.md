@@ -462,4 +462,10 @@ Tip: Edit the Workflow Instructions section in compound-workflows.md
      to add red team focus areas, domain constraints, or review emphasis.
      Run /compound:setup anytime to reconfigure.
      Red team provider is chosen per-session based on available tools.
+
+Known issue: Claude Code's AskUserQuestion dialog can obscure the last
+     few lines of text above it. If you see truncated output, add this
+     to ~/.claude/CLAUDE.md (ref: anthropics/claude-code#23862):
+       "When using AskUserQuestion, always add 3-4 blank lines at the
+        end of your text output before the tool call."
 ```
