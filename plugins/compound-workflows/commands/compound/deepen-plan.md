@@ -603,8 +603,9 @@ Read the enhanced plan and its synthesis summary. Then identify:
 2. **Architecture risks** — Where could the technical approach fail at scale or under pressure?
 3. **Missing steps** — What implementation work is implied but not planned?
 4. **Dependency risks** — What external factors could derail the plan?
-5. **Overengineering** — Where is the plan more complex than necessary?
-6. **Contradictions** — Do the research findings conflict with each other or with the plan?
+5. **Overengineering** — Where is the plan more complex than necessary? Is it doing more than what was asked? Did research agents or prior analysis introduce unnecessary complexity?
+6. **Contradictions** — Do research findings conflict with each other or the plan? Does the plan contradict itself?
+7. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Reference plan sections by name. Rate each finding:
 - CRITICAL — Plan will fail or produce wrong outcome if not addressed
@@ -642,8 +643,9 @@ Read the enhanced plan and its synthesis summary. Then identify:
 2. **Architecture risks** — Where could the technical approach fail at scale or under pressure?
 3. **Missing steps** — What implementation work is implied but not planned?
 4. **Dependency risks** — What external factors could derail the plan?
-5. **Overengineering** — Where is the plan more complex than necessary?
-6. **Contradictions** — Do the research findings conflict with each other or with the plan?
+5. **Overengineering** — Where is the plan more complex than necessary? Is it doing more than what was asked? Did research agents or prior analysis introduce unnecessary complexity?
+6. **Contradictions** — Do research findings conflict with each other or the plan? Does the plan contradict itself?
+7. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Reference plan sections by name. Rate each finding:
 - CRITICAL — Plan will fail or produce wrong outcome if not addressed
@@ -684,8 +686,9 @@ Read the enhanced plan and its synthesis summary. Then identify:
 2. **Architecture risks** — Where could the technical approach fail at scale or under pressure?
 3. **Missing steps** — What implementation work is implied but not planned?
 4. **Dependency risks** — What external factors could derail the plan?
-5. **Overengineering** — Where is the plan more complex than necessary?
-6. **Contradictions** — Do the research findings conflict with each other or with the plan?
+5. **Overengineering** — Where is the plan more complex than necessary? Is it doing more than what was asked? Did research agents or prior analysis introduce unnecessary complexity?
+6. **Contradictions** — Do research findings conflict with each other or the plan? Does the plan contradict itself?
+7. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Reference plan sections by name. Rate each finding:
 - CRITICAL — Plan will fail or produce wrong outcome if not addressed
@@ -723,8 +726,9 @@ Read the enhanced plan and its synthesis summary. Then identify:
 2. **Architecture risks** — Where could the technical approach fail at scale or under pressure?
 3. **Missing steps** — What implementation work is implied but not planned?
 4. **Dependency risks** — What external factors could derail the plan?
-5. **Overengineering** — Where is the plan more complex than necessary?
-6. **Contradictions** — Do the research findings conflict with each other or with the plan?
+5. **Overengineering** — Where is the plan more complex than necessary? Is it doing more than what was asked? Did research agents or prior analysis introduce unnecessary complexity?
+6. **Contradictions** — Do research findings conflict with each other or the plan? Does the plan contradict itself?
+7. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Reference plan sections by name. Rate each finding:
 - CRITICAL — Plan will fail or produce wrong outcome if not addressed
@@ -761,8 +765,9 @@ Then identify:
 2. **Architecture risks** — Where could the technical approach fail at scale or under pressure?
 3. **Missing steps** — What implementation work is implied but not planned?
 4. **Dependency risks** — What external factors could derail the plan?
-5. **Overengineering** — Where is the plan more complex than necessary?
-6. **Contradictions** — Do the research findings conflict with each other or with the plan?
+5. **Overengineering** — Where is the plan more complex than necessary? Is it doing more than what was asked? Did research agents or prior analysis introduce unnecessary complexity?
+6. **Contradictions** — Do research findings conflict with each other or the plan? Does the plan contradict itself?
+7. **Problem selection** — Is this the right problem to solve? Were alternatives to the entire approach considered?
 
 Be specific. Reference plan sections by name. Rate each finding:
 - CRITICAL — Plan will fail or produce wrong outcome if not addressed

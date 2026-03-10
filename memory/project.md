@@ -56,13 +56,13 @@
 - **v1.13.2** — version-check.sh consumer project bug, QA agent noise reduction (awx), roadmap table in root README
 - **v2.0.0** — Workflow quota optimization (bead 22l): 5 research agents → sonnet, red-team-relay agent, stack-based dynamic agent selection, ccusage tracking, convergence advisor named dispatch
 - **v2.1.0** — Native agent discovery (bead wgl): deepen-plan Phase 2 filesystem discovery → subagent_type registry, Agent dispatch migration across all phases, deterministic post-discovery validation pipeline, user-defined agent support, QA scripts detect Agent dispatch syntax
+- **v2.2.0** — Red team + readiness re-check in plan (bead nn3): Phase 6.8 (3-provider red team with Yes/Skip gate, 7-dimension prompt, MINOR triage), Phase 6.9 (conditional full readiness re-check via SHA-256 hash), 7-rule decision tree, deepen-plan 7th dimension, brainstorm 6th dimension
 
 ## In-Progress Work
 - **Per-agent token instrumentation (bead voo)** — P1. Plan complete at `docs/plans/2026-03-09-feat-per-agent-token-instrumentation-plan.md`. 10 implementation steps: settings, stats-capture reference file, 5 command instrumentations (work→brainstorm→plan→review→deepen-plan), compact-prep ccusage snapshot, classify-stats skill (`/compound-workflows:classify-stats` — command dir at capacity). Stop-gate between Steps 3-4 (verify background `<usage>` before instrumenting background commands). Readiness checks: 6 auto-fixes applied (underspecification), verify clean. **voo plan needs update:** incorporate Agent dispatch migration from native-agent-discovery brainstorm (all 5 commands switch Task→Agent for `model` override + standardization). Next: `/compound:deepen-plan`.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P2. ~80% of work steps are mechanical after well-deepened plans. Depends on voo (need dataset first). Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P1, brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
-- **Red team + readiness in plan (bead nn3)** — P1. Brainstorm complete at `docs/brainstorms/2026-03-10-plan-red-team-readiness-brainstorm.md`. 14 key decisions, red-teamed by 3 providers, all findings resolved. Key: Phase 6.8 (optional red team, 7-dimension prompt), Phase 6.9 (full readiness re-check if edits applied, not verify-only), decision tree routes to work when red team clean (CRITICAL/SERIOUS both trigger deepen-plan routing). Deepen-plan keeps its own independent red team. Target: v2.2.0 (MINOR bump). Next: `/compound:plan`.
 - **Compact-prep version check config toggle (bead xzn)** — P2. Add config toggle for version check, disabled by default.
 - **Check upstream compound-engineering (bead odn)** — P3. Review EveryInc/compound-engineering-plugin for changes since fork.
 
