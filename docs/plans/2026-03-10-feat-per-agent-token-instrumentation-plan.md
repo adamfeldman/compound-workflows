@@ -1,7 +1,7 @@
 ---
 title: "Per-Agent Token Instrumentation"
 type: feat
-status: active
+status: completed
 date: 2026-03-10
 origin: docs/brainstorms/2026-03-09-per-agent-token-instrumentation-brainstorm.md
 bead: voo
@@ -44,14 +44,14 @@ Add `stats_capture` and `stats_classify` toggles to the config template and setu
 
 **Files:** `plugins/compound-workflows/commands/compound/setup.md`, `plugins/compound-workflows/skills/setup/SKILL.md`
 
-- [ ] In setup.md Step 7b, add to `compound-workflows.local.md` template after `gh_cli`:
+- [x] In setup.md Step 7b, add to `compound-workflows.local.md` template after `gh_cli`:
   ```
   stats_capture: true
   stats_classify: true
   ```
-- [ ] In setup.md Step 7d (migration), add detection: if `compound-workflows.local.md` exists but lacks `stats_capture` key, append both keys with `true` defaults
-- [ ] Mirror the same template and migration changes in `plugins/compound-workflows/skills/setup/SKILL.md`
-- [ ] No interactive prompt needed — keys default to enabled silently (see brainstorm Decision 6: "Missing keys = enabled")
+- [x] In setup.md Step 7d (migration), add detection: if `compound-workflows.local.md` exists but lacks `stats_capture` key, append both keys with `true` defaults
+- [x] Mirror the same template and migration changes in `plugins/compound-workflows/skills/setup/SKILL.md`
+- [x] No interactive prompt needed — keys default to enabled silently (see brainstorm Decision 6: "Missing keys = enabled")
 
 **Design note:** Each orchestrator command checks `stats_capture` inline — if the key is missing or any value other than `false`, capture proceeds. Setup migration adds keys for explicitness but isn't required for the feature to work.
 
@@ -61,7 +61,7 @@ Create a bash helper script for deterministic atomic append and a shared referen
 
 **Files:** `plugins/compound-workflows/scripts/capture-stats.sh` (new), `plugins/compound-workflows/resources/stats-capture-schema.md` (new directory + file)
 
-- [ ] Create `plugins/compound-workflows/scripts/capture-stats.sh`:
+- [x] Create `plugins/compound-workflows/scripts/capture-stats.sh`:
   - Usage: `bash capture-stats.sh <stats-file> <command> <agent> <step> <model> <stem> <bead> <run_id> <usage_line>`
   - Parses `<usage_line>` with sed/awk to extract `total_tokens`, `tool_uses`, `duration_ms`
   - Constructs YAML entry with all fields (including `run_id`, `timestamp`, `status`, null complexity/output_type)
@@ -72,8 +72,8 @@ Create a bash helper script for deterministic atomic append and a shared referen
   - `<usage>` format health check: validate that the line matches `<usage>total_tokens: \d+, tool_uses: \d+, duration_ms: \d+</usage>` pattern. If not, warn but still attempt best-effort extraction.
   - Exit 0 always (stats capture should never block command execution)
   - Timeout entry variant: `bash capture-stats.sh --timeout <stats-file> <command> <agent> <step> <model> <stem> <bead> <run_id>` — writes entry with null token fields, status=timeout
-- [ ] Create `plugins/compound-workflows/resources/` directory
-- [ ] Write `stats-capture-schema.md` containing:
+- [x] Create `plugins/compound-workflows/resources/` directory
+- [x] Write `stats-capture-schema.md` containing:
   - Full YAML schema with field descriptions (including `run_id`)
   - Where to find `<usage>`: "Look for `<usage>...</usage>` in the Task/Agent response (foreground inline) or in the completion notification (background). The format is identical in all four scenarios."
   - How to call `capture-stats.sh`: extract the full `<usage>...</usage>` line, pass as last argument
@@ -82,7 +82,7 @@ Create a bash helper script for deterministic atomic append and a shared referen
   - Worktree handling section (see below)
   - Model resolution algorithm (see below)
   - Note: `<usage>` is an observed API, not a documented contract. A future Claude Code update may require parser updates in capture-stats.sh.
-- [ ] Empirically verify worktree cwd: before implementing Steps 3-7, run a simple test during Step 2 to confirm which directory the orchestrator's cwd resolves to during worktree-based work execution. If the orchestrator enters the worktree, the capture instruction must use an absolute path to the main repo's `.workflows/stats/` (derive via `git worktree list --porcelain | head -1`).
+- [x] Empirically verify worktree cwd: before implementing Steps 3-7, run a simple test during Step 2 to confirm which directory the orchestrator's cwd resolves to during worktree-based work execution. If the orchestrator enters the worktree, the capture instruction must use an absolute path to the main repo's `.workflows/stats/` (derive via `git worktree list --porcelain | head -1`).
 
 **Schema (reference copy — authoritative version in the file):**
 ```yaml
@@ -170,19 +170,19 @@ work.md dispatches foreground sequential Tasks — the simplest capture path. `<
 
 **Files:** `plugins/compound-workflows/commands/compound/work.md`
 
-- [ ] Add `mkdir -p .workflows/stats` early in the command flow (before the dispatch loop)
-- [ ] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) before the dispatch loop, to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
-- [ ] Add config check: read `compound-workflows.local.md`, check `stats_capture`. If `false`, skip all stats capture (do not read the schema file). If missing or any other value, proceed.
-- [ ] Generate `run_id` at command start: `RUN_ID=$(uuidgen | cut -c1-8)`
-- [ ] Cache model resolution: check `CLAUDE_CODE_SUBAGENT_MODEL` env var once, cache for all dispatches
-- [ ] After each foreground Task dispatch in the Phase 2 dispatch loop:
+- [x] Add `mkdir -p .workflows/stats` early in the command flow (before the dispatch loop)
+- [x] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) before the dispatch loop, to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
+- [x] Add config check: read `compound-workflows.local.md`, check `stats_capture`. If `false`, skip all stats capture (do not read the schema file). If missing or any other value, proceed.
+- [x] Generate `run_id` at command start: `RUN_ID=$(uuidgen | cut -c1-8)`
+- [x] Cache model resolution: check `CLAUDE_CODE_SUBAGENT_MODEL` env var once, cache for all dispatches
+- [x] After each foreground Task dispatch in the Phase 2 dispatch loop:
   - Extract the `<usage>...</usage>` line from the Task response
   - Call: `bash $PLUGIN_ROOT/scripts/capture-stats.sh <stats-file> work <agent> <step> <model> <stem> <bead> $RUN_ID "<usage-line>"`
   - The script handles YAML construction, atomic append, error handling, and parse failure warnings
   - Derive stem from plan filename (strip date prefix + `-plan.md` suffix; fallback: branch name)
-- [ ] Instrument Phase 3 optional reviewer (`code-simplicity-reviewer`, background): capture from completion notification if dispatched
-- [ ] After dispatch loop completes, add post-dispatch validation: count YAML documents in stats file vs completed dispatches (bead count + 1 if reviewer ran), warn if mismatch
-- [ ] Edge case: no plan file (ad-hoc work) → derive stem from branch name
+- [x] Instrument Phase 3 optional reviewer (`code-simplicity-reviewer`, background): capture from completion notification if dispatched
+- [x] After dispatch loop completes, add post-dispatch validation: count YAML documents in stats file vs completed dispatches (bead count + 1 if reviewer ran), warn if mismatch
+- [x] Edge case: no plan file (ad-hoc work) → derive stem from branch name
 
 **Inline instruction template (~4 lines in command, references schema file):**
 
@@ -205,17 +205,17 @@ brainstorm.md dispatches all background Tasks. `<usage>` appears in automatic Ta
 
 **Files:** `plugins/compound-workflows/commands/compound/brainstorm.md`
 
-- [ ] Add `mkdir -p .workflows/stats` before Phase 1.1
-- [ ] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
-- [ ] Add config check: read `stats_capture` from `compound-workflows.local.md`
-- [ ] Add inline stats capture instruction for background Tasks: "When you receive a background Task completion notification containing `<usage>`, extract the tag and append a YAML entry to the stats file. Do not call TaskOutput."
-- [ ] Apply across all dispatch phases:
+- [x] Add `mkdir -p .workflows/stats` before Phase 1.1
+- [x] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
+- [x] Add config check: read `stats_capture` from `compound-workflows.local.md`
+- [x] Add inline stats capture instruction for background Tasks: "When you receive a background Task completion notification containing `<usage>`, extract the tag and append a YAML entry to the stats file. Do not call TaskOutput."
+- [x] Apply across all dispatch phases:
   - Phase 1.1 research: `repo-research-analyst`, `context-researcher` (2 agents)
   - Phase 3.5 Step 1 red team: 3 providers (3 agents — `red-team-relay` × 2 + `general-purpose` × 1)
   - Phase 3.5 Step 3a: MINOR triage (1 agent, **background** — capture from completion notification, NOT inline response)
-- [ ] Set: command=brainstorm, bead=null, stem=topic-stem, step=agent role name
-- [ ] After each dispatch phase completes, validate entry count vs dispatched agent count
-- [ ] Model field: use the 4-step resolution algorithm. For `red-team-relay` dispatched with `model: sonnet`, record sonnet (step 1 — dispatch override). For `general-purpose` with no override, check env var (step 3), then default to opus (step 4).
+- [x] Set: command=brainstorm, bead=null, stem=topic-stem, step=agent role name
+- [x] After each dispatch phase completes, validate entry count vs dispatched agent count
+- [x] Model field: use the 4-step resolution algorithm. For `red-team-relay` dispatched with `model: sonnet`, record sonnet (step 1 — dispatch override). For `general-purpose` with no override, check env var (step 3), then default to opus (step 4).
 
 **Note:** The 6th red team dimension (problem selection) is a prompt-level change within existing dispatches — no additional instrumentation points.
 
@@ -225,32 +225,32 @@ plan.md has the most dispatch points: background research agents, foreground rea
 
 **Files:** `plugins/compound-workflows/commands/compound/plan.md`
 
-- [ ] Add `mkdir -p .workflows/stats` before Phase 1
-- [ ] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
-- [ ] Add config check: read `stats_capture`
-- [ ] Instrument background Task dispatches (Phases 1, 1.5b, 3): extract `<usage>` from completion notifications
+- [x] Add `mkdir -p .workflows/stats` before Phase 1
+- [x] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
+- [x] Add config check: read `stats_capture`
+- [x] Instrument background Task dispatches (Phases 1, 1.5b, 3): extract `<usage>` from completion notifications
   - Phase 1: `repo-research-analyst`, `learnings-researcher` (2 agents)
   - Phase 1.5b (conditional): `best-practices-researcher`, `framework-docs-researcher` (0-2 agents)
   - Phase 3: `spec-flow-analyzer` (1 agent)
-- [ ] Instrument Phase 6.7 readiness dispatches:
+- [x] Instrument Phase 6.7 readiness dispatches:
   - Semantic-checks agent (background Task → completion notification)
   - `plan-readiness-reviewer` (foreground Task → inline response)
   - `plan-consolidator` (foreground Task, conditional → inline response)
-- [ ] Instrument Phase 6.7 verify-only re-dispatches (conditional, after consolidation):
+- [x] Instrument Phase 6.7 verify-only re-dispatches (conditional, after consolidation):
   - Re-dispatched semantic-checks agent (background Task → completion notification)
   - Re-dispatched `plan-readiness-reviewer` (foreground Task → inline response)
   - Use step=`"semantic-checks-verify"` and `"plan-readiness-reviewer-verify"` to distinguish from initial dispatches
-- [ ] Instrument Phase 6.8 red team dispatches (Agent tool):
+- [x] Instrument Phase 6.8 red team dispatches (Agent tool):
   - `red-team-relay` Gemini (background Agent → completion notification)
   - `red-team-relay` OpenAI (background Agent → completion notification)
   - `general-purpose` Claude Opus (background Agent → completion notification)
   - `general-purpose` MINOR triage (foreground Agent → inline response)
-- [ ] Instrument Phase 6.9 conditional re-check dispatches (if PLAN_CHANGED=true — set by plan.md Phase 6.8.6 hash comparison; dispatches only run when red team triage modified the plan):
+- [x] Instrument Phase 6.9 conditional re-check dispatches (if PLAN_CHANGED=true — set by plan.md Phase 6.8.6 hash comparison; dispatches only run when red team triage modified the plan):
   - Same agent set as Phase 6.7: semantic-checks (background Task), plan-readiness-reviewer (foreground Task), plan-consolidator (foreground Task, conditional)
   - Use step=`"semantic-checks-recheck"`, `"plan-readiness-reviewer-recheck"`, `"plan-consolidator-recheck"` to distinguish
-- [ ] Skip: bash script dispatches (stale-values.sh, broken-references.sh, audit-trail-bloat.sh) — no `<usage>`, not agent dispatches
-- [ ] Set: command=plan, bead=null, stem=plan-stem, step=agent role name (with suffixes for verify/recheck variants)
-- [ ] Validate entry count after all phases complete. Account for conditionals (external research, consolidator, verify, red team, re-check).
+- [x] Skip: bash script dispatches (stale-values.sh, broken-references.sh, audit-trail-bloat.sh) — no `<usage>`, not agent dispatches
+- [x] Set: command=plan, bead=null, stem=plan-stem, step=agent role name (with suffixes for verify/recheck variants)
+- [x] Validate entry count after all phases complete. Account for conditionals (external research, consolidator, verify, red team, re-check).
 
 ### Step 6: review.md Instrumentation
 
@@ -258,14 +258,14 @@ review.md dispatches all background Tasks — straightforward capture from compl
 
 **Files:** `plugins/compound-workflows/commands/compound/review.md`
 
-- [ ] Add `mkdir -p .workflows/stats` at start
-- [ ] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
-- [ ] Add config check: read `stats_capture`
-- [ ] Instrument all background Task dispatches: extract `<usage>` from completion notifications
+- [x] Add `mkdir -p .workflows/stats` at start
+- [x] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
+- [x] Add config check: read `stats_capture`
+- [x] Instrument all background Task dispatches: extract `<usage>` from completion notifications
   - Standard agents (always): `typescript-reviewer`, `pattern-recognition-specialist`, `architecture-strategist`, `security-sentinel`, `performance-oracle`, `code-simplicity-reviewer`, `agent-native-reviewer` (7 agents)
   - Conditional: `data-migration-expert`, `deployment-verification-agent`, `frontend-races-reviewer` (0-3 agents)
-- [ ] Set: command=review, bead=null, stem=topic-stem, step=agent role name
-- [ ] Track dispatched agent count (standard + conditional). Validate entry count against actual dispatched count after all completions. Warn if entry count < dispatched count.
+- [x] Set: command=review, bead=null, stem=topic-stem, step=agent role name
+- [x] Track dispatched agent count (standard + conditional). Validate entry count against actual dispatched count after all completions. Warn if entry count < dispatched count.
 
 ### Step 7: deepen-plan.md Instrumentation
 
@@ -273,27 +273,27 @@ deepen-plan.md has the most agents per run (15-25+): batched background Agent di
 
 **Files:** `plugins/compound-workflows/commands/compound/deepen-plan.md`
 
-- [ ] Add `mkdir -p .workflows/stats` early in Phase 0
-- [ ] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
-- [ ] Add config check: read `stats_capture`
-- [ ] Instrument Phase 3 batched background Agent dispatches: extract `<usage>` from each completion notification across all batches.
+- [x] Add `mkdir -p .workflows/stats` early in Phase 0
+- [x] Add PLUGIN_ROOT resolution bash block (same pattern as plan.md Phase 6.7) to resolve the path to `$PLUGIN_ROOT/resources/stats-capture-schema.md`
+- [x] Add config check: read `stats_capture`
+- [x] Instrument Phase 3 batched background Agent dispatches: extract `<usage>` from each completion notification across all batches.
   - Research agents: `repo-research-analyst`, `learnings-researcher`, `best-practices-researcher`, `framework-docs-researcher`, `git-history-analyzer`, `context-researcher` (variable — depends on manifest)
   - Review agents: `security-sentinel`, `architecture-strategist`, `performance-oracle`, `code-simplicity-reviewer`, `agent-native-reviewer`, etc. (variable)
-- [ ] Instrument Phase 4 foreground Agent dispatches:
+- [x] Instrument Phase 4 foreground Agent dispatches:
   - Synthesis agent (foreground Agent → inline response)
   - MINOR triage agent (foreground Agent → inline response)
-- [ ] Instrument Phase 4.5 red team dispatches (background Agent):
+- [x] Instrument Phase 4.5 red team dispatches (background Agent):
   - `red-team-relay` Gemini, OpenAI (background Agent → completion notification)
   - `general-purpose` Claude Opus (background Agent → completion notification)
   - Phase 4.5 Step 2 MINOR triage (foreground Agent → inline response)
-- [ ] Instrument convergence-advisor dispatch (Phase 5.75/6 — background Agent → completion notification, if dispatched)
-- [ ] Instrument Phase 5.5 readiness check dispatches:
+- [x] Instrument convergence-advisor dispatch (Phase 5.75/6 — background Agent → completion notification, if dispatched)
+- [x] Instrument Phase 5.5 readiness check dispatches:
   - Semantic-checks agent (background Agent → completion notification)
   - `plan-readiness-reviewer` (foreground Agent → inline response)
   - `plan-consolidator` (foreground Agent, conditional → inline response)
-- [ ] Set: command=deepen-plan, bead=null, stem=plan-stem, step=category--agent-name (e.g., `research--security-sentinel`, `review--architecture-strategist`, `red-team--gemini`, `synthesis--plan-synthesizer`, `synthesis--convergence-advisor`)
-- [ ] Stats go to centralized YAML only — do NOT add stats to the deepen-plan manifest (see brainstorm Decision 4: manifest tracks run status, not cost/complexity)
-- [ ] After all phases complete, validate total entry count vs total dispatched agent count. Single total check (not per-batch) — simpler than cross-referencing manifest batch groupings. [red-team--gemini, simplified per triage]
+- [x] Set: command=deepen-plan, bead=null, stem=plan-stem, step=category--agent-name (e.g., `research--security-sentinel`, `review--architecture-strategist`, `red-team--gemini`, `synthesis--plan-synthesizer`, `synthesis--convergence-advisor`)
+- [x] Stats go to centralized YAML only — do NOT add stats to the deepen-plan manifest (see brainstorm Decision 4: manifest tracks run status, not cost/complexity)
+- [x] After all phases complete, validate total entry count vs total dispatched agent count. Single total check (not per-batch) — simpler than cross-referencing manifest batch groupings. [red-team--gemini, simplified per triage]
 
 ### Step 8: compact-prep ccusage Snapshot Persistence
 
@@ -301,7 +301,7 @@ Modify compact-prep to persist ccusage data as a YAML snapshot in the stats dire
 
 **Files:** `plugins/compound-workflows/skills/compact-prep/SKILL.md`
 
-- [ ] After existing Step 7 (Daily Cost Summary), if ccusage data was successfully retrieved and parsed:
+- [x] After existing Step 7 (Daily Cost Summary), if ccusage data was successfully retrieved and parsed:
   - Add `mkdir -p .workflows/stats`
   - Write ccusage snapshot YAML to `.workflows/stats/<date>-ccusage-snapshot.yaml`
   - If file exists, append with `---` separator via `cat >>` (atomic append — same pattern as capture-stats.sh, NOT read-then-write-all)
@@ -314,9 +314,9 @@ Modify compact-prep to persist ccusage data as a YAML snapshot in the stats dire
     input_tokens: 1234567
     output_tokens: 456789
     ```
-- [ ] Capture these 5 core fields. If ccusage output includes additional fields (e.g., cache_read_tokens, cache_write_tokens, per_model_breakdown), include them as additional YAML keys. The schema is extensible — unknown fields are preserved.
-- [ ] If ccusage not available or parse failed, skip (no snapshot — don't error)
-- [ ] Add brief note in Step 7 output: "ccusage snapshot saved to .workflows/stats/"
+- [x] Capture these 5 core fields. If ccusage output includes additional fields (e.g., cache_read_tokens, cache_write_tokens, per_model_breakdown), include them as additional YAML keys. The schema is extensible — unknown fields are preserved.
+- [x] If ccusage not available or parse failed, skip (no snapshot — don't error)
+- [x] Add brief note in Step 7 output: "ccusage snapshot saved to .workflows/stats/"
 
 ### Step 9: classify-stats Skill
 
@@ -324,8 +324,8 @@ Create a new skill for post-hoc complexity and output_type classification. This 
 
 **Files:** `plugins/compound-workflows/skills/classify-stats/SKILL.md` (new directory + file)
 
-- [ ] Create `plugins/compound-workflows/skills/classify-stats/` directory
-- [ ] Write SKILL.md implementing the classification flow:
+- [x] Create `plugins/compound-workflows/skills/classify-stats/` directory
+- [x] Write SKILL.md implementing the classification flow:
   1. Check `stats_classify` in `compound-workflows.local.md` — skip if `false`
   2. Read all `.workflows/stats/*.yaml` files (excluding `ccusage-snapshot` entries by checking for `type: ccusage-snapshot`)
   3. Filter to unclassified entries (complexity is null)
@@ -344,23 +344,23 @@ Create a new skill for post-hoc complexity and output_type classification. This 
      ```
   8. User options: confirm all / override specific entries / skip
   9. Rewrite YAML files in place with classification fields added (strategy: read full file, modify in memory, write to `<filename>.tmp`, then `mv` to replace original — prevents partial-write corruption if interrupted)
-- [ ] Handle edge cases:
+- [x] Handle edge cases:
   - Large entry count (20+) → paginate in groups of 10
   - Already-classified entries → skip (idempotent)
   - Partial stats files (low entry count relative to command type) → surface as "possibly incomplete" with a warning
-- [ ] Add YAML frontmatter to SKILL.md (disable-model-invocation: false — this skill has an interactive flow)
+- [x] Add YAML frontmatter to SKILL.md (disable-model-invocation: false — this skill has an interactive flow)
 
 **Note:** The brainstorm names this `/compound:classify-stats`, but `commands/compound/` is at the 8-command limit. Uses the overflow pattern established by `plugin-changes-qa` and `recover` (see brainstorm Decision 5, `memory/project.md`: "per-directory command limit ~8").
 
 ### Step 10: Version Bump + QA
 
-- [ ] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` (MINOR — new skill + command enhancements)
-- [ ] Bump version in `.claude-plugin/marketplace.json`
-- [ ] Update `plugins/compound-workflows/CHANGELOG.md` with all changes
-- [ ] Update component counts in `plugins/compound-workflows/README.md`: skill count +1 (classify-stats)
-- [ ] Update agent/skill/command counts in `plugins/compound-workflows/CLAUDE.md` if needed
-- [ ] Run `/compound-workflows:plugin-changes-qa` — all Tier 1 + Tier 2 checks
-- [ ] Fix any findings (especially `file-counts.sh` for new skill, `context-lean-grep.sh` for new capture instructions)
+- [x] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` (MINOR — new skill + command enhancements)
+- [x] Bump version in `.claude-plugin/marketplace.json`
+- [x] Update `plugins/compound-workflows/CHANGELOG.md` with all changes
+- [x] Update component counts in `plugins/compound-workflows/README.md`: skill count +1 (classify-stats)
+- [x] Update agent/skill/command counts in `plugins/compound-workflows/CLAUDE.md` if needed
+- [x] Run `/compound-workflows:plugin-changes-qa` — all Tier 1 + Tier 2 checks
+- [x] Fix any findings (especially `file-counts.sh` for new skill, `context-lean-grep.sh` for new capture instructions)
 
 ## Design Decisions
 
@@ -425,19 +425,19 @@ Partial stats files are the natural result of command interruptions (Ctrl+C, com
 
 ## Acceptance Criteria
 
-- [ ] All 5 orchestrator commands capture per-dispatch stats to `.workflows/stats/` YAML files
-- [ ] Stats capture is toggleable via `stats_capture: false` in `compound-workflows.local.md`
-- [ ] Missing `stats_capture` key defaults to enabled (no breakage for existing users)
-- [ ] Failed dispatches are captured with `status: failure/timeout` and null token fields
-- [ ] `<usage>` parse failures produce a visible warning (never silently skip)
-- [ ] Post-dispatch validation warns on missing entries (expected vs actual count)
-- [ ] Worktree-based work.md execution produces stats in the main repo's `.workflows/stats/`, not the worktree
-- [ ] Model resolution uses the 4-step priority chain (dispatch override > YAML > env var > parent)
-- [ ] ccusage snapshots are persisted by compact-prep to `.workflows/stats/`
-- [ ] `/compound-workflows:classify-stats` proposes complexity and output_type labels
-- [ ] Classification is batch-presented (table format, not one-by-one)
-- [ ] Setup migration adds `stats_capture` and `stats_classify` keys for existing users
-- [ ] Plugin QA passes with zero findings
+- [x] All 5 orchestrator commands capture per-dispatch stats to `.workflows/stats/` YAML files
+- [x] Stats capture is toggleable via `stats_capture: false` in `compound-workflows.local.md`
+- [x] Missing `stats_capture` key defaults to enabled (no breakage for existing users)
+- [x] Failed dispatches are captured with `status: failure/timeout` and null token fields
+- [x] `<usage>` parse failures produce a visible warning (never silently skip)
+- [x] Post-dispatch validation warns on missing entries (expected vs actual count)
+- [x] Worktree-based work.md execution produces stats in the main repo's `.workflows/stats/`, not the worktree
+- [x] Model resolution uses the 4-step priority chain (dispatch override > YAML > env var > parent)
+- [x] ccusage snapshots are persisted by compact-prep to `.workflows/stats/`
+- [x] `/compound-workflows:classify-stats` proposes complexity and output_type labels
+- [x] Classification is batch-presented (table format, not one-by-one)
+- [x] Setup migration adds `stats_capture` and `stats_classify` keys for existing users
+- [x] Plugin QA passes with zero findings
 
 ## Work Execution Notes
 

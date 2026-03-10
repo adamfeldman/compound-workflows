@@ -376,9 +376,11 @@ Machine-specific environment settings. **Should be gitignored** — each develop
 
 tracker: [beads|todowrite]
 gh_cli: [available|not available]
+stats_capture: true
+stats_classify: true
 ```
 
-Fill in based on detected environment. Red team provider preferences are NOT stored — they're detected at runtime each session (CLI availability varies by machine and may change).
+Fill in based on detected environment. Red team provider preferences are NOT stored — they're detected at runtime each session (CLI availability varies by machine and may change). Stats toggles default to `true` — capture and classification are enabled unless explicitly disabled.
 
 ### 7c: Routing Rules
 
@@ -422,6 +424,16 @@ Before writing, check if either config file already exists:
 ```bash
 cat compound-workflows.md 2>/dev/null
 cat compound-workflows.local.md 2>/dev/null
+```
+
+If `compound-workflows.local.md` exists but lacks `stats_capture`, append both stats keys with `true` defaults:
+
+```bash
+if [ -f compound-workflows.local.md ] && ! grep -q 'stats_capture' compound-workflows.local.md; then
+  echo 'stats_capture: true' >> compound-workflows.local.md
+  echo 'stats_classify: true' >> compound-workflows.local.md
+  echo "STATS_KEYS_ADDED=true"
+fi
 ```
 
 If an old-format `compound-workflows.local.md` exists (look for `review_agents:` in the local file, or `review_agents: compound-engineering`), inform the user:

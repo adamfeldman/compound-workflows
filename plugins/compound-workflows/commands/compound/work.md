@@ -54,6 +54,30 @@ Flag any concerns to the user before proceeding.
 - Use **AskUserQuestion** to get user approval to proceed
 - **Do not skip this** — the orchestrator must understand the plan before dispatching work
 
+### 1.1.1 Stats Capture Setup
+
+Initialize per-dispatch stats collection. This runs once at command start; all dispatches in this run share the same identifiers.
+
+```bash
+mkdir -p .workflows/stats
+RUN_ID=$(uuidgen | cut -c1-8)
+CACHED_SUBAGENT_MODEL=$(echo $CLAUDE_CODE_SUBAGENT_MODEL)
+echo "RUN_ID=$RUN_ID SUBAGENT_MODEL=${CACHED_SUBAGENT_MODEL:-unset}"
+```
+
+Resolve plugin root for `capture-stats.sh` and schema reference:
+```bash
+PLUGIN_ROOT="plugins/compound-workflows"
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+```
+
+**Config check:** Read `compound-workflows.local.md` and check the `stats_capture` key. If the value is `false`, skip all stats capture for this run (do not read the schema file, do not call `capture-stats.sh`). If the key is missing or any other value, proceed with stats capture.
+
+**Stats file path:** `STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-work-${STEM}.yaml"` — derive `STEM` from the plan filename by stripping the date prefix and `-plan.md` suffix (e.g., `docs/plans/2026-03-10-feat-per-agent-token-instrumentation-plan.md` becomes `feat-per-agent-token-instrumentation`). If no plan file is provided (ad-hoc work), derive `STEM` from the current branch name.
+
+**Model resolution:** For each dispatch, resolve the `model` field using the cached `$CACHED_SUBAGENT_MODEL`. The `general-purpose` agent uses `model: inherit`, so: if `$CACHED_SUBAGENT_MODEL` is set, use that; otherwise default to `opus`. If a dispatch uses an explicit model override, use that instead. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for the full 4-step model resolution algorithm.
+
 ### 1.2 Setup Worktree
 
 **NEVER call `git worktree add` directly.** Always use `bd worktree` or the `worktree-manager.sh` script. Raw `git worktree add` creates worktrees in the wrong location and requires manual `.gitignore` entries.
@@ -267,6 +291,9 @@ Return a summary with:
 Task general-purpose (foreground): "[constructed prompt above]" <!-- context-lean-exempt: work subagents commit code, return inline summary -->
 ```
 
+### Stats Capture
+If stats_capture ≠ false in compound-workflows.local.md: after each Task completion, extract the `<usage>...</usage>` line from the inline response and call `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" work general-purpose "<step>" "<model>" "$STEM" "<bead>" "$RUN_ID" "<usage-line>"`. Use the bead issue number (or sequential loop counter) as `<step>`. Use the bead ID as `<bead>` (null if no bead). See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules.
+
 ### 2.3 Handling Subagent Results
 
 After each subagent returns:
@@ -328,6 +355,17 @@ If context compacts mid-execution, recovery is simple:
 3. Rebuild a TodoWrite task list for remaining unchecked items
 4. Resume dispatching from the first incomplete task
 
+### 2.5 Post-Dispatch Stats Validation
+
+After the dispatch loop completes (all issues closed or all TodoWrite tasks completed), if stats capture is enabled, validate that the stats file contains the expected number of entries:
+
+```bash
+ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+echo "Stats validation: $ENTRY_COUNT entries in $STATS_FILE (expected: $DISPATCH_COUNT)"
+```
+
+Track `DISPATCH_COUNT` by incrementing a counter after each successful `capture-stats.sh` call during the dispatch loop. If `ENTRY_COUNT` does not match `DISPATCH_COUNT`, warn with the names of missing agents — do not fail the command. This is a diagnostic warning only.
+
 ## Phase 3: Quality Check (Orchestrator)
 
 After all issues are closed (or all TodoWrite tasks completed):
@@ -361,6 +399,8 @@ After all issues are closed (or all TodoWrite tasks completed):
    ```
 
    Read review output files. Address critical issues only.
+
+   **Stats capture (reviewer):** If stats capture is enabled and the reviewer was dispatched, extract the `<usage>...</usage>` line from the background Task completion notification and call `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" work code-simplicity-reviewer "reviewer" "<model>" "$STEM" "<bead>" "$RUN_ID" "<usage-line>"`. Use `"reviewer"` as the step value. Include this entry in the post-dispatch validation count.
 
 ## Phase 4: Ship (Orchestrator)
 

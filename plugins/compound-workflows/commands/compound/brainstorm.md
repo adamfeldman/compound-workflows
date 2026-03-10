@@ -37,8 +37,24 @@ Run a quick repo scan and broad context search in parallel:
 
 ```bash
 mkdir -p .workflows/brainstorm-research/<topic-stem>
+mkdir -p .workflows/stats
 [[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
+PLUGIN_ROOT="plugins/compound-workflows"
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+RUN_ID=$(uuidgen | cut -c1-8)
+STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-brainstorm-<topic-stem>.yaml"
+CACHED_MODEL="${CLAUDE_CODE_SUBAGENT_MODEL:-opus}"
+echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+echo "RUN_ID=$RUN_ID"
+echo "STATS_FILE=$STATS_FILE"
+echo "CACHED_MODEL=$CACHED_MODEL"
 ```
+
+#### 1.1a Stats Capture Config Check
+
+Read `compound-workflows.local.md` and check the `stats_capture` key. If `stats_capture` is explicitly set to `false`, skip all stats capture for this run. If missing or any other value, proceed with capture.
+
+If stats capture is enabled, read `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules and `capture-stats.sh` usage.
 
 ```
 Task repo-research-analyst (run_in_background: true): "
@@ -61,6 +77,28 @@ Highlight any prior brainstorms on the same or adjacent topics — these are esp
 Write findings to: .workflows/brainstorm-research/<topic-stem>/context-research.md
 Return ONLY a 2-3 sentence summary.
 "
+```
+
+#### 1.1b Stats Capture — Research Dispatches
+
+If stats capture is enabled: when you receive each background Task completion notification containing `<usage>`, extract the `<usage>...</usage>` line and call `capture-stats.sh`. DO NOT call TaskOutput. The completion notification content beyond `<usage>` is not needed — the research outputs are on disk.
+
+For each of the 2 research agents (`repo-research-analyst`, `context-researcher`):
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "<agent-name>" "<agent-name>" "sonnet" "<topic-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Both agents have `model: sonnet` in their YAML frontmatter, so the model field is `sonnet` regardless of `CACHED_MODEL`.
+
+After both research agents complete, validate entry count:
+
+```bash
+ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+EXPECTED=2
+if [ "$ENTRY_COUNT" -ne "$EXPECTED" ]; then
+  echo "Stats capture: expected $EXPECTED entries but found $ENTRY_COUNT after research phase." >&2
+fi
 ```
 
 #### 1.2 Collaborative Dialogue
@@ -303,6 +341,33 @@ Wait until all expected red team files exist (`red-team--gemini.md`, `red-team--
 
 **If PAL MCP is not available:** Run only the Claude Opus Task subagent (Provider 3 above). The red team will have a single perspective instead of three, but this is an acceptable fallback.
 
+##### Step 1a: Stats Capture — Red Team Dispatches
+
+If stats capture is enabled: when you receive each background Task completion notification containing `<usage>`, extract the `<usage>...</usage>` line and call `capture-stats.sh`. DO NOT call TaskOutput.
+
+For the 2 `red-team-relay` agents (Gemini, OpenAI) — model is `sonnet` (agent YAML frontmatter):
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "red-team-relay" "red-team-gemini" "sonnet" "<topic-stem>" "null" "$RUN_ID" "<usage-line>"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "red-team-relay" "red-team-openai" "sonnet" "<topic-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+For the `general-purpose` agent (Claude Opus) — no explicit model, use `CACHED_MODEL`:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "general-purpose" "red-team-opus" "$CACHED_MODEL" "<topic-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Track the number of red team agents actually dispatched (2-3 depending on PAL availability). After all red team completions, validate:
+
+```bash
+ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+EXPECTED_TOTAL=$((2 + <red-team-count>))  # 2 research + N red team agents dispatched
+if [ "$ENTRY_COUNT" -ne "$EXPECTED_TOTAL" ]; then
+  echo "Stats capture: expected $EXPECTED_TOTAL entries but found $ENTRY_COUNT after red team phase." >&2
+fi
+```
+
 #### Step 2: Surface CRITICAL and SERIOUS Items
 
 Read all three red team critiques (or whichever completed). Deduplicate findings across providers — if multiple models flag the same issue, note it once with the strongest severity rating.
@@ -398,6 +463,23 @@ After writing the file, return ONLY a 2-3 sentence summary.
 ```
 
 **Poll for completion:** Check file existence with `ls .workflows/brainstorm-research/<topic-stem>/minor-triage.md`. Wait until the file exists, then read it from disk. **DO NOT call TaskOutput.**
+
+##### Step 3a-stats: Stats Capture — MINOR Triage Dispatch
+
+If stats capture is enabled: when you receive the background Task completion notification containing `<usage>`, extract the `<usage>...</usage>` line and call `capture-stats.sh`. DO NOT call TaskOutput.
+
+The `general-purpose` agent has no explicit model — use `CACHED_MODEL`:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "general-purpose" "minor-triage" "$CACHED_MODEL" "<topic-stem>" "null" "$RUN_ID" "<usage-line>"
+```
+
+Validate total entry count (2 research + N red team + 1 triage):
+
+```bash
+ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+echo "Stats capture: $ENTRY_COUNT total entries after MINOR triage."
+```
 
 ##### Step 3b: Present Three-Category Triage
 

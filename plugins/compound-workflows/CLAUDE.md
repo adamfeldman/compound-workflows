@@ -28,8 +28,12 @@ commands/
 └── compound/ # All slash commands (namespaced, 8 commands)
 
 scripts/
+├── capture-stats.sh         # Deterministic atomic append for per-dispatch YAML stats capture
 ├── plugin-qa/               # 5 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
 └── version-check.sh         # 3-way version comparison (source vs installed vs release) — NOT in plugin-qa/ (makes network calls)
+
+resources/
+└── stats-capture-schema.md  # YAML schema, field derivation rules, and capture-stats.sh usage reference
 
 skills/
 ├── agent-browser/           # Browser automation for agents
@@ -49,6 +53,7 @@ skills/
 ├── recover/                 # Context recovery from dead/exhausted sessions
 ├── resolve-pr-parallel/     # Parallel PR comment resolution
 ├── setup/                   # Setup configuration reference (disable-model-invocation)
+├── classify-stats/          # Post-hoc complexity and output_type classification
 ├── skill-creator/           # Skill packaging scripts
 └── version/                 # Plugin version status check (source vs installed vs release)
 ```

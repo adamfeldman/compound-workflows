@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] - 2026-03-10
+
+### Features
+- **Per-agent token instrumentation** — all 5 orchestrator commands (work, brainstorm, plan, deepen-plan, review) now capture per-dispatch stats (`<usage>` token counts, tool uses, duration) to `.workflows/stats/` YAML files. Deterministic `capture-stats.sh` bash script handles atomic append — no LLM-mediated file I/O. Toggleable via `stats_capture: false` in `compound-workflows.local.md`.
+- **capture-stats.sh** — new bash script for deterministic YAML stats entry construction and atomic `cat >>` append. Handles success, failure, timeout, and unparseable `<usage>` formats. Always exits 0 (never blocks command execution).
+- **stats-capture-schema.md** — new reference document in `resources/` with full YAML schema (14 fields), `<usage>` discovery instructions, model resolution algorithm (4-step priority chain), worktree handling, and post-dispatch validation procedures.
+- **compact-prep ccusage snapshot** — persists ccusage daily cost data as YAML snapshot to `.workflows/stats/` with atomic append.
+- **`/compound-workflows:classify-stats` skill** — post-hoc complexity and output_type classification for stats entries. Dispatches classifier subagent, presents batch table, supports confirm/override/skip. Atomic tmp+mv rewrite for data integrity.
+- **Settings infrastructure** — `stats_capture` and `stats_classify` toggles added to setup command/skill with migration for existing users. Missing keys default to enabled.
+
+### Changed
+- Skills: 19→20 (added classify-stats)
+- New `plugins/compound-workflows/resources/` directory for shared reference files (stats-capture-schema.md)
+- New `plugins/compound-workflows/scripts/capture-stats.sh` for stats capture
+
 ## [2.2.0] - 2026-03-10
 
 ### Features
