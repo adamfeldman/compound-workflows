@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v2.5.0 (plugins/compound-workflows/)
+- Plugin: compound-workflows v2.6.1 (plugins/compound-workflows/)
 - 26 agents, 20 skills, 8 commands
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -42,7 +42,7 @@
 - **Deny rules in settings.json are BROKEN** — multiple GitHub issues (#27040, #6699, #8961) confirm deny rules are non-functional. PreToolUse hooks are the ONLY reliable way to block dangerous operations. Hook output format: `{"hookSpecificOutput": {"permissionDecision": "allow"}}`.
 - **PreToolUse hooks are documented and supported** — hooks reference at code.claude.com/docs/en/hooks. Since v2.0.10, hooks can also modify tool inputs before execution. "Officially recommended" and "v2.0+" could not be verified as specific designations in docs — softened from prior entry.
 - **PreToolUse hook input schema** — common fields: `session_id`, `transcript_path`, `cwd`, `permission_mode`, `hook_event_name`. PreToolUse-specific: `tool_name`, `tool_input`, `tool_use_id`. Subagent context adds: `agent_id`, `agent_type`. Matcher is regex on `tool_name`; `""` or `"*"` or omitted = match all. Output: exit 0 + JSON `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}`. Exit 0 with no output = fall through. Exit 2 = blocking error (more reliable than JSON deny per issue #4669).
-- **Bash safety heuristics: static rules suppress, hooks don't** — `$()`, backticks, `{"`, heredocs trigger Claude Code's built-in heuristics. Static `Bash(X:*)` rules suppress them (fire BEFORE heuristics — verified: `bd:*` suppresses `{"`, `git:*` suppresses `$()`). PreToolUse hooks CANNOT suppress them (fire AFTER heuristics). `--dangerously-skip-permissions` suppresses everything. No "multi-line heuristic" exists — multi-line blocks without `$()` auto-approve. GitHub #30435, #31373 (both OPEN 2026-03-10). See: `docs/solutions/claude-code-internals/2026-03-10-static-rules-suppress-bash-heuristics.md`.
+- **Bash safety heuristics: static rules suppress MOST, hooks don't** — `$()`, backticks, `{"` trigger Claude Code's built-in heuristics. Static `Bash(X:*)` rules suppress these "soft" heuristics (fire BEFORE heuristics — verified: `bd:*` suppresses `{"`, `git:*` suppresses `$()`). **BUT `<<` heredoc is a "hard" heuristic NOT suppressed by static rules** — empirically disproved 2026-03-11 (bead ywug/pck2): `cat >> file <<EOF` prompted despite `Bash(cat:*)`. Fix: hide heredocs inside script files (append-snapshot.sh pattern). PreToolUse hooks CANNOT suppress any heuristic (fire AFTER heuristics). `--dangerously-skip-permissions` suppresses everything. No "multi-line heuristic" exists — multi-line blocks without `$()` auto-approve. See: `docs/solutions/claude-code-internals/2026-03-10-static-rules-suppress-bash-heuristics.md`.
 - **Static `Bash(VAR=:*)` rules don't reliably match** — added `Bash(PLAN_PATH=:*)` etc. to settings.local.json but commands starting with variable assignments still prompted. Confirmed during this session. Hook approach is the real fix.
 - **No Claude Code setting to disable auto-memory per-project** — auto-memory (`~/.claude/projects/.../memory/`) is always active. System prompt instructs the LLM to write there. Workaround: redirect guard in MEMORY.md saying "DO NOT USE." LLM-enforced, not technically enforced — fragile. Upstream feature request needed.
 - **Tier 1 QA zero-findings baseline** — all QA scripts must produce zero findings on a clean repo. Verified-correct patterns use `context-lean-exempt` markers to suppress known-good matches. Convention: mark exempt lines with `# context-lean-exempt: <reason>` so the grep skips them. If any script shows findings, they're either new bugs or missing exempt markers — never "pre-existing known-good." This ensures a fresh session always sees a clean baseline.
@@ -81,16 +81,17 @@
 - **v2.4.1** — Plugin heuristic audit (bead jak): validate-stats.sh replaces 9 inline ENTRY_COUNT blocks, 2 P5 subshell fixes, sentinel redesign (Write tool clear vs rm), QA Check 5 (var-dollar-paren-heuristic), 27 heuristic-exempt markers. 10 steps via /compound:work (6 parallel in batch 1).
 - **v2.5.0** — Heuristic audit scope expansion (bead 3l7): init-values.sh (29 patterns), check-sentinel.sh (3 patterns), QA Check 5 expanded (skills+agents, backtick detection), 7 commands + 7 skills migrated. 51 $() patterns eliminated, 27 exempt markers removed, zero residuals. 5 subagent dispatches via worktree.
 
+- **v2.6.1** — Permissionless bash generation (bead dndn) + heredoc hard heuristic fix: setup Step 8e injects Bash Generation Rules into project CLAUDE.md on opt-in, 8 avoidance patterns in resources/bash-generation-rules.md, complementary static rule suggestions. Heredoc fix: append-snapshot.sh replaces Read+Write approach, hard vs soft heuristic distinction in Permission Architecture. `<<` is unsuppressible by static rules.
+
 ## In-Progress Work
 
-- **Permissionless bash generation (bead dndn)** — P1. Brainstorm complete. Key decisions: hybrid approach (expand static rules + CLAUDE.md rules for uncoverable patterns like VAR=$()), setup injection opt-in (not config toggle), both split-calls and temp scripts offered (model chooses), stop reflexive `2>/dev/null`. Straight to work, no plan needed.
-- **Fix capture-stats.sh usage format parser (bead jg6)** — P2. Parser emits spurious "format may have changed" warning for XML-style `<usage>` tags. Regex needs updating.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/compound:brainstorm`.
-- **Red team model selection (bead aig)** — P3 (lowered: clink handles model selection, not urgent). Brainstorm complete. Accumulated notes: Opus model bug, ad-hoc red team skill idea, cost configurability, CLI file access verified. Next: `/compound:plan`.
+- **Downgrade analytical agents to Sonnet (bead sze8)** — P1. Blocked by wtn. Candidates: semantic-checks, spec-flow-analyzer, plan-readiness-reviewer, minor-triage. Red-team-opus stays Opus.
+- **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt.
+- **Red team model selection (bead aig)** — P3. Brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 - **Config toggles for optional compact-prep steps (bead xzn)** — P2. Version check + daily cost summary both optional.
-- **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Key finding: the bug is execution sequencing (Step 3c runs before 3d), not display order. Scope narrowed to 3 commands (brainstorm, plan, deepen-plan — review.md has no triage flow). Next: `/compound:plan`.
-- **Cheaper-model dispatch audit (bead 5b6)** — P1 (elevated: quota is a throughput problem), in_progress. 8sd complete. Dynamic model routing decided (not blanket Sonnet or static assignment). Tier 1: mechanical work steps + simple triage (~5-15% quota reduction). `<usage>` block confirmed: only total_tokens/tool_uses/duration_ms — no cache fields. Per-agent cache data unavailable from this source. See `memory/cost-analysis.md` and `docs/solutions/cost-modeling/2026-03-11-dynamic-model-routing-cost-analysis.md`.
+- **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
 
 ## Critical Patterns
 - **Plugin paths must use `find` fallback** — all script/file references in commands/skills need dynamic resolution: try local path, then `find "$HOME/.claude/plugins" ...`. Affects any new command referencing plugin scripts.
@@ -104,7 +105,10 @@
 
 ## Dependency Chain
 - xu2 unblocked (voo done — dataset available). Depends on 8sd(done), wtn.
-- 5b6 in_progress — 8sd(done), classify-stats run complete. Stats schema gap identified (no per-agent cache data).
+- **5b6 closed** — audit complete. Relay agents already Sonnet, analytical agents are Sonnet candidates, red-team-opus stays.
+- **sze8 created** — P1. Downgrade analytical agents to Sonnet. Blocked by wtn.
+- **jgb8 created** — P2 bug. Setup Step 8e assumes CLAUDE.md, doesn't work for AGENTS.md users.
+- **dndn closed** — v2.6.1. Permissionless bash generation implemented.
 - **8sd closed** — classify-stats validated on full dataset (44 entries, 7 files). Unblocks xu2 and 5b6.
 - **2kj created** — P3. Migrate ~30 remaining Task dispatches to Agent dispatch across 5 commands + 1 skill. Consistency/cleanup, not capability. brainstorm.md (8), review.md (7), plan.md (5), compound.md (8), work.md (2), plugin-changes-qa (5).
 - **7k6 created** — P3. Hook to inject current date into session context. MEMORY.md date goes stale on resumed sessions from prior days.
