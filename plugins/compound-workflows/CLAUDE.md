@@ -169,6 +169,18 @@ Red team provider preferences are detected each session, not stored in config. C
 
 See `skills/disk-persist-agents/SKILL.md` for the canonical pattern and output instruction templates.
 
+## Command Robustness Principles
+
+Commands are prose instructions interpreted by LLMs. Cheaper models (Sonnet) and even Opus can fail to follow instructions faithfully — skipping steps, conflating scope, ignoring gates. All commands must be structurally robust, not just well-written prose.
+
+1. **Completion gates over implicit expectations** — before any post-phase work, include an explicit checklist of what must be resolved. Don't assume prior steps ran correctly.
+2. **Unambiguous step scope** — every step and choice must state what it covers and what it doesn't. Batch choices should clarify what comes next. LLMs conflate partial actions with full completion.
+3. **Deterministic verification over LLM judgment** — use bash scripts, file existence checks, hooks, or hash comparisons to verify state. Don't rely on the LLM's sense of "done," "enough time," or "already handled."
+4. **Defensive redundancy** — repeat critical constraints at decision points and phase transitions, not just in headers. LLMs lose track over long contexts.
+5. **Fail loud, not silent** — when steps are skipped or incomplete, the command must surface it. Silent omission (icn) is worse than a wrong-order execution because no one knows something was missed.
+6. **Instrument to iterate** — build robustness now (failures are happening), but instrument step-level timing so future improvements are data-driven. Guardrails that prove too costly can be tuned; those proving insufficient can be tightened.
+7. **Fix underspecifications proactively** — when readiness checks or specflow analysis find an underspecification, fix it if the answer is unambiguous and follows from existing decisions. Only ask the user when there's a genuine design choice with tradeoffs. Presenting "fix / accept / defer" for a trivially-derivable answer wastes user attention and violates "plans must be fully specified." (See bead 4v2)
+
 ## Testing Changes
 
 1. Install the plugin in a test project
