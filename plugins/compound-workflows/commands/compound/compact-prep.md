@@ -82,7 +82,7 @@ Run the version check script to compare source, installed, and released versions
 ```bash
 # Find version-check.sh: local repo (dev) or installed plugin
 VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
-[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
+[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1) # heuristic-exempt
 [[ -n "$VERSION_CHECK" ]] && bash "$VERSION_CHECK" || echo "version-check.sh not found — skipping"
 ```
 - **If all versions match** (exit code 0): Say "Versions OK." and move on.
@@ -106,7 +106,7 @@ which ccusage 2>/dev/null
 **If ccusage is available:**
 
 ```bash
-ccusage daily --json --breakdown --since $(date +%Y%m%d) --offline 2>/dev/null
+ccusage daily --json --breakdown --since $(date +%Y%m%d) --offline 2>/dev/null # heuristic-exempt
 ```
 
 Parse the JSON output defensively — field naming varies across ccusage versions:
@@ -137,8 +137,8 @@ mkdir -p .workflows/stats
 Write the snapshot via atomic append (`cat >>`). Use today's date for the filename:
 
 ```bash
-SNAPSHOT_FILE=".workflows/stats/$(date +%Y-%m-%d)-ccusage-snapshot.yaml"
-TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+SNAPSHOT_FILE=".workflows/stats/$(date +%Y-%m-%d)-ccusage-snapshot.yaml" # heuristic-exempt
+TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" # heuristic-exempt
 cat >> "$SNAPSHOT_FILE" <<EOF
 ---
 type: ccusage-snapshot

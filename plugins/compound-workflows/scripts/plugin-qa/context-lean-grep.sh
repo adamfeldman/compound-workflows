@@ -7,6 +7,7 @@
 #   2. TaskOutput calls (banned)
 #   3. mcp__pal__clink / mcp__pal__chat calls (require manual verification)
 #   4. Task dispatches missing OUTPUT INSTRUCTIONS or [disk-write within 50 lines
+#   5. VAR=$() patterns that trigger mid-workflow permission prompts
 #
 # NOTE: This script does NOT skip code blocks. Command files use code blocks
 # for actual Task dispatch syntax that Claude Code executes -- these are
@@ -160,6 +161,30 @@ for f in "$cmd_dir"/*.md; do
   done < "$lines_file"
 
   rm -f "$lines_file"
+done
+
+# --- Check 5: VAR=$() patterns that trigger mid-workflow permission prompts ---
+# Variable assignments with $() command substitution always prompt (first token
+# is a variable assignment, no static rule can match). Accepted patterns
+# (init blocks, recovery) must be marked with # heuristic-exempt.
+# Catches both $() command substitution and $(()) arithmetic expansion
+# (both are empirically verified heuristic triggers).
+
+for f in "$cmd_dir"/*.md; do
+  [[ -f "$f" ]] || continue
+  matches="$(grep -nE '^\s*[A-Z_]+=.*\$\(' "$f" || true)"
+  if [[ -n "$matches" ]]; then
+    while IFS= read -r match; do
+      line_text="$(echo "$match" | cut -d: -f2-)"
+      # Skip lines with heuristic-exempt marker
+      if echo "$line_text" | grep -qF 'heuristic-exempt' 2>/dev/null; then
+        continue
+      fi
+      line_num="$(echo "$match" | cut -d: -f1)"
+      add_finding "SERIOUS" "$f" "$line_num" "var-dollar-paren-heuristic" \
+        "VAR=\$() pattern triggers mid-workflow permission prompt — add # heuristic-exempt if intentional"
+    done <<< "$matches"
+  fi
 done
 
 # --- Output ---
