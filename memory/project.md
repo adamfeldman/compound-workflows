@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v2.3.0 (plugins/compound-workflows/)
+- Plugin: compound-workflows v2.4.1 (plugins/compound-workflows/)
 - 26 agents, 20 skills, 8 commands
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -34,6 +34,8 @@
 - **Worktree blocks `gh pr merge`** — use `gh api repos/.../pulls/N/merge -X PUT -f merge_method=squash` instead.
 - **clink CLIs read repo files independently** — Gemini uses `read_file` tool, Codex uses `cat`. Verified: both browse beyond the brainstorm file passed via `absolute_file_paths` — they reference CLAUDE.md, README.md, command files, directory structure. 100% of red team dispatches used clink, never PAL chat. PAL chat would need `absolute_file_paths` explicitly; CLIs don't.
 - **`VAR=$((...))` also triggers heuristic** — arithmetic expansion `$((...))` triggers the SAME permission prompt heuristic as command substitution `$()`. Empirically verified 2026-03-11: `TEST_VAL=$((2 + 3))` prompted. No distinction between `$()` and `$(())`. QA Check 5 regex must catch both.
+- **Most $() init patterns are fixable** — `PLUGIN_ROOT=$(find ...)` → glob loop, `RUN_ID=$(uuidgen ...)` → standalone cmd + model reads output, `STATS_FILE="...$(date ...)"` → split date call. Bash vars don't persist between Bash tool calls anyway — model already tracks values mentally. Split adds 0 cognitive load but eliminates the prompt.
+- **Skills have same heuristic patterns as commands** — skill SKILL.md files contain model-interpreted bash with $() patterns. QA Check 5 must scan skills too, not just `$cmd_dir/*.md`.
 - **`claude plugin update` unreliable** — command exits 0 silently but doesn't always pull latest. Fallback: `git -C ~/.claude/plugins/marketplaces/<name> pull origin main` then `/reload-plugins`.
 - **Agent tool background completions include `<usage>`** — identical format to Task completion notifications (`total_tokens`, `tool_uses`, `duration_ms`). Validated 2026-03-09 with 3 dispatches (repo-research-analyst, context-researcher, code-simplicity-reviewer). Switching Task→Agent does not break `<usage>` capture.
 - **Subagent settings inheritance verified** — subagents DO load `.claude/settings.json` from the project root. Empirically tested 2026-03-10: added a distinctive allow rule, spawned a subagent, confirmed it auto-approved. Write failures were transient permission denials, not systemic inheritance issues.
@@ -68,9 +70,10 @@
 - **v2.1.0** — Native agent discovery (bead wgl): deepen-plan Phase 2 filesystem discovery → subagent_type registry, Agent dispatch migration across all phases, deterministic post-discovery validation pipeline, user-defined agent support, QA scripts detect Agent dispatch syntax
 - **v2.2.0** — Red team + readiness re-check in plan (bead nn3): Phase 6.8 (3-provider red team with Yes/Skip gate, 7-dimension prompt, MINOR triage), Phase 6.9 (conditional full readiness re-check via SHA-256 hash), 7-rule decision tree, deepen-plan 7th dimension, brainstorm 6th dimension
 - **v2.3.0** — Per-agent token instrumentation (bead voo): capture-stats.sh, stats-capture-schema.md, all 5 commands instrumented, compact-prep ccusage snapshot, /compound-workflows:classify-stats skill, stats_capture + stats_classify settings. 10 steps via /compound:work (4 parallel batches). QA clean after TaskOutput ban phrasing fix.
+- **v2.4.1** — Plugin heuristic audit (bead jak): validate-stats.sh replaces 9 inline ENTRY_COUNT blocks, 2 P5 subshell fixes, sentinel redesign (Write tool clear vs rm), QA Check 5 (var-dollar-paren-heuristic), 27 heuristic-exempt markers. 10 steps via /compound:work (6 parallel in batch 1).
 
 ## In-Progress Work
-- **Plugin heuristic audit (bead jak)** — P1. Brainstorm + plan complete. Plan passed readiness (5 findings fixed). Next: red team, then `/compound:work`. Plan: `docs/plans/2026-03-10-feat-plugin-heuristic-audit-plan.md`. 4 deliverables: validate-stats.sh, 9 ENTRY_COUNT replacements, sentinel redesign, QA regression check.
+- **Heuristic audit scope expansion (bead 3l7)** — P1. jak v2.4.1 missed skills (11 $() patterns) and accepted fixable command init patterns (27 marked exempt). Most are eliminable via split commands, glob loops, model-side arithmetic. Principles 8+9 added to CLAUDE.md. Next: `/compound:brainstorm 3l7`.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P3 (lowered: clink handles model selection, not urgent). Brainstorm complete. Accumulated notes: Opus model bug, ad-hoc red team skill idea, cost configurability, CLI file access verified. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
