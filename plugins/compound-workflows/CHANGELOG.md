@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.1] - 2026-03-11
+
+### Fixed
+- **compact-prep: heredoc permission prompt** — replaced `cat >> file <<EOF` with Read+Write tool append for ccusage snapshot persistence. Heredoc `<<` triggers permission heuristic even with `Bash(cat:*)` static rule.
+
 ## [2.5.0] - 2026-03-11
 
 ### Features

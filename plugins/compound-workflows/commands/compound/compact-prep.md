@@ -143,26 +143,25 @@ If ccusage data was successfully retrieved and parsed in Step 7 (i.e., ccusage w
 mkdir -p .workflows/stats
 ```
 
-Write the snapshot via atomic append (`cat >>`). Use the SNAPSHOT_FILE and TIMESTAMP values from init-values.sh output:
+Write the snapshot by appending to SNAPSHOT_FILE. Use the SNAPSHOT_FILE and TIMESTAMP values from init-values.sh output.
 
-```bash
-cat >> "<SNAPSHOT_FILE>" <<EOF
+Use the **Read tool** to check if SNAPSHOT_FILE already exists, then use the **Write tool** to append the snapshot. If the file exists, read its current content and append the new YAML document (with `---` separator). If it doesn't exist, write a new file starting with the `---` separator.
+
+**Core fields (always include):** `type`, `timestamp`, `total_cost_usd`, `input_tokens`, `output_tokens`.
+
+**Extensible fields:** If the parsed ccusage output includes additional data (e.g., `cache_read_tokens`, `cache_write_tokens`, per-model cost breakdown), add them as additional YAML keys. The schema is extensible — unknown fields are preserved for future analysis.
+
+**Format:** Each snapshot is a YAML document separated by `---`:
+```yaml
 ---
 type: ccusage-snapshot
 timestamp: <TIMESTAMP>
 total_cost_usd: <total cost from parsed data>
 input_tokens: <total input tokens from parsed data>
 output_tokens: <total output tokens from parsed data>
-EOF
 ```
 
-**Core fields (always include):** `type`, `timestamp`, `total_cost_usd`, `input_tokens`, `output_tokens`.
-
-**Extensible fields:** If the parsed ccusage output includes additional data (e.g., `cache_read_tokens`, `cache_write_tokens`, per-model cost breakdown), append them as additional YAML keys in the same `cat >>` block. The schema is extensible — unknown fields are preserved for future analysis.
-
 After writing, add a brief note to the Step 7 output: "ccusage snapshot saved to .workflows/stats/"
-
-If the file already exists (multiple compact-prep runs on the same day), the `cat >>` naturally appends with the `---` YAML document separator — each run becomes a separate document in the same file.
 
 ## Step 8: Queue Post-Compaction Task
 
