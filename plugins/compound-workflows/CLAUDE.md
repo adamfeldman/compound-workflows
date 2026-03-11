@@ -184,6 +184,12 @@ Commands are prose instructions interpreted by LLMs. Cheaper models (Sonnet) and
 8. **Audit entire plugin scope, not just commands** — commands, skills, agents, and any `.md` file containing model-interpreted bash instructions are subject to the same heuristics. QA checks must match audit scope. A "plugin audit" means the whole `plugins/compound-workflows/` tree, not `commands/compound/` alone. (See bead jak v2.4.1: skills missed from heuristic audit.)
 9. **Don't accept limitations without feasibility assessment** — when a brainstorm or plan declares something "accepted" or "unavoidable" (e.g., "accept init-block prompts"), verify the assumption by checking whether the pattern is actually eliminable. Most $() init patterns can be rewritten as standalone commands, glob loops, or model-side tracking. Accepting a limitation without exploring alternatives leads to unnecessary technical debt. (See bead jak: Decision 1 accepted fixable init prompts.)
 
+## Development Principles
+
+General principles for plugin development workflow and decision-making.
+
+1. **Comprehensive fixes, not targeted** — when an audit or review identifies a class of issues, fix the entire class across the full scope. Don't cherry-pick high-frequency instances or defer low-frequency ones to follow-up beads. If the fix technique is validated, apply it everywhere. Targeted fixes leave debt that accumulates. (See bead 3l7: jak v2.4.1 fixed commands but skipped skills — the residual became a separate bead.)
+
 ## Permission Architecture
 
 The plugin ships a PreToolUse auto-approve hook (`templates/auto-approve.sh`) and a minimal committed baseline in `.claude/settings.json`. Users may also add static `Bash(X:*)` rules in `.claude/settings.local.json`.
