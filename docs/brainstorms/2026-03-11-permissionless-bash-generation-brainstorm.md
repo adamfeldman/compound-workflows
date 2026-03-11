@@ -64,7 +64,7 @@ These ad-hoc patterns are suppressed by existing `Bash(X:*)` rules and need no C
 - `python3 << 'PYEOF'` → `Bash(python3:*)` suppresses heredoc
 - `bd create --metadata '{"impact":...}'` → `Bash(bd:*)` suppresses `{"`
 - `git commit -m "$(cat <<'EOF'..."` → `Bash(git:*)` suppresses `$()` + `<<`
-- `cat >> file <<'EOF'` → `Bash(cat:*)` suppresses heredoc + redirect
+- ~~`cat >> file <<'EOF'` → `Bash(cat:*)` suppresses heredoc + redirect~~ **DISPROVED:** `<<` heredoc is a "hard" heuristic NOT suppressed by static rules (bead ywug, Test 5 in solution doc). Fix: move heredoc into a script file (append-snapshot.sh).
 
 ### `2>/dev/null` — The Common Enabler
 

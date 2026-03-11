@@ -122,7 +122,7 @@ From repo research — all 7 active command files contain `$()`. Compound.md is 
 | P7 | `git commit -m "$(cat <<EOF...)"` | work.md | Static rule `git:*` covers it (backup: Write tool → `git commit -F`) | No — already solved |
 | P7b | `gh pr create --body "$(cat <<EOF...)"` | work.md | Static rule `gh:*` covers it (backup: Write tool → `--body-file`) | No — already solved |
 | P8 | `sentinel_age=$(( $(date +%s) - ... ))` | work.md | Accept (low frequency) | No |
-| P9 | `cat >> "$SNAPSHOT_FILE" <<EOF` | compact-prep.md | Accept (one-off) | No |
+| P9 | `cat >> "$SNAPSHOT_FILE" <<EOF` | compact-prep.md | Hard heuristic — needs script (append-snapshot.sh) | Yes — fixed |
 | P10 | `for d in ...; do` loops | setup.md | Accept (one-off setup) | No |
 | P11a | `rm -f .workflows/.work-in-progress` | work.md (×2) | Sentinel redesign — clear marker, not rm (see Decision 7) | Yes — fix |
 | P11b | `rm -rf .workflows/plan-research/<stem>/` | plan.md | Accept prompt (directory cleanup, one-off per plan) | No |
@@ -153,7 +153,7 @@ From repo research — all 7 active command files contain `$()`. Compound.md is 
 |---------|------------|-------------|----------------|
 | `git commit -m "$(cat <<EOF...)"` | `git` | `git:*` | No — already solved |
 | `gh pr create --body "$(cat <<EOF...)"` | `gh` | `gh:*` | No — already solved |
-| `cat >> "$SNAPSHOT_FILE" <<EOF` | `cat` | `cat:*` | No — already solved |
+| `cat >> "$SNAPSHOT_FILE" <<EOF` | `cat` | `cat:*` | **Yes — `<<` is hard heuristic, unsuppressible by static rules** (bead ywug) |
 | `bd create --metadata '{"impact":...}'` | `bd` | `bd:*` | No — already solved |
 | `ENTRY_COUNT=$(grep -c ...)` | `ENTRY_COUNT=` | none | **Yes** |
 | `PLUGIN_ROOT=$(find ...)` | `PLUGIN_ROOT=` | none | **Yes** (init block — accepted) |
