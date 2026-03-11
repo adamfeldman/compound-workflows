@@ -56,7 +56,7 @@ Three `Task general-purpose` agents with disk-persisted output:
 
 ### Hook-Based Enforcement
 
-The PostToolUse hook in `.claude/settings.local.json` auto-triggers Tier 1 scripts after git commits touching plugin files. The hook is suppressed during `/compound:work` via the `.workflows/.work-in-progress` sentinel file.
+The PostToolUse hook in `.claude/settings.json` auto-triggers Tier 1 scripts after git commits touching plugin files. The hook is suppressed during `/compound:work` via the `.workflows/.work-in-progress` sentinel file.
 
 ### Expected Result
 

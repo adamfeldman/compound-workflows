@@ -315,11 +315,230 @@ Use **AskUserQuestion**: "These directories are in .gitignore but should be comm
 echo 'compound-workflows.local.md' >> .gitignore
 ```
 
-## Step 7: Write Config Files
+## Step 7: Configure Permissions
+
+Set up a PreToolUse hook that auto-approves safe commands and configure permission profiles.
+
+### 7a: Resolve Plugin Root
+
+```bash
+PLUGIN_ROOT="plugins/compound-workflows"
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+HOOK_TEMPLATE="$PLUGIN_ROOT/templates/auto-approve.sh"
+echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+echo "HOOK_TEMPLATE=$HOOK_TEMPLATE"
+[[ -f "$HOOK_TEMPLATE" ]] && echo "TEMPLATE=found" || echo "TEMPLATE=missing"
+```
+
+**If template is missing:** Warn and skip the permission step:
+
+> **Hook template not found.** The auto-approve.sh template is not available in this plugin version. Permission configuration skipped — you'll see standard permission prompts.
+
+Proceed to Step 8 (Write Config Files).
+
+### 7b: Install Hook Script
+
+Create the hooks directory and install the auto-approve script:
+
+```bash
+mkdir -p .claude/hooks
+```
+
+**Version comparison (idempotent):**
+
+```bash
+# Read installed hook version (if exists)
+INSTALLED_VERSION=""
+if [ -f .claude/hooks/auto-approve.sh ]; then
+  INSTALLED_VERSION=$(sed -n '2s/^# auto-approve v//p' .claude/hooks/auto-approve.sh)
+fi
+
+# Read template version
+TEMPLATE_VERSION=$(sed -n '2s/^# auto-approve v//p' "$HOOK_TEMPLATE")
+
+echo "INSTALLED_VERSION=$INSTALLED_VERSION"
+echo "TEMPLATE_VERSION=$TEMPLATE_VERSION"
+```
+
+- **If no installed hook:** Copy the template and set executable:
+  ```bash
+  cp "$HOOK_TEMPLATE" .claude/hooks/auto-approve.sh
+  chmod +x .claude/hooks/auto-approve.sh
+  ```
+  Record: `HOOK_STATUS=installed`
+
+- **If installed version is older than template version:** Replace and report:
+  ```bash
+  cp "$HOOK_TEMPLATE" .claude/hooks/auto-approve.sh
+  chmod +x .claude/hooks/auto-approve.sh
+  ```
+  Record: `HOOK_STATUS=updated` (from v$INSTALLED_VERSION to v$TEMPLATE_VERSION)
+
+- **If versions match:** Skip (idempotent). Record: `HOOK_STATUS=current`
+
+### 7c: Register Hook in settings.json
+
+Read the existing `.claude/settings.json`:
+
+```bash
+cat .claude/settings.json 2>/dev/null || echo '{}'
+```
+
+Merge the following into the existing settings, preserving all existing hooks (especially PostToolUse):
+
+1. Add `permissions.allow` entries if not already present:
+   - `Write(//.workflows/**)`
+   - `Edit(//.workflows/**)`
+
+2. Add `PreToolUse` hook entry if not already registered:
+   ```json
+   {
+     "matcher": "",
+     "hooks": [
+       {
+         "type": "command",
+         "command": "bash .claude/hooks/auto-approve.sh"
+       }
+     ]
+   }
+   ```
+
+**Merge rules:**
+- If `PreToolUse` array already contains an entry with `command` matching `auto-approve.sh`, skip (already registered)
+- If `PostToolUse` hooks exist, preserve them exactly as-is
+- If `permissions.allow` already contains the entries, skip duplicates
+- Use `jq` for safe JSON manipulation. If `jq` is not available, write the JSON manually using the read values as a base
+
+Write the merged result back to `.claude/settings.json`. Validate it is well-formed JSON.
+
+Record: `SETTINGS_STATUS=updated` or `SETTINGS_STATUS=unchanged`
+
+### 7d: Choose Permission Profile
+
+Use **AskUserQuestion**:
+
+```
+Permission configuration:
+
+1. Standard (recommended)
+   Committed baseline + hook only. No additional static rules.
+   The hook auto-approves safe commands (ls, git, grep, find, etc.)
+   and path-scopes destructive operations. You'll still get prompted
+   for uncommon operations and bash safety heuristic triggers.
+
+2. Permissive (high impact)
+   Adds interpreter access — reduces prompts to near-zero but:
+   ⚠ bash:*    — allows arbitrary script execution (BYPASSES hook guardrails)
+   ⚠ python3:* — allows arbitrary code execution (BYPASSES hook guardrails)
+   ⚠ cat:*     — bypasses Read tool path restrictions
+   ⚠ rm:*      — unscoped by static rule (hook provides path-scoping but static rule fires FIRST and is broader)
+   Plus: gh, grep, find, claude, ccusage, head, tail, sed, cp, timeout, open
+   Plus: mcp__pal__clink, mcp__pal__chat, mcp__pal__listmodels, WebSearch
+
+   WARNING: Static allow rules are evaluated BEFORE the hook. When a static
+   rule matches, the hook never fires — its pipe/compound/redirect/path-scoping
+   checks are bypassed entirely. Choose this ONLY if you trust your LLM and
+   want minimal friction.
+
+Which profile? (1/2)
+```
+
+Record the user's choice as `PROFILE=standard` or `PROFILE=permissive`.
+
+### 7e: Apply Profile Rules to settings.local.json
+
+Read the existing `.claude/settings.local.json`:
+
+```bash
+cat .claude/settings.local.json 2>/dev/null || echo '{}'
+```
+
+**Standard profile:** No additional static rules. The hook handles everything. Skip to reporting.
+
+**Permissive profile rules to merge:**
+
+```
+Bash(gh:*)
+Bash(grep:*)
+Bash(find:*)
+Bash(claude:*)
+Bash(ccusage:*)
+Bash(bash:*)
+Bash(python3:*)
+Bash(cat:*)
+Bash(head:*)
+Bash(tail:*)
+Bash(sed:*)
+Bash(cp:*)
+Bash(rm:*)
+Bash(timeout:*)
+Bash(open:*)
+mcp__pal__clink
+mcp__pal__chat
+mcp__pal__listmodels
+WebSearch
+```
+
+**Merge logic:**
+- Read existing `permissions.allow` array from `settings.local.json`
+- For each rule in the profile: add if not already present, skip if duplicate
+- **Never remove** user-added rules that are not in the profile list
+- Write back with `jq` (or manually if `jq` unavailable)
+
+Count: `RULES_ADDED=N`, `RULES_ALREADY_PRESENT=M`
+
+### 7f: First-Run Migration Check
+
+Check for accumulated exact-command rules:
+
+```bash
+if [ -f .claude/settings.local.json ]; then
+  # Count rules that do NOT contain :* or glob patterns (exact-command rules)
+  EXACT_COUNT=$(jq -r '.permissions.allow[]? // empty' .claude/settings.local.json 2>/dev/null | grep -c -v '[:*?\[\{]' || echo "0")
+  echo "EXACT_COMMAND_RULES=$EXACT_COUNT"
+fi
+```
+
+**If >20 exact-command rules detected:**
+
+Use **AskUserQuestion**:
+
+```
+Found N exact-command rules that could be replaced by M clean patterns.
+Consolidate? (This replaces, not merges — your current rules will be
+backed up to .claude/settings.local.json.bak.)
+```
+
+- **Yes** — Back up the current file, then replace exact-command rules with the profile's pattern rules:
+  ```bash
+  cp .claude/settings.local.json .claude/settings.local.json.bak
+  ```
+  Then rebuild the allow array: keep user glob/pattern rules, replace exact-command rules with the profile patterns.
+
+- **No** — Leave as-is.
+
+### 7g: jq Dependency Check
+
+```bash
+which jq 2>/dev/null && echo "JQ=available" || echo "JQ=missing"
+```
+
+Record `JQ_STATUS` for the report. If jq is missing, the hook will fall through silently on all commands (graceful degradation — all prompts appear as if the hook is not installed).
+
+### 7h: Report
+
+Build the permissions report line:
+
+- "Hook installed at .claude/hooks/auto-approve.sh." (or "Hook updated from vX to vY." or "Hook already current.")
+- "Profile: [Standard | Permissive]. Added N new rules, M already present."
+- "**Restart Claude Code for hooks to take effect.**"
+- If `JQ=missing`: "jq not found — the hook requires jq for JSON parsing. Install jq (`brew install jq` / `apt install jq`) before restarting."
+
+## Step 8: Write Config Files
 
 Write two config files — one shared (committed), one personal (gitignored).
 
-### 7a: Project Config — `compound-workflows.md`
+### 8a: Project Config — `compound-workflows.md`
 
 Shared project settings. **Should be committed** so team members share the same agent configuration.
 
@@ -362,7 +581,7 @@ General project instructions belong in CLAUDE.md or AGENTS.md, not here.]
 
 For `plan_review_agents`, use the research agents available in the plugin: `repo-research-analyst`, `best-practices-researcher`, `framework-docs-researcher`.
 
-### 7b: Local Config — `compound-workflows.local.md`
+### 8b: Local Config — `compound-workflows.local.md`
 
 Machine-specific environment settings. **Should be gitignored** — each developer's environment differs.
 
@@ -382,7 +601,7 @@ stats_classify: true
 
 Fill in based on detected environment. Red team provider preferences are NOT stored — they're detected at runtime each session (CLI availability varies by machine and may change). Stats toggles default to `true` — capture and classification are enabled unless explicitly disabled.
 
-### 7c: Routing Rules
+### 8c: Routing Rules
 
 Check if the project has an `AGENTS.md` or `CLAUDE.md` with a compound-workflows routing section:
 
@@ -417,7 +636,7 @@ Do not use plan mode, ad-hoc research agents, or inline answers for tasks that h
 - **Recovering a dead/exhausted session**: `/compound-workflows:recover`
 ```
 
-### 7d: Migration Check
+### 8d: Migration Check
 
 Before writing, check if either config file already exists:
 
@@ -442,7 +661,7 @@ If an old-format `compound-workflows.local.md` exists (look for `review_agents:`
 
 Write both files with the new schema.
 
-## Step 8: Summary
+## Step 9: Summary
 
 Display the setup summary:
 
@@ -463,6 +682,10 @@ Stack & Review:
 Directories:     [all present | N created]
 Config:          compound-workflows.md (project, committed)
                  compound-workflows.local.md (environment, gitignored)
+Permissions:     Hook: .claude/hooks/auto-approve.sh [installed | updated | current]
+                 Profile: [Standard | Permissive] — [N added, M already present]
+                 ⚠ Restart Claude Code for hooks to take effect.
+                 [jq not found — install before restarting | jq available]
 
 Ready to go:
   /compound:brainstorm  — explore an idea

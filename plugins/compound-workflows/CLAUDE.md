@@ -35,6 +35,9 @@ scripts/
 resources/
 └── stats-capture-schema.md  # YAML schema, field derivation rules, and capture-stats.sh usage reference
 
+templates/
+└── auto-approve.sh          # PreToolUse hook template — installed to .claude/hooks/ by /compound:setup
+
 skills/
 ├── agent-browser/           # Browser automation for agents
 ├── agent-native-architecture/ # Architecture patterns reference (15 files)

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] - 2026-03-10
+
+### Features
+- **PreToolUse auto-approve hook** — programmable auto-approval for known-safe operations via `.claude/hooks/auto-approve.sh`. Quote-aware compound command splitting, path-scoped `rm`/`mkdir`/`bash`/`python3` validation, redirect/substitution pre-checks, git destructive operation guardrails, Write/Edit `.workflows/**` scoping, and audit logging to `.workflows/.hook-audit.log`. Ships as a template (`templates/auto-approve.sh`) installed by `/compound:setup`.
+- **Setup command permission configuration** — new Step 7 in `/compound:setup` with two profiles (Standard/Permissive). Standard uses hook-only auto-approval; Permissive adds static `Bash(*)` rules with explicit warnings about hook bypass. Idempotent merge logic, first-run migration for >20 exact-command rules, jq dependency check.
+- **Committed settings baseline** — `.claude/settings.json` ships with `permissions.allow` for Write/Edit `.workflows/**`, PreToolUse hook registration, and preserved PostToolUse QA hook.
+
+### Added
+- New `plugins/compound-workflows/templates/` directory for installable template files
+- `templates/auto-approve.sh` — PreToolUse hook template copied to `.claude/hooks/` during setup
+
 ## [2.3.0] - 2026-03-10
 
 ### Features

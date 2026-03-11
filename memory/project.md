@@ -37,7 +37,10 @@
 - **Agent tool background completions include `<usage>`** — identical format to Task completion notifications (`total_tokens`, `tool_uses`, `duration_ms`). Validated 2026-03-09 with 3 dispatches (repo-research-analyst, context-researcher, code-simplicity-reviewer). Switching Task→Agent does not break `<usage>` capture.
 - **Subagent settings inheritance verified** — subagents DO load `.claude/settings.json` from the project root. Empirically tested 2026-03-10: added a distinctive allow rule, spawned a subagent, confirmed it auto-approved. Write failures were transient permission denials, not systemic inheritance issues.
 - **Deny rules in settings.json are BROKEN** — multiple GitHub issues (#27040, #6699, #8961) confirm deny rules are non-functional. PreToolUse hooks are the ONLY reliable way to block dangerous operations. Hook output format: `{"hookSpecificOutput": {"permissionDecision": "allow"}}`.
-- **PreToolUse hooks are officially recommended** — Claude Code v2.0+ docs recommend hooks over static rules or `--dangerously-skip-permissions`. Since v2.0.10, hooks can also modify tool inputs before execution.
+- **PreToolUse hooks are documented and supported** — hooks reference at code.claude.com/docs/en/hooks. Since v2.0.10, hooks can also modify tool inputs before execution. "Officially recommended" and "v2.0+" could not be verified as specific designations in docs — softened from prior entry.
+- **PreToolUse hook input schema** — common fields: `session_id`, `transcript_path`, `cwd`, `permission_mode`, `hook_event_name`. PreToolUse-specific: `tool_name`, `tool_input`, `tool_use_id`. Subagent context adds: `agent_id`, `agent_type`. Matcher is regex on `tool_name`; `""` or `"*"` or omitted = match all. Output: exit 0 + JSON `{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}`. Exit 0 with no output = fall through. Exit 2 = blocking error (more reliable than JSON deny per issue #4669).
+- **Bash safety heuristics are INDEPENDENT of hooks** — `$()`, backticks, multi-line scripts, heredocs all trigger a separate Claude Code prompt that hooks CANNOT suppress. Only `--dangerously-skip-permissions` suppresses them. GitHub #30435, #31373 (both OPEN 2026-03-10). Hooks reduce ~80% of prompts but not heuristic-triggered ones.
+- **Static `Bash(VAR=:*)` rules don't reliably match** — added `Bash(PLAN_PATH=:*)` etc. to settings.local.json but commands starting with variable assignments still prompted. Confirmed during this session. Hook approach is the real fix.
 - **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format
@@ -81,6 +84,11 @@
 - xu2 unblocked (voo done — dataset available)
 - 5b6 unblocked (voo done — dataset available)
 - h0g unblocked (removed aig dependency)
-- **3k3 absorbed into permission-prompt-optimization brainstorm** — brainstorm covers committed baseline, PreToolUse hooks, and setup command permission profiles.
+- **3k3 absorbed into permission-prompt-optimization** — plan fully triaged: 4 CRITICAL + 7 SERIOUS from red team resolved, re-check clean, security sentinel + architecture strategist + code simplicity reviewers ran. Plan ready for work. Key changes: pipes/`$()`/heredocs/globs added to pre-checks, realpath adopted, profiles collapsed 3→2 (Standard/Permissive), hook shipped as template file, quote-aware tokenization specified.
+- **a6t created** — P2. Agent timeout/recovery rules in plan command. Don't skip agents that are actively working.
 - **cn5 created** — P3. Make stats collection off by default.
+- **jak created** — P3. Audit plugin commands for heuristic-triggering patterns ($(), for loops, heredocs).
+- **jed created** — P3. Audit log rotation for .hook-audit.log.
+- **2g4 created** — P2. Config option to auto-create beads for deferred plan items.
+- **4v2 created** — P2. Plan command should ensure all implementation details are specified (underspecifications block autonomous work execution).
 - voo(done), 22l(done), 0ob(done), dud(done), 1q3(done), 4gq(done), n2q(done), 3co(done), d2l(done), awx(done)
