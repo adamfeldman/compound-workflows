@@ -77,7 +77,7 @@
 - **v2.4.1** — Plugin heuristic audit (bead jak): validate-stats.sh replaces 9 inline ENTRY_COUNT blocks, 2 P5 subshell fixes, sentinel redesign (Write tool clear vs rm), QA Check 5 (var-dollar-paren-heuristic), 27 heuristic-exempt markers. 10 steps via /compound:work (6 parallel in batch 1).
 
 ## In-Progress Work
-- **Heuristic audit scope expansion (bead 3l7)** — P1. Plan complete. 51 patterns across 14 files, zero residuals. Setup writes Bash rules to settings.local.json (not settings.json): Standard profile adds none, Permissive adds gh/bash/cat etc. but NOT git. Neither profile covers both heredoc residuals → migrated to Write tool + `-F`/`--body-file`. Readiness checks passed (0 CRITICAL, 0 SERIOUS after consolidation). Red team not yet run. Next: `/compound:deepen-plan`.
+- **Heuristic audit scope expansion (bead 3l7)** — P1. Plan complete, ready for `/compound:work`. Red team (3 providers): 4 CRITICAL + 8 SERIOUS + 8 MINOR all resolved. Re-check (Phase 6.9): 0 CRITICAL, 0 SERIOUS, 7 MINOR all resolved. Decision tree → recommend work. Key additions during MINOR triage: script hardening (shellcheck/shebang/negative tests), clarified parallelization notes, specified date format strings, PLUGIN_ROOT self-resolution via dirname, backtick detection applies globally (no fence scoping). Stats validated 12/12.
 - **Fix capture-stats.sh usage format parser (bead jg6)** — P2. Parser emits spurious "format may have changed" warning for XML-style `<usage>` tags. Regex needs updating.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P3 (lowered: clink handles model selection, not urgent). Brainstorm complete. Accumulated notes: Opus model bug, ad-hoc red team skill idea, cost configurability, CLI file access verified. Next: `/compound:plan`.
@@ -105,4 +105,6 @@
 - **jed created** — P3. Audit log rotation for .hook-audit.log.
 - **2g4 created** — P2. Config option to auto-create beads for deferred plan items.
 - **4v2 created** — P2. Plan command should ensure all implementation details are specified (underspecifications block autonomous work execution).
+- **yod created** — P1. Add precision-preservation principle to consolidation agent prompts (plan-consolidator, synthesis). Subagents don't read memory.
+- **go4 created** — P2. Document permission threat model / risk envelope. Reverse-engineer from implemented practice (settings.json, setup profiles, hook design, heuristic-exempt decisions).
 - voo(done), 22l(done), 0ob(done), dud(done), 1q3(done), 4gq(done), n2q(done), 3co(done), d2l(done), awx(done)

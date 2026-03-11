@@ -12,6 +12,16 @@ Synthesis findings AND red team findings go through the same triage flow. Summar
 ## Work-Readiness Guidance
 plan.md and deepen-plan.md handoffs assess step sizing for subagent dispatch. work.md Phase 1.1 checks plan structure (single-file builds, large steps, shared reference data) and flags concerns.
 
+## Config File Precision
+When writing about settings, config, or setup-related topics in plans, memory, or brainstorms, always specify:
+- **Which file** — `settings.json` vs `settings.local.json` vs `compound-workflows.md` vs `compound-workflows.local.md`
+- **Who writes it** — setup command vs user manual edit vs committed in repo
+- **Which profile/context** — Standard vs Permissive, source repo vs consumer project
+
+Never use shorthand like "settings" or "static rules" without naming the file. The distinction matters: `settings.json` (committed, hooks + permissions) ≠ `settings.local.json` (gitignored, Bash rules written by setup). Imprecise references propagate through brainstorm → plan → implementation and cause wrong conclusions.
+
+Origin: bead 3l7, settings.json vs settings.local.json imprecision. Brainstorm D3 said "static-rule-covered" without naming the file → plan consolidation wrote "committed settings.json has NO Bash rules" (true but wrong framing) → user caught it. Detection pipeline (specflow G7, semantic checks) worked; the error was in consolidation prose.
+
 ## Context-Lean Principle
 - Canonical term: "context-lean" (not "disk-persisted" or "context-safe")
 - All commands dispatching agents MUST include OUTPUT INSTRUCTIONS blocks
