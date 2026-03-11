@@ -77,7 +77,7 @@
 - **v2.4.1** — Plugin heuristic audit (bead jak): validate-stats.sh replaces 9 inline ENTRY_COUNT blocks, 2 P5 subshell fixes, sentinel redesign (Write tool clear vs rm), QA Check 5 (var-dollar-paren-heuristic), 27 heuristic-exempt markers. 10 steps via /compound:work (6 parallel in batch 1).
 
 ## In-Progress Work
-- **Heuristic audit scope expansion (bead 3l7)** — P1. Brainstorm complete. Key decisions: init-values.sh for P1/P2/P3 patterns, script delegation for P5 complex patterns, QA Check 5 expanded to skills+agents+backticks. Dev principle "comprehensive fixes, not targeted" added to plugin CLAUDE.md. Red team validated (3 providers). Next: `/compound:plan`.
+- **Heuristic audit scope expansion (bead 3l7)** — P1. Plan complete. 51 patterns across 14 files, zero residuals. Setup writes Bash rules to settings.local.json (not settings.json): Standard profile adds none, Permissive adds gh/bash/cat etc. but NOT git. Neither profile covers both heredoc residuals → migrated to Write tool + `-F`/`--body-file`. Readiness checks passed (0 CRITICAL, 0 SERIOUS after consolidation). Red team not yet run. Next: `/compound:deepen-plan`.
 - **Fix capture-stats.sh usage format parser (bead jg6)** — P2. Parser emits spurious "format may have changed" warning for XML-style `<usage>` tags. Regex needs updating.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P3 (lowered: clink handles model selection, not urgent). Brainstorm complete. Accumulated notes: Opus model bug, ad-hoc red team skill idea, cost configurability, CLI file access verified. Next: `/compound:plan`.
