@@ -40,14 +40,15 @@ If prior runs exist, increment the run number (e.g., if `run-2-manifest.json` ex
 ```bash
 mkdir -p .workflows/deepen-plan/<plan-stem>/agents/run-<N>
 mkdir -p .workflows/stats
-PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
-RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
-STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-deepen-plan-<plan-stem>.yaml" # heuristic-exempt
+bash plugins/compound-workflows/scripts/init-values.sh deepen-plan <plan-stem>
+```
+
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+
+Also capture the subagent model setting:
+
+```bash
 CACHED_MODEL="${CLAUDE_CODE_SUBAGENT_MODEL:-opus}"
-echo "PLUGIN_ROOT=$PLUGIN_ROOT"
-echo "RUN_ID=$RUN_ID"
-echo "STATS_FILE=$STATS_FILE"
 echo "CACHED_MODEL=$CACHED_MODEL"
 [[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
 ```
@@ -238,7 +239,7 @@ DROPPED_DEDUP=""
 DROPPED_C1=""
 
 # Step 3: 30-agent cap — keep compound-workflows first, truncate user-defined alphabetically
-AGENT_COUNT=$(echo "$VALIDATED" | jq '.agents | length') # heuristic-exempt
+# Track the agent dispatch count as you build the manifest — use that tracked count here instead of querying with jq.
 if [ "$AGENT_COUNT" -gt 30 ]; then
   # Keep all compound-workflows agents, sort user-defined alphabetically, truncate to fit 30
   echo "Warning: Agent count $AGENT_COUNT exceeds cap of 30. Truncating user-defined agents."
@@ -247,8 +248,8 @@ fi
 # Write validated manifest back
 echo "$VALIDATED" > "$MANIFEST"
 
-# Report
-echo "Post-discovery pipeline: dedup dropped [$DROPPED_DEDUP], C1 dropped [$DROPPED_C1], final count: $(echo "$VALIDATED" | jq '.agents | length')"
+# Report — use the agent count you tracked during manifest construction
+echo "Post-discovery pipeline: dedup dropped [$DROPPED_DEDUP], C1 dropped [$DROPPED_C1], final count: $AGENT_COUNT"
 ```
 
 This pipeline catches the undetectable failure mode: hallucinated agent names that pass both the invariant check and count threshold. User-defined agents (non-`compound-workflows:` prefix) are exempt from C1 validation — they are expected to be unknown.

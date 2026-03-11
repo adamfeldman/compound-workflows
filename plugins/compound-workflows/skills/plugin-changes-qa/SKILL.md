@@ -16,14 +16,11 @@ Discover and run all bash scripts in the plugin-qa directory. These are fast, de
 
 ### Step 1.1: Resolve Plugin Root
 
+Run `bash plugins/compound-workflows/scripts/init-values.sh plugin-changes-qa`. Read the output and track REPO_ROOT and PLUGIN_ROOT values. If the script is not found (not in source repo), run `find ~/.claude/plugins -name "init-values.sh" -path "*/compound-workflows/*" | head -1` to find it, then run `bash <found-path> plugin-changes-qa`.
+
+Verify PLUGIN_ROOT is valid:
+
 ```bash
-# Find plugin root: local repo (dev) or installed plugin
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-PLUGIN_ROOT="$REPO_ROOT/plugins/compound-workflows"
-if [[ ! -f "$PLUGIN_ROOT/CLAUDE.md" ]]; then
-  PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
-fi
-echo "Plugin root: $PLUGIN_ROOT"
 ls "$PLUGIN_ROOT/CLAUDE.md" 2>/dev/null && echo "VALID" || echo "NOT FOUND"
 ```
 

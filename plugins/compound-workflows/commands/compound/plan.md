@@ -96,22 +96,15 @@ Before any dispatches, initialize stats capture infrastructure:
 
 ```bash
 mkdir -p .workflows/stats
-PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
-echo "PLUGIN_ROOT=$PLUGIN_ROOT"
-```
-
-Read `stats_capture` from `compound-workflows.local.md`. If `stats_capture` is `false`, skip all stats capture for this run. If missing or any other value, proceed with capture.
-
-If stats capture is enabled:
-
-```bash
-RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
-echo "RUN_ID=$RUN_ID"
+bash plugins/compound-workflows/scripts/init-values.sh plan <plan-stem>
 echo $CLAUDE_CODE_SUBAGENT_MODEL
 ```
 
-Cache the model value: if `CLAUDE_CODE_SUBAGENT_MODEL` is set, that is the default model for `inherit`-model agents. Otherwise default to `opus`. Construct the stats file path: `STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-plan-<plan-stem>.yaml"`. Initialize a dispatch counter at 0.
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+
+Read `stats_capture` from `compound-workflows.local.md`. If `stats_capture` is `false`, skip all stats capture for this run. If missing or any other value, proceed with capture.
+
+Cache the model value: if `CLAUDE_CODE_SUBAGENT_MODEL` is set, that is the default model for `inherit`-model agents. Otherwise default to `opus`. Use the STATS_FILE value from init-values.sh output. Initialize a dispatch counter at 0.
 
 ### Stats Capture
 
@@ -395,8 +388,10 @@ After the readiness check, challenge the plan with three different model provide
 Before launching red team, capture the plan file hash for later comparison:
 
 ```bash
-PLAN_HASH_BEFORE=$(shasum -a 256 <plan-path> | cut -d' ' -f1) # heuristic-exempt
+shasum -a 256 <plan-path>
 ```
+
+Read the first field of the output as the plan hash. Track this value as PLAN_HASH_BEFORE.
 
 #### 6.8.2: Runtime CLI Detection + 3-Provider Dispatch
 
@@ -800,13 +795,10 @@ Set a 5-minute timeout per provider agent. If a provider hasn't produced output 
 After all triage is complete, compare the plan file hash to detect edits:
 
 ```bash
-PLAN_HASH_AFTER=$(shasum -a 256 <plan-path> | cut -d' ' -f1) # heuristic-exempt
-if [ "$PLAN_HASH_BEFORE" != "$PLAN_HASH_AFTER" ]; then
-  echo "PLAN_CHANGED=true — proceed to Phase 6.9"
-else
-  echo "PLAN_CHANGED=false — skip to Phase 7"
-fi
+shasum -a 256 <plan-path>
 ```
+
+Read the first field of the output as the plan hash. Track this value as PLAN_HASH_AFTER. Compare PLAN_HASH_BEFORE and PLAN_HASH_AFTER: if they differ, the plan changed (proceed to Phase 6.9); if equal, the plan is unchanged (skip to Phase 7).
 
 The hash comparison is intentionally coarse — any edit triggers re-check, including MINOR fixes. The cost of a false positive (unnecessary re-check after a typo fix) is ~5-10 min; the cost of a false negative (missing structural edit) could result in implementing a broken plan.
 

@@ -39,16 +39,12 @@ Run a quick repo scan and broad context search in parallel:
 mkdir -p .workflows/brainstorm-research/<topic-stem>
 mkdir -p .workflows/stats
 [[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
-PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
-RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
-STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-brainstorm-<topic-stem>.yaml" # heuristic-exempt
+bash plugins/compound-workflows/scripts/init-values.sh brainstorm <topic-stem>
 CACHED_MODEL="${CLAUDE_CODE_SUBAGENT_MODEL:-opus}"
-echo "PLUGIN_ROOT=$PLUGIN_ROOT"
-echo "RUN_ID=$RUN_ID"
-echo "STATS_FILE=$STATS_FILE"
 echo "CACHED_MODEL=$CACHED_MODEL"
 ```
+
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
 
 #### 1.1a Stats Capture Config Check
 
@@ -354,7 +350,7 @@ For the `general-purpose` agent (Claude Opus) — no explicit model, use `CACHED
 bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "general-purpose" "red-team-opus" "$CACHED_MODEL" "<topic-stem>" "null" "$RUN_ID" "<usage-line>"
 ```
 
-Track the number of red team agents actually dispatched (2-3 depending on PAL availability). After all red team completions, validate stats count. The expected total is 2 (research) + the number of red team agents dispatched. Note: the old `$((2 + N))` arithmetic was itself a heuristic trigger (empirically verified); model-side tracking eliminates it:
+Track the number of red team agents actually dispatched (2-3 depending on PAL availability). After all red team completions, validate stats count. The expected total is 2 (research) + the number of red team agents dispatched. Note: the old arithmetic expression for dispatch counting was itself a heuristic trigger (empirically verified); model-side tracking eliminates it:
 
 ```bash
 bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <EXPECTED_TOTAL>

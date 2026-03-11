@@ -20,7 +20,7 @@ Recovers context from a dead or exhausted Claude Code session by reading its JSO
 The session log directory uses the project's absolute path with `/` replaced by `-`:
 
 ```bash
-SESSION_DIR="$HOME/.claude/projects/$(echo "$(pwd)" | tr '/' '-')"
+SESSION_DIR="$HOME/.claude/projects/${PWD//\//-}"
 echo "Session log directory: $SESSION_DIR"
 ls "$SESSION_DIR"/*.jsonl 2>/dev/null | wc -l
 ```

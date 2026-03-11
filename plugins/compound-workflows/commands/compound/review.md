@@ -39,21 +39,16 @@ Initialize per-dispatch stats collection. This runs once at command start; all d
 
 ```bash
 mkdir -p .workflows/stats
-RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
+bash plugins/compound-workflows/scripts/init-values.sh review <topic-stem>
 CACHED_SUBAGENT_MODEL=$CLAUDE_CODE_SUBAGENT_MODEL
-echo "RUN_ID=$RUN_ID SUBAGENT_MODEL=${CACHED_SUBAGENT_MODEL:-unset}"
+echo "SUBAGENT_MODEL=${CACHED_SUBAGENT_MODEL:-unset}"
 ```
 
-Resolve plugin root for `capture-stats.sh` and schema reference:
-```bash
-PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
-echo "PLUGIN_ROOT=$PLUGIN_ROOT"
-```
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
 
 **Config check:** Read `compound-workflows.local.md` and check the `stats_capture` key. If the value is `false`, skip all stats capture for this run (do not read the schema file, do not call `capture-stats.sh`). If the key is missing or any other value, proceed with stats capture.
 
-**Stats file path:** `STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-review-${TOPIC_STEM}.yaml"` — use the topic-stem derived in Step 2 above.
+**Stats file path:** Use the STATS_FILE value from init-values.sh output.
 
 **Model resolution:** For each dispatch, resolve the `model` field using the cached `$CACHED_SUBAGENT_MODEL`. All review agents use `model: inherit`, so: if `$CACHED_SUBAGENT_MODEL` is set, use that; otherwise default to `opus`. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for the full 4-step model resolution algorithm.
 

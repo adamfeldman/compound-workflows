@@ -49,11 +49,16 @@ Create a TodoWrite list of all unresolved items grouped by type:
 
 Before dispatching agents, determine the run number and create the output directory:
 
+First, count existing runs:
+
 ```bash
-# Count existing runs (if any) and increment
-existing=$(ls -d .workflows/resolve-pr/PR_NUMBER/agents/run-* 2>/dev/null | wc -l | tr -d ' ')
-run_num=$((existing + 1))
-mkdir -p .workflows/resolve-pr/PR_NUMBER/agents/run-${run_num}/
+ls -d .workflows/resolve-pr/PR_NUMBER/agents/run-* 2>/dev/null | wc -l | tr -d ' '
+```
+
+Read the output as the existing run count. Add 1 to get the new run number. Then create the output directory:
+
+```bash
+mkdir -p .workflows/resolve-pr/PR_NUMBER/agents/run-RUN_NUM/
 ```
 
 Replace `PR_NUMBER` with the actual PR number.
