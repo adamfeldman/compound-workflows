@@ -204,10 +204,11 @@ ls todos/*-pending-*.md
 # Find next issue ID
 ls todos/ | grep -o '^[0-9]\+' | sort -n | tail -1 | awk '{printf "%03d", $1+1}'
 
-# Count by status
-for status in pending ready complete; do
-  echo "$status: $(ls -1 todos/*-$status-*.md 2>/dev/null | wc -l)"
-done
+# Count by status — run each count separately and read the values
+ls -1 todos/*-pending-*.md 2>/dev/null | wc -l
+ls -1 todos/*-ready-*.md 2>/dev/null | wc -l
+ls -1 todos/*-complete-*.md 2>/dev/null | wc -l
+# Then report: "pending: N, ready: N, complete: N" using the counts from each command
 ```
 
 **Dependency management:**

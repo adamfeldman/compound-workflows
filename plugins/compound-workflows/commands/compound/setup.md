@@ -80,11 +80,18 @@ Use **AskUserQuestion**: "Have you activated Gemini/Codex CLI in this repo (or w
 ## Step 1.5: Plugin Version Check
 
 ```bash
-# Find version-check.sh: local repo (dev) or installed plugin
-VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
-[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1) # heuristic-exempt
-[[ -n "$VERSION_CHECK" ]] && bash "$VERSION_CHECK" || echo "version-check.sh not found"
+bash plugins/compound-workflows/scripts/init-values.sh setup
 ```
+
+Read the output. Track the values PLUGIN_ROOT and VERSION_CHECK for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+
+Then run the version check using the VERSION_CHECK value:
+
+```bash
+bash <VERSION_CHECK>
+```
+
+If VERSION_CHECK is empty or the script is not found, say "version-check.sh not found".
 
 Interpret the output:
 
@@ -205,11 +212,9 @@ options:
     description: "Add or remove specific agents from the roster"
 ```
 
-If "Customize": list all available review and research agents. To find them, resolve the plugin root:
+If "Customize": list all available review and research agents. Use the PLUGIN_ROOT value from init-values.sh output:
 ```bash
-PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
-ls "$PLUGIN_ROOT/agents/review/" "$PLUGIN_ROOT/agents/research/" 2>/dev/null
+ls "<PLUGIN_ROOT>/agents/review/" "<PLUGIN_ROOT>/agents/research/" 2>/dev/null
 ```
 Let the user toggle agents on/off from the list.
 
@@ -321,11 +326,10 @@ Set up a PreToolUse hook that auto-approves safe commands and configure permissi
 
 ### 7a: Resolve Plugin Root
 
+Use the PLUGIN_ROOT value from init-values.sh output (already tracked from Step 1.5):
+
 ```bash
-PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
-HOOK_TEMPLATE="$PLUGIN_ROOT/templates/auto-approve.sh"
-echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+HOOK_TEMPLATE="<PLUGIN_ROOT>/templates/auto-approve.sh"
 echo "HOOK_TEMPLATE=$HOOK_TEMPLATE"
 [[ -f "$HOOK_TEMPLATE" ]] && echo "TEMPLATE=found" || echo "TEMPLATE=missing"
 ```
@@ -346,19 +350,15 @@ mkdir -p .claude/hooks
 
 **Version comparison (idempotent):**
 
+Check if the installed hook exists, then read versions as split-calls:
+
 ```bash
-# Read installed hook version (if exists)
-INSTALLED_VERSION=""
-if [ -f .claude/hooks/auto-approve.sh ]; then
-  INSTALLED_VERSION=$(sed -n '2s/^# auto-approve v//p' .claude/hooks/auto-approve.sh) # heuristic-exempt
-fi
-
-# Read template version
-TEMPLATE_VERSION=$(sed -n '2s/^# auto-approve v//p' "$HOOK_TEMPLATE") # heuristic-exempt
-
-echo "INSTALLED_VERSION=$INSTALLED_VERSION"
-echo "TEMPLATE_VERSION=$TEMPLATE_VERSION"
+[ -f .claude/hooks/auto-approve.sh ] && echo "HOOK_EXISTS=true" || echo "HOOK_EXISTS=false"
 ```
+
+If the hook exists, run `sed -n '2s/^# auto-approve v//p' .claude/hooks/auto-approve.sh` and read the output as INSTALLED_VERSION.
+
+Run `sed -n '2s/^# auto-approve v//p' <HOOK_TEMPLATE>` (using the HOOK_TEMPLATE path from above) and read the output as TEMPLATE_VERSION.
 
 - **If no installed hook:** Copy the template and set executable:
   ```bash
@@ -492,12 +492,10 @@ Count: `RULES_ADDED=N`, `RULES_ALREADY_PRESENT=M`
 Check for accumulated exact-command rules:
 
 ```bash
-if [ -f .claude/settings.local.json ]; then
-  # Count rules that do NOT contain :* or glob patterns (exact-command rules)
-  EXACT_COUNT=$(jq -r '.permissions.allow[]? // empty' .claude/settings.local.json 2>/dev/null | grep -c -v '[:*?\[\{]' || echo "0") # heuristic-exempt
-  echo "EXACT_COMMAND_RULES=$EXACT_COUNT"
-fi
+[ -f .claude/settings.local.json ] && echo "LOCAL_SETTINGS=true" || echo "LOCAL_SETTINGS=false"
 ```
+
+If LOCAL_SETTINGS is true, run `jq -r '.permissions.allow[]? // empty' .claude/settings.local.json 2>/dev/null | grep -c -v '[:*?\[\{]' || echo '0'` and read the output as EXACT_COUNT.
 
 **If >20 exact-command rules detected:**
 

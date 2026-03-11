@@ -1,7 +1,7 @@
 ---
 title: "feat: Heuristic audit scope expansion — eliminate $() patterns across full plugin"
 type: feat
-status: active
+status: completed
 date: 2026-03-11
 origin: docs/brainstorms/2026-03-11-heuristic-audit-scope-expansion-brainstorm.md
 bead: 3l7
@@ -257,8 +257,8 @@ Disagree with red team C4 (OpenAI CRITICAL, Gemini MINOR): "security model bypas
 ### Step 1: Create init-values.sh and check-sentinel.sh
 
 **Files created:**
-- [ ] `plugins/compound-workflows/scripts/init-values.sh`
-- [ ] `plugins/compound-workflows/scripts/check-sentinel.sh`
+- [x] `plugins/compound-workflows/scripts/init-values.sh`
+- [x] `plugins/compound-workflows/scripts/check-sentinel.sh`
 
 **init-values.sh implementation:**
 - Case statement keyed by `$1` (command name)
@@ -280,27 +280,27 @@ Disagree with red team C4 (OpenAI CRITICAL, Gemini MINOR): "security model bypas
 - The sentinel file contains a Unix timestamp written by work.md at session start
 
 **Verification:**
-- [ ] `bash plugins/compound-workflows/scripts/init-values.sh brainstorm test-stem` outputs valid KEY=VALUE pairs
-- [ ] `bash plugins/compound-workflows/scripts/init-values.sh compact-prep` outputs VERSION_CHECK, DATE_COMPACT, etc.
-- [ ] `bash plugins/compound-workflows/scripts/init-values.sh work test-stem` outputs WORKTREE_MGR
-- [ ] Script auto-approves without any static rule (no `$()` in tool input)
-- [ ] check-sentinel.sh outputs correct status
-- [ ] **Script hardening:** Both scripts include `#!/usr/bin/env bash` shebang, pass `shellcheck` with zero warnings, and are NOT marked executable (invoked via `bash script.sh`, not `./script.sh` — consistent with existing plugin scripts). Add negative tests: init-values.sh with invalid subcommand exits non-zero, check-sentinel.sh with missing sentinel file prints `NOT_FOUND`. [red-team--openai, see .workflows/plan-research/heuristic-audit-scope-expansion/red-team--openai.md]
-- [ ] **Output format validation:** init-values.sh self-validates its own output before printing — DATE matches `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`, RUN_ID is exactly 8 hex chars, PLUGIN_ROOT is a non-empty directory path that exists, STATS_FILE ends in `.yaml`. On validation failure, print error to stderr and exit non-zero. This catches silent corruption (e.g., BSD vs GNU date format differences, uuidgen case differences) before values propagate to 10+ consumers. [red-team--opus, see .workflows/plan-research/heuristic-audit-scope-expansion/red-team--opus.md]
+- [x] `bash plugins/compound-workflows/scripts/init-values.sh brainstorm test-stem` outputs valid KEY=VALUE pairs
+- [x] `bash plugins/compound-workflows/scripts/init-values.sh compact-prep` outputs VERSION_CHECK, DATE_COMPACT, etc.
+- [x] `bash plugins/compound-workflows/scripts/init-values.sh work test-stem` outputs WORKTREE_MGR
+- [x] Script auto-approves without any static rule (no `$()` in tool input)
+- [x] check-sentinel.sh outputs correct status
+- [x] **Script hardening:** Both scripts include `#!/usr/bin/env bash` shebang, pass `shellcheck` with zero warnings, and are NOT marked executable (invoked via `bash script.sh`, not `./script.sh` — consistent with existing plugin scripts). Add negative tests: init-values.sh with invalid subcommand exits non-zero, check-sentinel.sh with missing sentinel file prints `NOT_FOUND`. [red-team--openai, see .workflows/plan-research/heuristic-audit-scope-expansion/red-team--openai.md]
+- [x] **Output format validation:** init-values.sh self-validates its own output before printing — DATE matches `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`, RUN_ID is exactly 8 hex chars, PLUGIN_ROOT is a non-empty directory path that exists, STATS_FILE ends in `.yaml`. On validation failure, print error to stderr and exit non-zero. This catches silent corruption (e.g., BSD vs GNU date format differences, uuidgen case differences) before values propagate to 10+ consumers. [red-team--opus, see .workflows/plan-research/heuristic-audit-scope-expansion/red-team--opus.md]
 
 ### Step 2: Expand QA Check 5
 
 **File modified:** `plugins/compound-workflows/scripts/plugin-qa/context-lean-grep.sh` (lines 170-192)
 
 Changes:
-- [ ] **Regex expansion:** Change from `^\s*[A-Z_]+=.*\$\(` to `\$\(` matching any position on any line. This catches lowercase vars, non-assignment patterns, `$(())` arithmetic, and `cd $(...)` patterns.
-- [ ] **Scope expansion:** Add scan loops for `$plugin_root/skills/*/SKILL.md` and `$plugin_root/agents/**/*.md`
-- [ ] **Path exclusion:** Skip files matching `*/references/*` (illustrative code in reference docs)
-- [ ] **Suppress markers:** Skip lines containing `heuristic-exempt` or `context-lean-exempt` (existing behavior, verify it still works)
-- [ ] **Backtick detection:** Add secondary regex targeting backtick *substitution* in assignment context: `` [A-Za-z_]+=`[^`]+` `` (variable assignment using backtick substitution). This avoids false positives from Markdown inline code formatting. Apply globally (no code-fence scoping) — the narrowed assignment-context regex is specific enough that prose false positives are unlikely. Any rare false positive gets `# heuristic-exempt`. This is a best-effort secondary check — the primary `\$\(` regex catches the vast majority of patterns.
+- [x] **Regex expansion:** Change from `^\s*[A-Z_]+=.*\$\(` to `\$\(` matching any position on any line. This catches lowercase vars, non-assignment patterns, `$(())` arithmetic, and `cd $(...)` patterns.
+- [x] **Scope expansion:** Add scan loops for `$plugin_root/skills/*/SKILL.md` and `$plugin_root/agents/**/*.md`
+- [x] **Path exclusion:** Skip files matching `*/references/*` (illustrative code in reference docs)
+- [x] **Suppress markers:** Skip lines containing `heuristic-exempt` or `context-lean-exempt` (existing behavior, verify it still works)
+- [x] **Backtick detection:** Add secondary regex targeting backtick *substitution* in assignment context: `` [A-Za-z_]+=`[^`]+` `` (variable assignment using backtick substitution). This avoids false positives from Markdown inline code formatting. Apply globally (no code-fence scoping) — the narrowed assignment-context regex is specific enough that prose false positives are unlikely. Any rare false positive gets `# heuristic-exempt`. This is a best-effort secondary check — the primary `\$\(` regex catches the vast majority of patterns.
 
 **False positive rationale (red team C2):** The `\$\(` regex scans only instruction files (`commands/*.md`, `skills/*/SKILL.md`, `agents/**/*.md`) — not all markdown. Every `$()` in an instruction file is model-executed (these are prompts, not documentation). Empirically validated: 25 real hits, zero false positives. Agents confirmed zero `$()` currently. Path exclusion (`*/references/*`) handles illustrative code. Any future false positives are handled by the existing `# heuristic-exempt` marker mechanism. Bash code fence scoping was considered but rejected — instruction-file `$()` in prose is equally valid (prose instructs the model to generate `$()` in Bash tool input). [red-team--gemini, red-team--openai, red-team--opus, see .workflows/plan-research/heuristic-audit-scope-expansion/red-team--gemini.md]
-- [ ] **Finding message update:** Change from "VAR=$() pattern" to "$() pattern" (broader scope)
+- [x] **Finding message update:** Change from "VAR=$() pattern" to "$() pattern" (broader scope)
 
 **Expected baseline after expansion (before migration):** ~48 findings across commands and skills (matching the canonical inventory minus prose patterns which aren't in code blocks). This serves as the TODO list for Steps 3-4.
 
@@ -321,90 +321,90 @@ Then add: "Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FI
 Remove `# heuristic-exempt` markers from all replaced lines. Remove the prose `STATS_FILE="...$(date ...)..."` backtick instructions and replace with "Use the STATS_FILE value from init-values.sh output."
 
 #### 3a: brainstorm.md
-- [ ] Replace L43-45 init block (3 exempt patterns → init-values.sh)
-- [ ] Remove 3 `# heuristic-exempt` markers
+- [x] Replace L43-45 init block (3 exempt patterns → init-values.sh)
+- [x] Remove 3 `# heuristic-exempt` markers
 
 #### 3b: plan.md
-- [ ] Replace L100, L109 init block (2 exempt patterns → init-values.sh)
-- [ ] Rewrite L114 prose instruction (STATS_FILE)
-- [ ] Rewrite L398 PLAN_HASH_BEFORE: instruction says "call `shasum -a 256 <path>` and read the hash from the output" (split-call, no $())
-- [ ] Rewrite L803 PLAN_HASH_AFTER: same pattern
-- [ ] Remove 4 `# heuristic-exempt` markers
+- [x] Replace L100, L109 init block (2 exempt patterns → init-values.sh)
+- [x] Rewrite L114 prose instruction (STATS_FILE)
+- [x] Rewrite L398 PLAN_HASH_BEFORE: instruction says "call `shasum -a 256 <path>` and read the hash from the output" (split-call, no $())
+- [x] Rewrite L803 PLAN_HASH_AFTER: same pattern
+- [x] Remove 4 `# heuristic-exempt` markers
 
 #### 3c: review.md
-- [ ] Replace L42, L50 init block (2 exempt patterns → init-values.sh)
-- [ ] Rewrite L56 prose instruction (STATS_FILE)
-- [ ] Remove 2 `# heuristic-exempt` markers
+- [x] Replace L42, L50 init block (2 exempt patterns → init-values.sh)
+- [x] Rewrite L56 prose instruction (STATS_FILE)
+- [x] Remove 2 `# heuristic-exempt` markers
 
 #### 3d: work.md
-- [ ] Replace L63, L71 init block (2 exempt patterns → init-values.sh, includes WORKTREE_MGR)
-- [ ] Remove L115, L460 WORKTREE_MGR find (covered by init-values.sh work output)
-- [ ] Rewrite L77 prose instruction (STATS_FILE)
-- [ ] Rewrite L88-91 branch detection: remove entirely — init-values.sh `work` subcommand auto-detects branch and outputs `STEM=<value>`. Instruction says: "Call `bash init-values.sh work` (no stem argument). Read the STEM value from the output. The script handles branch detection internally." This eliminates 3 split-call patterns (#31-33). [red-team--gemini]
-- [ ] Rewrite L336-340 sentinel check: replace with `bash check-sentinel.sh` — model reads output (`STALE:<hours>`, `ACTIVE`, `NOT_FOUND`, or `CLEARED`), acts accordingly
-- [ ] Rewrite L456 worktree cd as split-call: "Run `git worktree list --porcelain | head -1 | sed 's/worktree //'` and read the output as the worktree root path. Then run `cd <path>`."
-- [ ] Rewrite L412 git commit heredoc: use Write tool to write commit message to `.workflows/tmp/commit-msg-<RUN_ID>.txt` (model uses tracked RUN_ID value — Write tool creates `.workflows/tmp/` automatically), then `git commit -F .workflows/tmp/commit-msg-<RUN_ID>.txt`. No cleanup needed — file is tiny, gitignored, and RUN_ID ensures no collision across parallel sessions. (No `$()` in tool input — `git` first token, no heredoc substitution.) [red-team--gemini, see .workflows/plan-research/heuristic-audit-scope-expansion/red-team--gemini.md]
-- [ ] Rewrite L427 gh pr create heredoc: use Write tool to write PR body to `.workflows/tmp/pr-body-<RUN_ID>.txt`, then `gh pr create --body-file .workflows/tmp/pr-body-<RUN_ID>.txt`. Same pattern — RUN_ID-namespaced, no cleanup. [red-team--gemini]
-- [ ] Remove 4 `# heuristic-exempt` markers
+- [x] Replace L63, L71 init block (2 exempt patterns → init-values.sh, includes WORKTREE_MGR)
+- [x] Remove L115, L460 WORKTREE_MGR find (covered by init-values.sh work output)
+- [x] Rewrite L77 prose instruction (STATS_FILE)
+- [x] Rewrite L88-91 branch detection: remove entirely — init-values.sh `work` subcommand auto-detects branch and outputs `STEM=<value>`. Instruction says: "Call `bash init-values.sh work` (no stem argument). Read the STEM value from the output. The script handles branch detection internally." This eliminates 3 split-call patterns (#31-33). [red-team--gemini]
+- [x] Rewrite L336-340 sentinel check: replace with `bash check-sentinel.sh` — model reads output (`STALE:<hours>`, `ACTIVE`, `NOT_FOUND`, or `CLEARED`), acts accordingly
+- [x] Rewrite L456 worktree cd as split-call: "Run `git worktree list --porcelain | head -1 | sed 's/worktree //'` and read the output as the worktree root path. Then run `cd <path>`."
+- [x] Rewrite L412 git commit heredoc: use Write tool to write commit message to `.workflows/tmp/commit-msg-<RUN_ID>.txt` (model uses tracked RUN_ID value — Write tool creates `.workflows/tmp/` automatically), then `git commit -F .workflows/tmp/commit-msg-<RUN_ID>.txt`. No cleanup needed — file is tiny, gitignored, and RUN_ID ensures no collision across parallel sessions. (No `$()` in tool input — `git` first token, no heredoc substitution.) [red-team--gemini, see .workflows/plan-research/heuristic-audit-scope-expansion/red-team--gemini.md]
+- [x] Rewrite L427 gh pr create heredoc: use Write tool to write PR body to `.workflows/tmp/pr-body-<RUN_ID>.txt`, then `gh pr create --body-file .workflows/tmp/pr-body-<RUN_ID>.txt`. Same pattern — RUN_ID-namespaced, no cleanup. [red-team--gemini]
+- [x] Remove 4 `# heuristic-exempt` markers
 
 #### 3e: deepen-plan.md
-- [ ] Replace L44-46 init block (3 exempt patterns → init-values.sh)
-- [ ] Rewrite L241 AGENT_COUNT: model tracks dispatch count directly — remove the jq call. Instruction says "track the agent dispatch count as you go; use that count here." (model-side tracking, no Bash call)
-- [ ] Rewrite L251 echo with AGENT_COUNT: same — use model-tracked count
-- [ ] Remove 4 `# heuristic-exempt` markers
+- [x] Replace L44-46 init block (3 exempt patterns → init-values.sh)
+- [x] Rewrite L241 AGENT_COUNT: model tracks dispatch count directly — remove the jq call. Instruction says "track the agent dispatch count as you go; use that count here." (model-side tracking, no Bash call)
+- [x] Rewrite L251 echo with AGENT_COUNT: same — use model-tracked count
+- [x] Remove 4 `# heuristic-exempt` markers
 
 #### 3f: compact-prep.md
-- [ ] Replace L85, L140-141 init block (3 exempt patterns → init-values.sh compact-prep)
-- [ ] Rewrite L109 ccusage date arg: "use DATE_COMPACT from init-values.sh output: `ccusage daily --json --breakdown --since <DATE_COMPACT> --offline 2>/dev/null`" (no $() in tool input)
-- [ ] Remove 4 `# heuristic-exempt` markers
+- [x] Replace L85, L140-141 init block (3 exempt patterns → init-values.sh compact-prep)
+- [x] Rewrite L109 ccusage date arg: "use DATE_COMPACT from init-values.sh output: `ccusage daily --json --breakdown --since <DATE_COMPACT> --offline 2>/dev/null`" (no $() in tool input)
+- [x] Remove 4 `# heuristic-exempt` markers
 
 #### 3g: setup.md
-- [ ] Replace L85, L211, L326 init patterns (3 exempt → init-values.sh setup)
-- [ ] Rewrite L353-357 version extraction as split-call. Replacement instruction: "Run `sed -n '2s/^# auto-approve v//p' .claude/hooks/auto-approve.sh` and read the output as INSTALLED_VERSION. Run `sed -n '2s/^# auto-approve v//p' <HOOK_TEMPLATE path>` and read the output as TEMPLATE_VERSION." (No `$()` — `sed` first token.)
-- [ ] Rewrite L497 exact count as split-call. Replacement instruction: "Run `jq -r '.permissions.allow[]? // empty' .claude/settings.local.json 2>/dev/null | grep -c -v '[:*?\[\{]' || echo '0'` and read the output as EXACT_COUNT." (No `$()` — `jq` first token.)
-- [ ] Remove 6 `# heuristic-exempt` markers
+- [x] Replace L85, L211, L326 init patterns (3 exempt → init-values.sh setup)
+- [x] Rewrite L353-357 version extraction as split-call. Replacement instruction: "Run `sed -n '2s/^# auto-approve v//p' .claude/hooks/auto-approve.sh` and read the output as INSTALLED_VERSION. Run `sed -n '2s/^# auto-approve v//p' <HOOK_TEMPLATE path>` and read the output as TEMPLATE_VERSION." (No `$()` — `sed` first token.)
+- [x] Rewrite L497 exact count as split-call. Replacement instruction: "Run `jq -r '.permissions.allow[]? // empty' .claude/settings.local.json 2>/dev/null | grep -c -v '[:*?\[\{]' || echo '0'` and read the output as EXACT_COUNT." (No `$()` — `jq` first token.)
+- [x] Remove 6 `# heuristic-exempt` markers
 
 ### Step 4: Migrate skill files
 
 #### 4a: plugin-changes-qa/SKILL.md
-- [ ] Replace L21, L24 init block → init-values.sh plugin-changes-qa (outputs REPO_ROOT, PLUGIN_ROOT)
-- [ ] 2 patterns eliminated
+- [x] Replace L21, L24 init block → init-values.sh plugin-changes-qa (outputs REPO_ROOT, PLUGIN_ROOT)
+- [x] 2 patterns eliminated
 
 #### 4b: classify-stats/SKILL.md
-- [ ] Replace L63, L66 init block → init-values.sh classify-stats
-- [ ] 2 patterns eliminated
+- [x] Replace L63, L66 init block → init-values.sh classify-stats
+- [x] 2 patterns eliminated
 
 #### 4c: version/SKILL.md
-- [ ] Replace L15 VERSION_CHECK find → init-values.sh version
-- [ ] 1 pattern eliminated
+- [x] Replace L15 VERSION_CHECK find → init-values.sh version
+- [x] 1 pattern eliminated
 
 #### 4d: recover/SKILL.md
-- [ ] Rewrite L23: `SESSION_DIR="$HOME/.claude/projects/${PWD//\//-}"` (pure parameter expansion, no $())
-- [ ] 1 pattern eliminated (direct rewrite)
+- [x] Rewrite L23: `SESSION_DIR="$HOME/.claude/projects/${PWD//\//-}"` (pure parameter expansion, no $())
+- [x] 1 pattern eliminated (direct rewrite)
 
 #### 4e: resolve-pr-parallel/SKILL.md
-- [ ] Rewrite L54 as split-call. PR_NUMBER is a model-tracked variable from earlier in the skill flow. Replacement instruction: "Using the PR number from the earlier step, run `ls -d .workflows/resolve-pr/<PR_NUMBER>/agents/run-* 2>/dev/null | wc -l | tr -d ' '` and read the output as the existing run count."
-- [ ] Rewrite L55: model-side arithmetic — "add 1 to the count from the previous call"
-- [ ] 2 patterns eliminated
+- [x] Rewrite L54 as split-call. PR_NUMBER is a model-tracked variable from earlier in the skill flow. Replacement instruction: "Using the PR number from the earlier step, run `ls -d .workflows/resolve-pr/<PR_NUMBER>/agents/run-* 2>/dev/null | wc -l | tr -d ' '` and read the output as the existing run count."
+- [x] Rewrite L55: model-side arithmetic — "add 1 to the count from the previous call"
+- [x] 2 patterns eliminated
 
 #### 4f: git-worktree/SKILL.md
-- [ ] Rewrite L244, L267: split-call — "call `git rev-parse --show-toplevel`, read the path, then `cd <path>`"
-- [ ] 2 patterns eliminated
+- [x] Rewrite L244, L267: split-call — "call `git rev-parse --show-toplevel`, read the path, then `cd <path>`"
+- [x] 2 patterns eliminated
 
 #### 4g: file-todos/SKILL.md
-- [ ] Rewrite L209 as split-call. Replacement instruction: "Run `ls -1 todos/*-<status>-*.md 2>/dev/null | wc -l` and read the count. Then use the count in the status output." (No `$()` — `ls` first token.)
-- [ ] 1 pattern eliminated
+- [x] Rewrite L209 as split-call. Replacement instruction: "Run `ls -1 todos/*-<status>-*.md 2>/dev/null | wc -l` and read the count. Then use the count in the status output." (No `$()` — `ls` first token.)
+- [x] 1 pattern eliminated
 
 ### Step 5: Verify + version bump
 
-- [ ] Run expanded QA Check 5 — **target: zero findings**
-- [ ] Verify zero `# heuristic-exempt` markers remain (all patterns migrated, no residuals)
-- [ ] Verify init-values.sh auto-approves by running: `bash plugins/compound-workflows/scripts/init-values.sh brainstorm test` — should produce output with no permission prompt
-- [ ] Run full Tier 1 QA (`bash plugins/compound-workflows/scripts/plugin-qa/*.sh` via `/compound-workflows:plugin-changes-qa`)
-- [ ] Update file counts in CLAUDE.md (scripts section — add init-values.sh, check-sentinel.sh)
-- [ ] Update CHANGELOG.md
-- [ ] Bump version in plugin.json + marketplace.json
-- [ ] Update README.md if script count changed
+- [x] Run expanded QA Check 5 — **target: zero findings**
+- [x] Verify zero `# heuristic-exempt` markers remain (all patterns migrated, no residuals)
+- [x] Verify init-values.sh auto-approves by running: `bash plugins/compound-workflows/scripts/init-values.sh brainstorm test` — should produce output with no permission prompt
+- [x] Run full Tier 1 QA (`bash plugins/compound-workflows/scripts/plugin-qa/*.sh` via `/compound-workflows:plugin-changes-qa`)
+- [x] Update file counts in CLAUDE.md (scripts section — add init-values.sh, check-sentinel.sh)
+- [x] Update CHANGELOG.md
+- [x] Bump version in plugin.json + marketplace.json
+- [x] Update README.md if script count changed
 
 ## Parallelization Notes
 

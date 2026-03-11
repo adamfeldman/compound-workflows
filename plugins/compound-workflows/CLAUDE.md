@@ -29,6 +29,8 @@ commands/
 
 scripts/
 ├── capture-stats.sh         # Deterministic atomic append for per-dispatch YAML stats capture
+├── check-sentinel.sh        # Sentinel staleness detection — replaces inline 3-pattern block in work.md
+├── init-values.sh           # Shared init-value computation — PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE (auto-approved)
 ├── validate-stats.sh        # Diagnostic stats entry count validation — replaces inline ENTRY_COUNT=$(grep -c ...) blocks
 ├── plugin-qa/               # 6 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
 └── version-check.sh         # 3-way version comparison (source vs installed vs release) — NOT in plugin-qa/ (makes network calls)

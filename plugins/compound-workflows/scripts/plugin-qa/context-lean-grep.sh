@@ -167,26 +167,73 @@ for f in "$cmd_dir"/*.md; do
   rm -f "$lines_file"
 done
 
-# --- Check 5: VAR=$() patterns that trigger mid-workflow permission prompts ---
-# Variable assignments with $() command substitution always prompt (first token
-# is a variable assignment, no static rule can match). Accepted patterns
-# (init blocks, recovery) must be marked with # heuristic-exempt.
-# Catches both $() command substitution and $(()) arithmetic expansion
-# (both are empirically verified heuristic triggers).
+# --- Check 5: $() patterns that trigger mid-workflow permission prompts ---
+# Any $() command substitution or $(()) arithmetic expansion in instruction files
+# triggers heuristic permission prompts when the model generates the containing
+# Bash tool input. Scans commands, skills, and agents.
+# Lines containing heuristic-exempt or context-lean-exempt are skipped.
+# Files under */references/* are skipped (illustrative code, not model-executed).
+#
+# Also detects backtick substitution in assignment context: VAR=`cmd`
+
+# Collect all scannable files: commands, skills, agents
+check5_files=()
 
 for f in "$cmd_dir"/*.md; do
   [[ -f "$f" ]] || continue
-  matches="$(grep -nE '^\s*[A-Z_]+=.*\$\(' "$f" || true)"
+  check5_files+=("$f")
+done
+
+for f in "$PLUGIN_ROOT"/skills/*/SKILL.md; do
+  [[ -f "$f" ]] || continue
+  # Skip files under references/
+  case "$f" in */references/*) continue ;; esac
+  check5_files+=("$f")
+done
+
+# Agents: scan all .md files under agents/ recursively
+while IFS= read -r f; do
+  [[ -f "$f" ]] || continue
+  # Skip files under references/
+  case "$f" in */references/*) continue ;; esac
+  check5_files+=("$f")
+done < <(find "$PLUGIN_ROOT/agents" -name "*.md" 2>/dev/null)
+
+# 5a: $() pattern detection (broad — any position on any line)
+for f in "${check5_files[@]}"; do
+  matches="$(grep -nE '\$\(' "$f" || true)"
   if [[ -n "$matches" ]]; then
     while IFS= read -r match; do
       line_text="$(echo "$match" | cut -d: -f2-)"
-      # Skip lines with heuristic-exempt marker
-      if echo "$line_text" | grep -qF 'heuristic-exempt' 2>/dev/null; then
+      # Skip lines with exempt markers
+      if echo "$line_text" | grep -qE 'heuristic-exempt|context-lean-exempt' 2>/dev/null; then
         continue
       fi
       line_num="$(echo "$match" | cut -d: -f1)"
-      add_finding "SERIOUS" "$f" "$line_num" "var-dollar-paren-heuristic" \
-        "VAR=\$() pattern triggers mid-workflow permission prompt — add # heuristic-exempt if intentional"
+      add_finding "SERIOUS" "$f" "$line_num" "dollar-paren-heuristic" \
+        "\$() pattern triggers mid-workflow permission prompt — migrate to init-values.sh, split-call, or add # heuristic-exempt if intentional"
+    done <<< "$matches"
+  fi
+done
+
+# 5b: Backtick substitution in assignment context: VAR=`cmd arg`
+# Requires whitespace inside backticks to distinguish from markdown inline code
+# (e.g., agent=`value` is markdown formatting, VAR=`date +%s` is shell substitution)
+# NOTE: \x60 does NOT work inside [...] character classes in macOS grep -E
+# (interpreted as literal chars \x60, not backtick). Use a variable instead.
+BT='`'
+for f in "${check5_files[@]}"; do
+  matches="$(grep -nE "[A-Za-z_]+=${BT}[^${BT}]*[[:space:]][^${BT}]*${BT}" "$f" || true)"
+  if [[ -n "$matches" ]]; then
+    while IFS= read -r match; do
+      line_text="$(echo "$match" | cut -d: -f2-)"
+      # Skip lines with exempt markers
+      if echo "$line_text" | grep -qE 'heuristic-exempt|context-lean-exempt' 2>/dev/null; then
+        continue
+      fi
+      line_num="$(echo "$match" | cut -d: -f1)"
+      add_finding "SERIOUS" "$f" "$line_num" "backtick-substitution-heuristic" \
+        "Backtick substitution in assignment triggers permission prompt — use \$() migration patterns instead"
     done <<< "$matches"
   fi
 done

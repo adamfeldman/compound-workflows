@@ -240,8 +240,10 @@ If you see this, the script will ask if you want to switch to it instead.
 
 Switch out of the worktree first (to main repo), then cleanup:
 
+Run `git rev-parse --show-toplevel` and read the output as the repo root path. Then:
+
 ```bash
-cd $(git rev-parse --show-toplevel)
+cd <repo-root-path>
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh cleanup
 ```
 
@@ -263,9 +265,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh copy-
 
 Navigate back to main:
 
-```bash
-cd $(git rev-parse --show-toplevel)
-```
+Run `git rev-parse --show-toplevel` and read the output as the repo root path. Then run `cd <repo-root-path>`.
 
 ## Technical Details
 

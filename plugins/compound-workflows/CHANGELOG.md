@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0] - 2026-03-11
+
+### Features
+- **init-values.sh** — shared script computing PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE. Auto-approved by PreToolUse hook (no permission prompt). Eliminates 29 `$()` init patterns across 12 files.
+- **check-sentinel.sh** — sentinel staleness detection script replacing 3-pattern inline block in work.md. Returns structured status for model-side branching.
+- **Expanded QA Check 5** — broader `$()` regex (any position, not just `VAR=$()` assignments), skills + agents scan scope, backtick substitution detection. Fixed `\x60` character-class bug in macOS grep.
+
+### Changed
+- **7 command files migrated to init-values.sh** — brainstorm, plan, review, work, deepen-plan, compact-prep, setup all source shared init script instead of inline `$()` blocks
+- **7 skill files cleaned** — eliminated 11 `$()` patterns via init-values.sh sourcing, split-call rewrites, and direct substitutions
+- **Net: 51 `$()` patterns eliminated, 27 exempt markers removed, zero residuals**
+
 ## [2.4.3] - 2026-03-11
 
 ### Fixed

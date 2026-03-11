@@ -58,23 +58,31 @@ Flag any concerns to the user before proceeding.
 
 Initialize per-dispatch stats collection. This runs once at command start; all dispatches in this run share the same identifiers.
 
+Derive `STEM` from the plan filename by stripping the date prefix and `-plan.md` suffix (e.g., `docs/plans/2026-03-10-feat-per-agent-token-instrumentation-plan.md` becomes `feat-per-agent-token-instrumentation`). If no plan file is provided (ad-hoc work), omit the stem — the script will auto-detect from the current branch name.
+
 ```bash
 mkdir -p .workflows/stats
-RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
-CACHED_SUBAGENT_MODEL=$CLAUDE_CODE_SUBAGENT_MODEL
-echo "RUN_ID=$RUN_ID SUBAGENT_MODEL=${CACHED_SUBAGENT_MODEL:-unset}"
+bash plugins/compound-workflows/scripts/init-values.sh work <stem>
 ```
 
-Resolve plugin root for `capture-stats.sh` and schema reference:
+If no stem is known yet (ad-hoc work, no plan file), run without stem:
+
 ```bash
-PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
-echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+mkdir -p .workflows/stats
+bash plugins/compound-workflows/scripts/init-values.sh work
+```
+
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+
+Also capture the subagent model setting:
+
+```bash
+echo "CACHED_SUBAGENT_MODEL=${CLAUDE_CODE_SUBAGENT_MODEL:-unset}"
 ```
 
 **Config check:** Read `compound-workflows.local.md` and check the `stats_capture` key. If the value is `false`, skip all stats capture for this run (do not read the schema file, do not call `capture-stats.sh`). If the key is missing or any other value, proceed with stats capture.
 
-**Stats file path:** `STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-work-${STEM}.yaml"` — derive `STEM` from the plan filename by stripping the date prefix and `-plan.md` suffix (e.g., `docs/plans/2026-03-10-feat-per-agent-token-instrumentation-plan.md` becomes `feat-per-agent-token-instrumentation`). If no plan file is provided (ad-hoc work), derive `STEM` from the current branch name.
+**Stats file path:** Use the STATS_FILE value from init-values.sh output.
 
 **Model resolution:** For each dispatch, resolve the `model` field using the cached `$CACHED_SUBAGENT_MODEL`. The `general-purpose` agent uses `model: inherit`, so: if `$CACHED_SUBAGENT_MODEL` is set, use that; otherwise default to `opus`. If a dispatch uses an explicit model override, use that instead. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for the full 4-step model resolution algorithm.
 
@@ -82,15 +90,15 @@ echo "PLUGIN_ROOT=$PLUGIN_ROOT"
 
 **NEVER call `git worktree add` directly.** Always use `bd worktree` or the `worktree-manager.sh` script. Raw `git worktree add` creates worktrees in the wrong location and requires manual `.gitignore` entries.
 
-Check current branch and worktree state:
+Check current branch and worktree state. The STEM value from init-values.sh output contains the auto-detected branch name (slugified). For branch display, run `git branch --show-current` as a separate command:
 
 ```bash
-current_branch=$(git branch --show-current)
-default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
-if [ -z "$default_branch" ]; then
-  default_branch=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo "main" || echo "master")
-fi
-echo "Current: $current_branch | Default: $default_branch"
+git branch --show-current
+```
+
+Read the output as the current branch name. Then check worktree/tool state:
+
+```bash
 # Detect worktree tool availability
 command -v bd >/dev/null 2>&1 && echo "BD=available" || echo "BD=not_available"
 bd worktree info 2>/dev/null
@@ -111,10 +119,8 @@ bd worktree info 2>/dev/null
 bd worktree create .worktrees/<descriptive-name>
 cd .worktrees/<descriptive-name>
 
-# Fallback (if bd not available): find and use worktree-manager.sh
-WORKTREE_MGR=$(find "$HOME/.claude/plugins" -name "worktree-manager.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1) # heuristic-exempt
-[[ -z "$WORKTREE_MGR" ]] && WORKTREE_MGR="plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh"
-bash "$WORKTREE_MGR" create <descriptive-name>
+# Fallback (if bd not available): use the WORKTREE_MGR value from init-values.sh output
+bash "<WORKTREE_MGR>" create <descriptive-name>
 cd .worktrees/<descriptive-name>
 ```
 
@@ -332,17 +338,9 @@ If context compacts mid-execution, recovery is simple:
 2. If worktree info shows you should be in a worktree but you're not, `cd` into it
 3. Check for stale sentinel file and clean up if needed:
    ```bash
-   if [ -f .workflows/.work-in-progress ]; then
-     sentinel_content=$(cat .workflows/.work-in-progress 2>/dev/null || echo "")
-     if echo "$sentinel_content" | grep -qE '^[0-9]+$' 2>/dev/null; then
-       sentinel_age=$(( $(date +%s) - sentinel_content ))
-       if [ "$sentinel_age" -ge 14400 ]; then
-         echo "Stale sentinel detected ($(( sentinel_age / 3600 ))h old) — clearing to re-enable QA hook"
-       fi
-     fi
-   fi
+   bash plugins/compound-workflows/scripts/check-sentinel.sh
    ```
-   If the above echo indicates a stale sentinel (age ≥ 4 hours), **IMMEDIATELY** use the **Write tool** to write `cleared` to `.workflows/.work-in-progress` before proceeding to Phase 3. Do not continue with stale sentinel active. If the content is already `cleared` or non-numeric, the sentinel is already inactive — skip.
+   Read the output. If output is `STALE:<hours>`, the sentinel is stale — **IMMEDIATELY** use the **Write tool** to write `cleared` to `.workflows/.work-in-progress` before proceeding to Phase 3. Do not continue with stale sentinel active. If `ACTIVE`, proceed normally. If `NOT_FOUND` or `CLEARED`, the sentinel is already inactive — skip.
 4. Check git log for recent commits:
    ```bash
    git log --oneline -10
@@ -409,12 +407,10 @@ After all issues are closed (or all TodoWrite tasks completed):
 1. **Final commit** (if quality fixes were needed):
    ```bash
    git add <files>
-   git commit -m "$(cat <<'EOF'
-   chore: address review feedback
-
-   Co-Authored-By: Claude <noreply@anthropic.com>
-   EOF
-   )"
+   ```
+   Use the **Write tool** to write the commit message to `.workflows/tmp/commit-msg-<RUN_ID>.txt` (use the tracked RUN_ID value). Then run:
+   ```bash
+   git commit -F .workflows/tmp/commit-msg-<RUN_ID>.txt
    ```
 
 2. **Clear QA hook sentinel** (re-enable PostToolUse QA enforcement):
@@ -424,20 +420,10 @@ After all issues are closed (or all TodoWrite tasks completed):
 3. **Create PR** (if project uses PRs):
    ```bash
    git push -u origin [branch-name]
-   gh pr create --title "[Description]" --body "$(cat <<'EOF'
-   ## Summary
-   - What was built
-   - Why it was needed
-
-   ## Testing
-   - Tests added/modified
-
-   ## Implementation Notes
-   - Executed via subagent architecture (N steps dispatched independently)
-
-   Co-Authored-By: Claude <noreply@anthropic.com>
-   EOF
-   )"
+   ```
+   Use the **Write tool** to write the PR body to `.workflows/tmp/pr-body-<RUN_ID>.txt` (use the tracked RUN_ID value). Include Summary, Testing, and Implementation Notes sections. Then run:
+   ```bash
+   gh pr create --title "[Description]" --body-file .workflows/tmp/pr-body-<RUN_ID>.txt
    ```
 
    > **Post-merge reminder:** After the PR is merged, run `/compound-workflows:version` or `/compound:compact-prep` to check for missing GitHub releases. Do not create releases automatically — the user decides when to cut a release.
@@ -451,15 +437,13 @@ After all issues are closed (or all TodoWrite tasks completed):
 
    If working in a worktree, return to the main repo and offer cleanup:
 
+   Return to main repo. Run `git worktree list --porcelain | head -1 | sed 's/worktree //'` and read the output as the main repo path. Then run `cd <path>`.
+
    ```bash
-   # Return to main repo
-   cd $(git worktree list --porcelain | head -1 | sed 's/worktree //')
    # Remove the worktree
    bd worktree remove .worktrees/<worktree-name>
-   # Fallback (if bd not available): find and use worktree-manager.sh
-   WORKTREE_MGR=$(find "$HOME/.claude/plugins" -name "worktree-manager.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1) # heuristic-exempt
-   [[ -z "$WORKTREE_MGR" ]] && WORKTREE_MGR="plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh"
-   bash "$WORKTREE_MGR" remove <worktree-name>
+   # Fallback (if bd not available): use the WORKTREE_MGR value from init-values.sh output
+   bash "<WORKTREE_MGR>" remove <worktree-name>
    ```
 
    Only remove after PR is created and pushed. If the user wants to keep the worktree (e.g., awaiting review feedback), skip this step.

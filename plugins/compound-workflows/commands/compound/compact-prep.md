@@ -80,11 +80,18 @@ If compound was run in Step 4, check `git status` again — compound creates doc
 Run the version check script to compare source, installed, and released versions:
 
 ```bash
-# Find version-check.sh: local repo (dev) or installed plugin
-VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
-[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1) # heuristic-exempt
-[[ -n "$VERSION_CHECK" ]] && bash "$VERSION_CHECK" || echo "version-check.sh not found — skipping"
+bash plugins/compound-workflows/scripts/init-values.sh compact-prep
 ```
+
+Read the output. Track the values PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+
+Then run the version check using the VERSION_CHECK value from the output:
+
+```bash
+bash <VERSION_CHECK>
+```
+
+If VERSION_CHECK is empty or the script is not found, say "version-check.sh not found — skipping".
 - **If all versions match** (exit code 0): Say "Versions OK." and move on.
 - **If STALE or UNRELEASED detected** (exit code 1): Present the script's full output to the user, then use **AskUserQuestion** for each actionable item:
   - **STALE** — "Plugin is stale. Update now?"
@@ -105,8 +112,10 @@ which ccusage 2>/dev/null
 
 **If ccusage is available:**
 
+Use the DATE_COMPACT value from init-values.sh output:
+
 ```bash
-ccusage daily --json --breakdown --since $(date +%Y%m%d) --offline 2>/dev/null # heuristic-exempt
+ccusage daily --json --breakdown --since <DATE_COMPACT> --offline 2>/dev/null
 ```
 
 Parse the JSON output defensively — field naming varies across ccusage versions:
@@ -134,15 +143,13 @@ If ccusage data was successfully retrieved and parsed in Step 7 (i.e., ccusage w
 mkdir -p .workflows/stats
 ```
 
-Write the snapshot via atomic append (`cat >>`). Use today's date for the filename:
+Write the snapshot via atomic append (`cat >>`). Use the SNAPSHOT_FILE and TIMESTAMP values from init-values.sh output:
 
 ```bash
-SNAPSHOT_FILE=".workflows/stats/$(date +%Y-%m-%d)-ccusage-snapshot.yaml" # heuristic-exempt
-TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" # heuristic-exempt
-cat >> "$SNAPSHOT_FILE" <<EOF
+cat >> "<SNAPSHOT_FILE>" <<EOF
 ---
 type: ccusage-snapshot
-timestamp: $TIMESTAMP
+timestamp: <TIMESTAMP>
 total_cost_usd: <total cost from parsed data>
 input_tokens: <total input tokens from parsed data>
 output_tokens: <total output tokens from parsed data>

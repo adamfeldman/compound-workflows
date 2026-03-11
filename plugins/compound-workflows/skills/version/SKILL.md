@@ -9,10 +9,11 @@ Show the current plugin version status by comparing source, installed, and lates
 
 ## Step 1: Find and Run Script
 
+Run `bash plugins/compound-workflows/scripts/init-values.sh version`. Read the VERSION_CHECK value from output. If the script is not found (not in source repo), run `find ~/.claude/plugins -name "init-values.sh" -path "*/compound-workflows/*" | head -1` to find it, then run `bash <found-path> version`.
+
+Then run the version check script:
+
 ```bash
-# Find version-check.sh: local repo (dev) or installed plugin
-VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
-[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
 if [[ -n "$VERSION_CHECK" ]]; then
   bash "$VERSION_CHECK"
 else

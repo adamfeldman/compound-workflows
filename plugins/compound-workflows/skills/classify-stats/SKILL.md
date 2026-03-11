@@ -59,14 +59,7 @@ This is informational only — classification proceeds on whatever entries exist
 
 ### Step 2.1: Resolve Plugin Root
 
-```bash
-REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-PLUGIN_ROOT="$REPO_ROOT/plugins/compound-workflows"
-if [[ ! -f "$PLUGIN_ROOT/CLAUDE.md" ]]; then
-  PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
-fi
-echo "Plugin root: $PLUGIN_ROOT"
-```
+Run `bash plugins/compound-workflows/scripts/init-values.sh classify-stats`. Read the output and track REPO_ROOT and PLUGIN_ROOT values. If the script is not found (not in source repo), run `find ~/.claude/plugins -name "init-values.sh" -path "*/compound-workflows/*" | head -1` to find it, then run `bash <found-path> classify-stats`.
 
 ### Step 2.2: Prepare Classification Input
 
