@@ -30,7 +30,7 @@ commands/
 scripts/
 ├── capture-stats.sh         # Deterministic atomic append for per-dispatch YAML stats capture
 ├── validate-stats.sh        # Diagnostic stats entry count validation — replaces inline ENTRY_COUNT=$(grep -c ...) blocks
-├── plugin-qa/               # 5 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
+├── plugin-qa/               # 6 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
 └── version-check.sh         # 3-way version comparison (source vs installed vs release) — NOT in plugin-qa/ (makes network calls)
 
 resources/

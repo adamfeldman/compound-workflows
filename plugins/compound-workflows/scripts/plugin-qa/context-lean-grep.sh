@@ -80,6 +80,10 @@ for f in "$cmd_dir"/*.md; do
     while IFS= read -r match; do
       line_num="$(echo "$match" | cut -d: -f1)"
       matched_text="$(echo "$match" | cut -d: -f2-)"
+      # Skip lines marked as verified (wrapped in subagent)
+      if echo "$matched_text" | grep -qF 'context-lean-exempt' 2>/dev/null; then
+        continue
+      fi
       # Extract which tool
       tool="$(echo "$matched_text" | grep -oE 'mcp__pal__(clink|chat)' | head -1 || true)"
       add_finding "INFO" "$f" "$line_num" "mcp-call-needs-verification" \

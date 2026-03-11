@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.2] - 2026-03-11
+
+### Fixed
+- **capture-stats.sh: accept Agent tool usage format** — health check regex now accepts both newline-separated (Agent tool) and comma-separated (Task tool) `<usage>` formats. Best-effort extraction already worked for both; only the health check warned incorrectly.
+- **context-lean-grep: zero-findings baseline** — added `context-lean-exempt` markers to 18 verified-correct MCP tool references inside Task subagent blocks. Check 3 now respects exempt markers. All Tier 1 QA scripts produce zero findings.
+
+### Added
+- **capture-stats-format.sh** — Tier 1 QA test fixture validating capture-stats.sh with both formats, empty usage, and timeout variant (4 test cases)
+
 ## [2.4.1] - 2026-03-11
 
 ### Fixed

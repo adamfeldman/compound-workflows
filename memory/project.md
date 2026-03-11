@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v2.4.1 (plugins/compound-workflows/)
+- Plugin: compound-workflows v2.4.2 (plugins/compound-workflows/)
 - 26 agents, 20 skills, 8 commands
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -45,6 +45,7 @@
 - **Bash safety heuristics: static rules suppress, hooks don't** — `$()`, backticks, `{"`, heredocs trigger Claude Code's built-in heuristics. Static `Bash(X:*)` rules suppress them (fire BEFORE heuristics — verified: `bd:*` suppresses `{"`, `git:*` suppresses `$()`). PreToolUse hooks CANNOT suppress them (fire AFTER heuristics). `--dangerously-skip-permissions` suppresses everything. No "multi-line heuristic" exists — multi-line blocks without `$()` auto-approve. GitHub #30435, #31373 (both OPEN 2026-03-10). See: `docs/solutions/claude-code-internals/2026-03-10-static-rules-suppress-bash-heuristics.md`.
 - **Static `Bash(VAR=:*)` rules don't reliably match** — added `Bash(PLAN_PATH=:*)` etc. to settings.local.json but commands starting with variable assignments still prompted. Confirmed during this session. Hook approach is the real fix.
 - **No Claude Code setting to disable auto-memory per-project** — auto-memory (`~/.claude/projects/.../memory/`) is always active. System prompt instructs the LLM to write there. Workaround: redirect guard in MEMORY.md saying "DO NOT USE." LLM-enforced, not technically enforced — fragile. Upstream feature request needed.
+- **Tier 1 QA zero-findings baseline** — all QA scripts must produce zero findings on a clean repo. Verified-correct patterns use `context-lean-exempt` markers to suppress known-good matches. Convention: mark exempt lines with `# context-lean-exempt: <reason>` so the grep skips them. If any script shows findings, they're either new bugs or missing exempt markers — never "pre-existing known-good." This ensures a fresh session always sees a clean baseline.
 - **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format

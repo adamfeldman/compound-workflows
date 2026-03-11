@@ -407,7 +407,7 @@ Launch all three providers in parallel. Each reviews independently — no provid
 ```bash
 which gemini 2>/dev/null && echo "GEMINI_CLI=available" || echo "GEMINI_CLI=not_available"
 which codex 2>/dev/null && echo "CODEX_CLI=available" || echo "CODEX_CLI=not_available"
-# PAL: check if mcp__pal__chat is available as a tool
+# PAL: check if mcp__pal__chat is available as a tool  # context-lean-exempt
 ```
 
 **Provider 1 — Gemini:**
@@ -420,7 +420,7 @@ You are a red team dispatch agent. Call the Gemini model for a red team review a
 
 Call this MCP tool:
 
-mcp__pal__clink:
+mcp__pal__clink:  # context-lean-exempt: inside Task subagent
   cli_name: gemini
   role: codereviewer
   prompt: "You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate.
@@ -460,7 +460,7 @@ You are a red team dispatch agent. Call the Gemini model for a red team review a
 
 Call this MCP tool:
 
-mcp__pal__chat:
+mcp__pal__chat:  # context-lean-exempt: inside Task subagent
   model: [latest highest-end Gemini model, e.g. gemini-3.1-pro-preview — NOT gemini-2.5-pro]
   prompt: "You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate.
 
@@ -501,7 +501,7 @@ You are a red team dispatch agent. Call the OpenAI model for a red team review a
 
 Call this MCP tool:
 
-mcp__pal__clink:
+mcp__pal__clink:  # context-lean-exempt: inside Task subagent
   cli_name: codex
   role: codereviewer
   prompt: "You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate.
@@ -541,7 +541,7 @@ You are a red team dispatch agent. Call the OpenAI model for a red team review a
 
 Call this MCP tool:
 
-mcp__pal__chat:
+mcp__pal__chat:  # context-lean-exempt: inside Task subagent
   model: [latest highest-end OpenAI model, e.g. gpt-5.4-pro — NOT gpt-5.4 or gpt-5.2-pro]
   prompt: "You are a red team reviewer for a software implementation plan. Your job is to find flaws, not validate.
 

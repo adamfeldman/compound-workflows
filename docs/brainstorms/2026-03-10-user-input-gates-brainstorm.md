@@ -24,10 +24,18 @@ The fix: resolve manual-review items individually first (current 3d), then re-ev
 
 ## Key Decisions
 
-### Decision 1: Execution sequencing, not cancellation
-Resequence the triage flow: resolve manual-review items individually (current Step 3d) BEFORE applying batch fixes (current Step 3c). Auto-fixes must be re-evaluated after manual decisions since user input may change the document state. No cancellation mechanism needed — fixes haven't run yet when decisions are made.
+### Decision 1: Execution sequencing + completion enforcement
+Two failure modes, both from the same root cause (automated work before user input):
 
-**Rationale:** Keep it simple. The bug is execution order, not display order. The three-category summary (Step 3b) already shows everything at once — reordering categories within that display is cosmetic. The real fix is running 3d before 3c.
+1. **Wrong order** — Step 3c (apply fixes) runs before Step 3d (manual review). Fixes may use stale context if manual decisions change the document.
+2. **Skipped steps** — LLM misinterprets the Step 3b batch choice ("Apply all fixes + acknowledge no-action") as resolving ALL MINOR items, skipping Step 3d entirely. Manual review items (Category 2) are never presented. Discovered during jak plan red team (bead icn): model jumped from Step 3b → plan edits → hash comparison, skipping 3d.
+
+The fix addresses both:
+- **Resequence**: resolve manual-review items individually (current Step 3d) BEFORE applying batch fixes (current Step 3c). No cancellation mechanism needed — fixes haven't run yet when decisions are made.
+- **Completion gate**: explicit checkpoint before any post-triage work (hash comparison, plan edits) verifying all triage categories are resolved. Catches both wrong-order and skipped-step failures.
+- **Label clarity**: batch choice options must state what they cover and what comes next (e.g., "— manual review items presented next").
+
+**Rationale:** The original framing (ordering only) missed the omission failure mode. The brainstorm assumed all steps would execute and focused on sequence. But when an LLM executes the command, ambiguous batch choice wording can cause it to skip steps entirely — not just reorder them. The completion gate is the deterministic safeguard.
 
 ### Decision 2: Triage flows only
 Applies to the 3 commands with MINOR triage flows: brainstorm.md, plan.md, deepen-plan.md.
@@ -50,16 +58,23 @@ The three-category display order in Step 3b (Fixable now, Needs manual review, N
 ## Scope
 
 ### In scope
-1. Audit brainstorm.md, plan.md, deepen-plan.md for execution sequencing violations
+1. Audit brainstorm.md, plan.md, deepen-plan.md for execution sequencing violations AND step omission risks
 2. Fix Step 3c/3d ordering in all affected commands (resolve manual items before applying fixes)
-3. Fix any other instances in triage commands where automated work runs before pending user questions
-4. Add Tier 2 QA check for the pattern
+3. Add completion gates before post-triage work (hash comparison, document edits) — explicit checklist of all triage categories resolved
+4. Clarify batch choice option labels to state scope and what comes next
+5. Fix any other instances in triage commands where automated work runs before pending user questions
+6. Add Tier 2 QA check for the pattern (covers both ordering and completion enforcement)
 
 ### Out of scope
 - work.md execution flow (intentionally parallel, no pause)
 - setup.md, compact-prep.md, compound.md (already correct)
 - Cancellation mechanisms
 - Optimistic concurrent execution (run auto-fixes in background while asking manual questions, discard on conflict) — conceptually nice but requires rollback/conflict detection. Revisit if sequential approach feels slow. User: "if we didnt need rollback, it'd be nice"
+
+### Related beads
+- **wtn** — Harden plugin commands for cheaper-model robustness. 42s is a specific instance of the broader robustness problem: LLMs skipping steps, conflating scope, ignoring gates. The completion gate and label clarity fixes from 42s are applications of wtn's robustness principles (completion gates, unambiguous step scope, fail loud).
+- **icn** (closed, merged into 42s) — Concrete reproduction case from jak plan red team. Step 3d skipped entirely after Step 3b batch choice.
+- **a6t** — Agent timeout/recovery. Same class: LLM judgment failure (impatience) instead of deterministic verification.
 
 ## Resolved Questions
 
@@ -71,3 +86,6 @@ The three-category display order in Step 3b (Fixable now, Needs manual review, N
 
 ### Q3: What does the Tier 2 QA check look for?
 The check verifies: in commands with three-category triage, manual-review resolution (Step 3d) appears before fix application (Step 3c) in the execution flow. Mechanically: grep for the step ordering pattern in the command files. Lightweight — pattern match on step headings and sequencing.
+
+### Q4: Why didn't the original brainstorm cover step omission?
+The brainstorm was framed as an **ordering** problem — "which step runs first?" It assumed all steps would execute and focused on their sequence. The icn incident revealed a different failure mode: the LLM executing the command **skips steps entirely** when batch choice wording is ambiguous. The brainstorm's mental model was "human user makes choices, automation runs in wrong order" — it didn't account for the LLM misinterpreting which items a batch choice covers. The completion gate addresses this blind spot with a deterministic checkpoint.
