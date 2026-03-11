@@ -60,15 +60,15 @@ Initialize per-dispatch stats collection. This runs once at command start; all d
 
 ```bash
 mkdir -p .workflows/stats
-RUN_ID=$(uuidgen | cut -c1-8)
-CACHED_SUBAGENT_MODEL=$(echo $CLAUDE_CODE_SUBAGENT_MODEL)
+RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
+CACHED_SUBAGENT_MODEL=$CLAUDE_CODE_SUBAGENT_MODEL
 echo "RUN_ID=$RUN_ID SUBAGENT_MODEL=${CACHED_SUBAGENT_MODEL:-unset}"
 ```
 
 Resolve plugin root for `capture-stats.sh` and schema reference:
 ```bash
 PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
 echo "PLUGIN_ROOT=$PLUGIN_ROOT"
 ```
 
@@ -112,7 +112,7 @@ bd worktree create .worktrees/<descriptive-name>
 cd .worktrees/<descriptive-name>
 
 # Fallback (if bd not available): find and use worktree-manager.sh
-WORKTREE_MGR=$(find "$HOME/.claude/plugins" -name "worktree-manager.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
+WORKTREE_MGR=$(find "$HOME/.claude/plugins" -name "worktree-manager.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1) # heuristic-exempt
 [[ -z "$WORKTREE_MGR" ]] && WORKTREE_MGR="plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh"
 bash "$WORKTREE_MGR" create <descriptive-name>
 cd .worktrees/<descriptive-name>
@@ -134,7 +134,7 @@ mkdir -p .workflows
 date +%s > .workflows/.work-in-progress
 ```
 
-This sentinel is checked by `.claude/hooks/plugin-qa-check.sh`. It is removed in Phase 4 (Ship) and cleaned up if stale in Phase 2.4 (Recovery).
+This sentinel is checked by `.claude/hooks/plugin-qa-check.sh`. It is cleared (content set to "cleared" via Write tool) in Phase 4 (Ship) and cleaned up if stale in Phase 2.4 (Recovery). The hook validates numeric content — non-numeric content like "cleared" is treated as inactive.
 
 ### 1.3 Create or Resume Task Issues
 
@@ -333,13 +333,16 @@ If context compacts mid-execution, recovery is simple:
 3. Check for stale sentinel file and clean up if needed:
    ```bash
    if [ -f .workflows/.work-in-progress ]; then
-     sentinel_age=$(( $(date +%s) - $(cat .workflows/.work-in-progress) ))
-     if [ "$sentinel_age" -ge 14400 ]; then
-       echo "Stale sentinel detected ($(( sentinel_age / 3600 ))h old) — removing to re-enable QA hook"
-       rm -f .workflows/.work-in-progress
+     sentinel_content=$(cat .workflows/.work-in-progress 2>/dev/null || echo "")
+     if echo "$sentinel_content" | grep -qE '^[0-9]+$' 2>/dev/null; then
+       sentinel_age=$(( $(date +%s) - sentinel_content ))
+       if [ "$sentinel_age" -ge 14400 ]; then
+         echo "Stale sentinel detected ($(( sentinel_age / 3600 ))h old) — clearing to re-enable QA hook"
+       fi
      fi
    fi
    ```
+   If the above echo indicates a stale sentinel (age ≥ 4 hours), **IMMEDIATELY** use the **Write tool** to write `cleared` to `.workflows/.work-in-progress` before proceeding to Phase 3. Do not continue with stale sentinel active. If the content is already `cleared` or non-numeric, the sentinel is already inactive — skip.
 4. Check git log for recent commits:
    ```bash
    git log --oneline -10
@@ -360,11 +363,10 @@ If context compacts mid-execution, recovery is simple:
 After the dispatch loop completes (all issues closed or all TodoWrite tasks completed), if stats capture is enabled, validate that the stats file contains the expected number of entries:
 
 ```bash
-ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
-echo "Stats validation: $ENTRY_COUNT entries in $STATS_FILE (expected: $DISPATCH_COUNT)"
+bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <DISPATCH_COUNT>
 ```
 
-Track `DISPATCH_COUNT` by incrementing a counter after each successful `capture-stats.sh` call during the dispatch loop. If `ENTRY_COUNT` does not match `DISPATCH_COUNT`, warn with the names of missing agents — do not fail the command. This is a diagnostic warning only.
+Track `DISPATCH_COUNT` by incrementing a counter after each successful `capture-stats.sh` call during the dispatch loop. If validate-stats.sh reports a mismatch, warn with the names of missing agents — do not fail the command. This is a diagnostic warning only.
 
 ## Phase 3: Quality Check (Orchestrator)
 
@@ -415,10 +417,9 @@ After all issues are closed (or all TodoWrite tasks completed):
    )"
    ```
 
-2. **Remove QA hook sentinel** (re-enable PostToolUse QA enforcement):
-   ```bash
-   rm -f .workflows/.work-in-progress
-   ```
+2. **Clear QA hook sentinel** (re-enable PostToolUse QA enforcement):
+
+   Use the **Write tool** to write `cleared` to `.workflows/.work-in-progress`. Do not use `rm` — the Write tool is prompt-free and the hook already handles non-numeric content correctly (falls through without suppressing QA).
 
 3. **Create PR** (if project uses PRs):
    ```bash
@@ -456,7 +457,7 @@ After all issues are closed (or all TodoWrite tasks completed):
    # Remove the worktree
    bd worktree remove .worktrees/<worktree-name>
    # Fallback (if bd not available): find and use worktree-manager.sh
-   WORKTREE_MGR=$(find "$HOME/.claude/plugins" -name "worktree-manager.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
+   WORKTREE_MGR=$(find "$HOME/.claude/plugins" -name "worktree-manager.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1) # heuristic-exempt
    [[ -z "$WORKTREE_MGR" ]] && WORKTREE_MGR="plugins/compound-workflows/skills/git-worktree/scripts/worktree-manager.sh"
    bash "$WORKTREE_MGR" remove <worktree-name>
    ```

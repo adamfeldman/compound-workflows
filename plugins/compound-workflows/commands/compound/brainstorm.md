@@ -40,9 +40,9 @@ mkdir -p .workflows/brainstorm-research/<topic-stem>
 mkdir -p .workflows/stats
 [[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
 PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
-RUN_ID=$(uuidgen | cut -c1-8)
-STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-brainstorm-<topic-stem>.yaml"
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
+RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
+STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-brainstorm-<topic-stem>.yaml" # heuristic-exempt
 CACHED_MODEL="${CLAUDE_CODE_SUBAGENT_MODEL:-opus}"
 echo "PLUGIN_ROOT=$PLUGIN_ROOT"
 echo "RUN_ID=$RUN_ID"
@@ -94,11 +94,7 @@ Both agents have `model: sonnet` in their YAML frontmatter, so the model field i
 After both research agents complete, validate entry count:
 
 ```bash
-ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
-EXPECTED=2
-if [ "$ENTRY_COUNT" -ne "$EXPECTED" ]; then
-  echo "Stats capture: expected $EXPECTED entries but found $ENTRY_COUNT after research phase." >&2
-fi
+bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" 2
 ```
 
 #### 1.2 Collaborative Dialogue
@@ -358,15 +354,13 @@ For the `general-purpose` agent (Claude Opus) — no explicit model, use `CACHED
 bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "general-purpose" "red-team-opus" "$CACHED_MODEL" "<topic-stem>" "null" "$RUN_ID" "<usage-line>"
 ```
 
-Track the number of red team agents actually dispatched (2-3 depending on PAL availability). After all red team completions, validate:
+Track the number of red team agents actually dispatched (2-3 depending on PAL availability). After all red team completions, validate stats count. The expected total is 2 (research) + the number of red team agents dispatched. Note: the old `$((2 + N))` arithmetic was itself a heuristic trigger (empirically verified); model-side tracking eliminates it:
 
 ```bash
-ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
-EXPECTED_TOTAL=$((2 + <red-team-count>))  # 2 research + N red team agents dispatched
-if [ "$ENTRY_COUNT" -ne "$EXPECTED_TOTAL" ]; then
-  echo "Stats capture: expected $EXPECTED_TOTAL entries but found $ENTRY_COUNT after red team phase." >&2
-fi
+bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <EXPECTED_TOTAL>
 ```
+
+Where `<EXPECTED_TOTAL>` is tracked by incrementing a counter during dispatch (already described above). The model substitutes the literal number (e.g., `5`). If validate-stats.sh reports a mismatch, warn but do not fail.
 
 #### Step 2: Surface CRITICAL and SERIOUS Items
 
@@ -474,11 +468,10 @@ The `general-purpose` agent has no explicit model — use `CACHED_MODEL`:
 bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "general-purpose" "minor-triage" "$CACHED_MODEL" "<topic-stem>" "null" "$RUN_ID" "<usage-line>"
 ```
 
-Validate total entry count (2 research + N red team + 1 triage):
+Validate total entry count (2 research + N red team + 1 triage). The expected total is tracked by the dispatch counter:
 
 ```bash
-ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
-echo "Stats capture: $ENTRY_COUNT total entries after MINOR triage."
+bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <EXPECTED_TOTAL>
 ```
 
 ##### Step 3b: Present Three-Category Triage

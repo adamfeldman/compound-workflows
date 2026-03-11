@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.1] - 2026-03-11
+
+### Fixed
+- **Eliminate mid-workflow permission prompts** — replace 9 inline `ENTRY_COUNT=$(grep -c ...)` blocks with `validate-stats.sh` script across brainstorm, plan, deepen-plan, work, review commands
+- **P5 subshell cleanup** — remove unnecessary `$(echo $VAR)` subshells in work.md and review.md init blocks
+- **Sentinel redesign** — clear via Write tool marker instead of `rm -f` in work.md (Phase 4 Ship + Phase 2.4 Recovery)
+- **QA regression check** — new Check 5 in `context-lean-grep.sh` detects `VAR=$()` heuristic trigger patterns with `# heuristic-exempt` suppress markers
+
+### Added
+- `scripts/validate-stats.sh` — diagnostic stats entry count validation (exits 0 always, warn-on-empty for Sonnet robustness, report-only mode)
+
 ## [2.4.0] - 2026-03-10
 
 ### Features

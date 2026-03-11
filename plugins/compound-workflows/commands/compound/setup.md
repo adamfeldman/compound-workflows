@@ -82,7 +82,7 @@ Use **AskUserQuestion**: "Have you activated Gemini/Codex CLI in this repo (or w
 ```bash
 # Find version-check.sh: local repo (dev) or installed plugin
 VERSION_CHECK="plugins/compound-workflows/scripts/version-check.sh"
-[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1)
+[[ -f "$VERSION_CHECK" ]] || VERSION_CHECK=$(find "$HOME/.claude/plugins" -name "version-check.sh" -path "*/compound-workflows/*" 2>/dev/null | head -1) # heuristic-exempt
 [[ -n "$VERSION_CHECK" ]] && bash "$VERSION_CHECK" || echo "version-check.sh not found"
 ```
 
@@ -208,7 +208,7 @@ options:
 If "Customize": list all available review and research agents. To find them, resolve the plugin root:
 ```bash
 PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
 ls "$PLUGIN_ROOT/agents/review/" "$PLUGIN_ROOT/agents/research/" 2>/dev/null
 ```
 Let the user toggle agents on/off from the list.
@@ -323,7 +323,7 @@ Set up a PreToolUse hook that auto-approves safe commands and configure permissi
 
 ```bash
 PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
 HOOK_TEMPLATE="$PLUGIN_ROOT/templates/auto-approve.sh"
 echo "PLUGIN_ROOT=$PLUGIN_ROOT"
 echo "HOOK_TEMPLATE=$HOOK_TEMPLATE"
@@ -350,11 +350,11 @@ mkdir -p .claude/hooks
 # Read installed hook version (if exists)
 INSTALLED_VERSION=""
 if [ -f .claude/hooks/auto-approve.sh ]; then
-  INSTALLED_VERSION=$(sed -n '2s/^# auto-approve v//p' .claude/hooks/auto-approve.sh)
+  INSTALLED_VERSION=$(sed -n '2s/^# auto-approve v//p' .claude/hooks/auto-approve.sh) # heuristic-exempt
 fi
 
 # Read template version
-TEMPLATE_VERSION=$(sed -n '2s/^# auto-approve v//p' "$HOOK_TEMPLATE")
+TEMPLATE_VERSION=$(sed -n '2s/^# auto-approve v//p' "$HOOK_TEMPLATE") # heuristic-exempt
 
 echo "INSTALLED_VERSION=$INSTALLED_VERSION"
 echo "TEMPLATE_VERSION=$TEMPLATE_VERSION"
@@ -494,7 +494,7 @@ Check for accumulated exact-command rules:
 ```bash
 if [ -f .claude/settings.local.json ]; then
   # Count rules that do NOT contain :* or glob patterns (exact-command rules)
-  EXACT_COUNT=$(jq -r '.permissions.allow[]? // empty' .claude/settings.local.json 2>/dev/null | grep -c -v '[:*?\[\{]' || echo "0")
+  EXACT_COUNT=$(jq -r '.permissions.allow[]? // empty' .claude/settings.local.json 2>/dev/null | grep -c -v '[:*?\[\{]' || echo "0") # heuristic-exempt
   echo "EXACT_COMMAND_RULES=$EXACT_COUNT"
 fi
 ```

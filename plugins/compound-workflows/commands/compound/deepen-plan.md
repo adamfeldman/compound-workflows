@@ -41,9 +41,9 @@ If prior runs exist, increment the run number (e.g., if `run-2-manifest.json` ex
 mkdir -p .workflows/deepen-plan/<plan-stem>/agents/run-<N>
 mkdir -p .workflows/stats
 PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
-RUN_ID=$(uuidgen | cut -c1-8)
-STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-deepen-plan-<plan-stem>.yaml"
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
+RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
+STATS_FILE=".workflows/stats/$(date +%Y-%m-%d)-deepen-plan-<plan-stem>.yaml" # heuristic-exempt
 CACHED_MODEL="${CLAUDE_CODE_SUBAGENT_MODEL:-opus}"
 echo "PLUGIN_ROOT=$PLUGIN_ROOT"
 echo "RUN_ID=$RUN_ID"
@@ -69,10 +69,10 @@ If stats_capture ≠ false in compound-workflows.local.md: after each Agent comp
 **Post-dispatch validation (end of command):**
 
 ```bash
-ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <DISPATCH_COUNT>
 ```
 
-If ENTRY_COUNT does not match the dispatch counter, warn with the names of missing agents. Do not fail the command.
+If validate-stats.sh reports a mismatch, warn with the names of missing agents. Do not fail the command.
 
 **Check for interrupted current run:** If `.workflows/deepen-plan/<plan-stem>/manifest.json` exists AND its `status` is NOT `"readiness_complete"`, this may be an interrupted run. Skip to Phase 5 (Recovery).
 
@@ -238,7 +238,7 @@ DROPPED_DEDUP=""
 DROPPED_C1=""
 
 # Step 3: 30-agent cap — keep compound-workflows first, truncate user-defined alphabetically
-AGENT_COUNT=$(echo "$VALIDATED" | jq '.agents | length')
+AGENT_COUNT=$(echo "$VALIDATED" | jq '.agents | length') # heuristic-exempt
 if [ "$AGENT_COUNT" -gt 30 ]; then
   # Keep all compound-workflows agents, sort user-defined alphabetically, truncate to fit 30
   echo "Warning: Agent count $AGENT_COUNT exceeds cap of 30. Truncating user-defined agents."
@@ -1278,10 +1278,10 @@ After synthesis, red team challenge, plan readiness check, and convergence analy
 If stats capture is enabled: after all phases complete, validate the total entry count against the dispatch counter.
 
 ```bash
-ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <DISPATCH_COUNT>
 ```
 
-If ENTRY_COUNT does not match the dispatch counter, warn with the names of missing agents (not just the count delta). Example: "Stats capture: expected 22 entries but found 20. Missing agents: review--performance-oracle, readiness--plan-consolidator". Do not fail the command — this is a diagnostic warning only.
+If validate-stats.sh reports a mismatch, warn with the names of missing agents (not just the count delta). Example: "Stats capture: expected 22 entries but found 20. Missing agents: review--performance-oracle, readiness--plan-consolidator". Do not fail the command — this is a diagnostic warning only.
 
 ## Rules
 

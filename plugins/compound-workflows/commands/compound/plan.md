@@ -97,7 +97,7 @@ Before any dispatches, initialize stats capture infrastructure:
 ```bash
 mkdir -p .workflows/stats
 PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
 echo "PLUGIN_ROOT=$PLUGIN_ROOT"
 ```
 
@@ -106,7 +106,7 @@ Read `stats_capture` from `compound-workflows.local.md`. If `stats_capture` is `
 If stats capture is enabled:
 
 ```bash
-RUN_ID=$(uuidgen | cut -c1-8)
+RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
 echo "RUN_ID=$RUN_ID"
 echo $CLAUDE_CODE_SUBAGENT_MODEL
 ```
@@ -124,10 +124,10 @@ If stats_capture ≠ false in compound-workflows.local.md: after each Task/Agent
 After all dispatches complete, validate entry count matches completed dispatch count:
 
 ```bash
-ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <DISPATCH_COUNT>
 ```
 
-If ENTRY_COUNT does not match the dispatch counter, warn with the names of missing agents. Do not fail the command.
+If validate-stats.sh reports a mismatch, warn with the names of missing agents. Do not fail the command.
 
 ### 1. Local Research (Parallel, Disk-Persisted)
 
@@ -395,7 +395,7 @@ After the readiness check, challenge the plan with three different model provide
 Before launching red team, capture the plan file hash for later comparison:
 
 ```bash
-PLAN_HASH_BEFORE=$(shasum -a 256 <plan-path> | cut -d' ' -f1)
+PLAN_HASH_BEFORE=$(shasum -a 256 <plan-path> | cut -d' ' -f1) # heuristic-exempt
 ```
 
 #### 6.8.2: Runtime CLI Detection + 3-Provider Dispatch
@@ -800,7 +800,7 @@ Set a 5-minute timeout per provider agent. If a provider hasn't produced output 
 After all triage is complete, compare the plan file hash to detect edits:
 
 ```bash
-PLAN_HASH_AFTER=$(shasum -a 256 <plan-path> | cut -d' ' -f1)
+PLAN_HASH_AFTER=$(shasum -a 256 <plan-path> | cut -d' ' -f1) # heuristic-exempt
 if [ "$PLAN_HASH_BEFORE" != "$PLAN_HASH_AFTER" ]; then
   echo "PLAN_CHANGED=true — proceed to Phase 6.9"
 else
@@ -845,10 +845,10 @@ This prevents infinite loops: red team → triage edits → re-check → triage 
 If stats capture is enabled, validate entry count against dispatch counter:
 
 ```bash
-ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
+bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <DISPATCH_COUNT>
 ```
 
-Compare `ENTRY_COUNT` to the dispatch counter. If they don't match, warn: "Stats capture: expected N entries but found M. Missing agents: [list agent names that were dispatched but not captured]." Do not fail the command. Account for conditional dispatches — only count agents that were actually dispatched (external research 0-2, consolidator 0-1, verify 0-2, red team 0-4, re-check 0-3).
+If validate-stats.sh reports a mismatch, warn with the names of missing agents (not just the count delta). Do not fail the command. Account for conditional dispatches — only count agents that were actually dispatched (external research 0-2, consolidator 0-1, verify 0-2, red team 0-4, re-check 0-3).
 
 ### 7. Post-Generation Options
 

@@ -39,15 +39,15 @@ Initialize per-dispatch stats collection. This runs once at command start; all d
 
 ```bash
 mkdir -p .workflows/stats
-RUN_ID=$(uuidgen | cut -c1-8)
-CACHED_SUBAGENT_MODEL=$(echo $CLAUDE_CODE_SUBAGENT_MODEL)
+RUN_ID=$(uuidgen | cut -c1-8) # heuristic-exempt
+CACHED_SUBAGENT_MODEL=$CLAUDE_CODE_SUBAGENT_MODEL
 echo "RUN_ID=$RUN_ID SUBAGENT_MODEL=${CACHED_SUBAGENT_MODEL:-unset}"
 ```
 
 Resolve plugin root for `capture-stats.sh` and schema reference:
 ```bash
 PLUGIN_ROOT="plugins/compound-workflows"
-[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1)
+[[ -f "$PLUGIN_ROOT/CLAUDE.md" ]] || PLUGIN_ROOT=$(find "$HOME/.claude/plugins" -name "CLAUDE.md" -path "*/compound-workflows/*" -exec dirname {} \; 2>/dev/null | head -1) # heuristic-exempt
 echo "PLUGIN_ROOT=$PLUGIN_ROOT"
 ```
 
@@ -132,11 +132,10 @@ DO NOT call TaskOutput to retrieve `<usage>` — it arrives automatically in the
 After all agents have completed (or timed out), if stats capture is enabled, validate that the stats file contains the expected number of entries:
 
 ```bash
-ENTRY_COUNT=$(grep -c '^---$' "$STATS_FILE" 2>/dev/null || echo 0)
-echo "Stats validation: $ENTRY_COUNT entries in $STATS_FILE (expected: $DISPATCH_COUNT)"
+bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <DISPATCH_COUNT>
 ```
 
-If `ENTRY_COUNT` does not match `DISPATCH_COUNT`, warn with the names of missing agents — do not fail the command. This is a diagnostic warning only. Compare the list of dispatched agent names against agents with stats entries to identify which agents are missing.
+If validate-stats.sh reports a mismatch, warn with the names of missing agents — do not fail the command. This is a diagnostic warning only. Compare the list of dispatched agent names against agents with stats entries to identify which agents are missing.
 
 ### 5. Synthesize Findings
 
