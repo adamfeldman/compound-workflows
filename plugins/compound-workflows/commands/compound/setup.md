@@ -659,6 +659,77 @@ If an old-format `compound-workflows.local.md` exists (look for `review_agents:`
 
 Write both files with the new schema.
 
+### 8e: Bash Prompt Reduction (Optional)
+
+Claude Code's heuristic inspector flags `$()`, `$(())`, glob+redirect, and heredoc patterns in Bash tool input, causing permission prompts. The model naturally generates these patterns during conversation (debugging, data analysis, bead management). This step offers to inject rules that teach the model to avoid these patterns. <!-- heuristic-exempt: prose reference, not executable -->
+
+Use **AskUserQuestion**:
+
+```
+Bash prompt reduction?
+
+The plugin can add rules to your CLAUDE.md that teach the model to avoid
+bash patterns triggering permission prompts (like $() substitution, <!-- heuristic-exempt -->
+2>/dev/null + globs). This reduces prompts during normal conversation
+without changing what's allowed — the rules are advisory ("SHOULD avoid").
+
+1. Enable (recommended) — adds Bash Generation Rules to CLAUDE.md
+2. Skip — no bash generation rules
+
+Which? (1/2)
+```
+
+**If Skip:** Record `BASH_RULES=skipped`. Move on.
+
+**If Enable:**
+
+#### Check for Existing Rules
+
+```bash
+[ -f CLAUDE.md ] && echo "CLAUDE_MD=exists" || echo "CLAUDE_MD=missing"
+```
+
+If CLAUDE.md exists, check for existing rules:
+
+```bash
+grep -q 'Bash Generation Rules' CLAUDE.md && echo "RULES=exists" || echo "RULES=missing"
+```
+
+- **If rules already exist:** Say "Bash Generation Rules already present in CLAUDE.md — skipping." Record `BASH_RULES=already_present`. Move on.
+- **If rules don't exist (or CLAUDE.md doesn't exist):** Append the following section to CLAUDE.md (create the file first if needed).
+
+#### Bash Generation Rules Section
+
+Read the template from `<PLUGIN_ROOT>/resources/bash-generation-rules.md` (using the PLUGIN_ROOT value from init-values.sh output). Append its content to the project's CLAUDE.md using the **Edit** or **Write** tool. If CLAUDE.md doesn't exist, create it with the template content.
+
+Record `BASH_RULES=enabled`.
+
+#### Suggest Complementary Static Rules
+
+If the user chose Standard permission profile (Step 7d), additional static rules can suppress heuristic triggers for safe commands that the CLAUDE.md rules can't fully prevent (e.g., `which cmd 2>/dev/null && ...` where `which` is the first token):
+
+Use **AskUserQuestion**:
+
+```
+The CLAUDE.md rules teach the model to avoid $() patterns, but some <!-- heuristic-exempt -->
+commands still trigger heuristics when avoidance isn't possible.
+
+These low-risk static rules suppress heuristics for safe commands:
+
+  Bash(which:*)  — availability checks (which cmd && ...)
+  Bash(echo:*)   — output and separators
+  Bash(mkdir:*)  — directory creation chains
+
+Add to settings.local.json? (yes/no)
+These only suppress heuristics — the hook still checks safety.
+```
+
+**If yes:** Merge `Bash(which:*)`, `Bash(echo:*)`, `Bash(mkdir:*)` into `.claude/settings.local.json` using the same merge logic as Step 7e. Count additions.
+
+**If no:** Move on.
+
+If the user chose Permissive profile, skip this suggestion — the permissive rules already cover these commands via `Bash(bash:*)`.
+
 ## Step 9: Summary
 
 Display the setup summary:
@@ -684,6 +755,8 @@ Permissions:     Hook: .claude/hooks/auto-approve.sh [installed | updated | curr
                  Profile: [Standard | Permissive] — [N added, M already present]
                  ⚠ Restart Claude Code for hooks to take effect.
                  [jq not found — install before restarting | jq available]
+Bash rules:      [enabled — rules added to CLAUDE.md | already present | skipped]
+                 [+ which, echo, mkdir static rules | Permissive covers these | declined]
 
 Ready to go:
   /compound:brainstorm  — explore an idea

@@ -139,29 +139,17 @@ If JSON parsing fails for any reason, show the raw summary output rather than er
 
 If ccusage data was successfully retrieved and parsed in Step 7 (i.e., ccusage was available AND JSON parsing succeeded), persist a snapshot to the stats directory. If ccusage was not available or parsing failed, skip this entirely — do not error.
 
+Use the SNAPSHOT_FILE, TIMESTAMP, and PLUGIN_ROOT values from init-values.sh output:
+
 ```bash
-mkdir -p .workflows/stats
+bash $PLUGIN_ROOT/scripts/append-snapshot.sh "<SNAPSHOT_FILE>" "<TIMESTAMP>" <total_cost> <input_tokens> <output_tokens> [additional_key=value pairs]
 ```
 
-Write the snapshot by appending to SNAPSHOT_FILE. Use the SNAPSHOT_FILE and TIMESTAMP values from init-values.sh output.
+**Core fields** (positional args): timestamp, total_cost_usd, input_tokens, output_tokens.
 
-Use the **Read tool** to check if SNAPSHOT_FILE already exists, then use the **Write tool** to append the snapshot. If the file exists, read its current content and append the new YAML document (with `---` separator). If it doesn't exist, write a new file starting with the `---` separator.
+**Extensible fields** (trailing key=value args): If the parsed ccusage output includes additional data (e.g., `cache_read_tokens`, `cache_write_tokens`, per-model cost breakdown), pass them as `key=value` pairs. The schema is extensible — unknown fields are preserved for future analysis.
 
-**Core fields (always include):** `type`, `timestamp`, `total_cost_usd`, `input_tokens`, `output_tokens`.
-
-**Extensible fields:** If the parsed ccusage output includes additional data (e.g., `cache_read_tokens`, `cache_write_tokens`, per-model cost breakdown), add them as additional YAML keys. The schema is extensible — unknown fields are preserved for future analysis.
-
-**Format:** Each snapshot is a YAML document separated by `---`:
-```yaml
----
-type: ccusage-snapshot
-timestamp: <TIMESTAMP>
-total_cost_usd: <total cost from parsed data>
-input_tokens: <total input tokens from parsed data>
-output_tokens: <total output tokens from parsed data>
-```
-
-After writing, add a brief note to the Step 7 output: "ccusage snapshot saved to .workflows/stats/"
+After the call, add a brief note to the Step 7 output: "ccusage snapshot saved to .workflows/stats/"
 
 ## Step 8: Queue Post-Compaction Task
 

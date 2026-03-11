@@ -28,6 +28,7 @@ commands/
 └── compound/ # All slash commands (namespaced, 8 commands)
 
 scripts/
+├── append-snapshot.sh       # Atomic append of ccusage snapshot YAML documents — hides heredoc from heuristic inspector
 ├── capture-stats.sh         # Deterministic atomic append for per-dispatch YAML stats capture
 ├── check-sentinel.sh        # Sentinel staleness detection — replaces inline 3-pattern block in work.md
 ├── init-values.sh           # Shared init-value computation — PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE (auto-approved)
@@ -36,7 +37,8 @@ scripts/
 └── version-check.sh         # 3-way version comparison (source vs installed vs release) — NOT in plugin-qa/ (makes network calls)
 
 resources/
-└── stats-capture-schema.md  # YAML schema, field derivation rules, and capture-stats.sh usage reference
+├── bash-generation-rules.md  # Template for Bash Generation Rules — injected into project CLAUDE.md by setup Step 8e
+└── stats-capture-schema.md   # YAML schema, field derivation rules, and capture-stats.sh usage reference
 
 templates/
 └── auto-approve.sh          # PreToolUse hook template — installed to .claude/hooks/ by /compound:setup
@@ -198,7 +200,13 @@ The plugin ships a PreToolUse auto-approve hook (`templates/auto-approve.sh`) an
 
 **Key principle: static rules serve all LLM-generated bash, not just plugin commands.** When analyzing which static rules to keep or remove, consider ad-hoc commands the LLM generates for debugging, data analysis, and iteration (e.g., `for id in $(bd search ...); do ...`). The hook audit log is blind to `$()`-containing commands that static rules handle — static rules fire before heuristics, so the hook never sees them. Use session JSONL logs as the true source for `$()` frequency analysis.
 
-**Evaluation order:** static rules → heuristics → hook → interactive prompt. Static rules suppress heuristics entirely. If a heuristic fires (e.g., `$()` detected), the hook cannot override it — only static rules can.
+**Evaluation order:** static rules → heuristics → hook → interactive prompt. Static rules suppress **most** heuristics (`$()`, `{"`). However, `<<` (heredoc) is a "hard" heuristic that fires even with a matching static rule — heredocs must be hidden inside script files. If a heuristic fires, the hook cannot override it — only static rules (for soft heuristics) or script encapsulation (for hard heuristics) can.
+
+### Bash Generation Rules (opt-in via setup)
+
+`/compound:setup` offers to inject bash generation rules into the project's CLAUDE.md. These rules teach the model to avoid `$()`, `2>/dev/null` + glob, and other patterns that trigger permission prompt heuristics during ad-hoc conversation bash. The rules are advisory ("SHOULD avoid") with escape valves for atomic operations and practical necessity.
+
+The rules are injected into the project's CLAUDE.md (not the plugin's) so that "not loaded = not active" — projects that don't opt in are unaffected. See `docs/brainstorms/2026-03-11-permissionless-bash-generation-brainstorm.md` for the full empirical analysis.
 
 ## Testing Changes
 

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.1] - 2026-03-11
+
+### Features
+- **setup: bash prompt reduction opt-in** — new Step 8e offers to inject Bash Generation Rules into the project's CLAUDE.md. Rules teach the model to avoid `$()`, `2>/dev/null` + glob, heredoc, and other patterns that trigger permission prompt heuristics during ad-hoc conversation bash. Advisory ("SHOULD avoid") with escape valves for atomic operations. Also suggests complementary static rules (`which`, `echo`, `mkdir`) for Standard profile users.
+
+### Fixed
+- **compact-prep: heredoc hard heuristic** — `<<` is unsuppressible by static rules (disproves v2.5.1 assumption). Replaced Read+Write approach with `append-snapshot.sh` script, consistent with capture-stats.sh pattern. Updated solution doc, brainstorms, and Permission Architecture with hard vs soft heuristic distinction.
+
+### Added
+- **Plugin CLAUDE.md: Bash Generation Rules reference** — documents the opt-in mechanism under Permission Architecture section
+- **resources/bash-generation-rules.md** — template for rules injected by setup into project CLAUDE.md
+
 ## [2.5.1] - 2026-03-11
 
 ### Fixed
