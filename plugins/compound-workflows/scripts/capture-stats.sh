@@ -64,16 +64,17 @@ STATUS="success"
 if [[ -z "$USAGE_LINE" || "$USAGE_LINE" == "null" ]]; then
   STATUS="failure"
 else
-  # Health check: validate expected format (comma-separated or newline-separated)
-  if ! echo "$USAGE_LINE" | grep -qE '<usage>total_tokens: [0-9]+' ; then
+  # Health check: verify <usage> wrapper and at least one known field present
+  # Accepts all known formats: space-delimited, comma-separated, newline-separated, XML tags
+  if ! echo "$USAGE_LINE" | grep -qE '<usage>.*total_tokens' ; then
     echo "Stats capture: <usage> format may have changed — consider filing a bug" >&2
     echo "  Received: $USAGE_LINE" >&2
   fi
 
-  # Best-effort extraction even if format changed
-  EXTRACTED_TOKENS="$(echo "$USAGE_LINE" | sed -n 's/.*total_tokens: *\([0-9][0-9]*\).*/\1/p')"
-  EXTRACTED_TOOLS="$(echo "$USAGE_LINE" | sed -n 's/.*tool_uses: *\([0-9][0-9]*\).*/\1/p')"
-  EXTRACTED_DURATION="$(echo "$USAGE_LINE" | sed -n 's/.*duration_ms: *\([0-9][0-9]*\).*/\1/p')"
+  # Format-agnostic extraction: [>:] matches both "field: val" and "<field>val"
+  EXTRACTED_TOKENS="$(echo "$USAGE_LINE" | sed -n 's/.*total_tokens[>:] *\([0-9][0-9]*\).*/\1/p' | head -1)"
+  EXTRACTED_TOOLS="$(echo "$USAGE_LINE" | sed -n 's/.*tool_uses[>:] *\([0-9][0-9]*\).*/\1/p' | head -1)"
+  EXTRACTED_DURATION="$(echo "$USAGE_LINE" | sed -n 's/.*duration_ms[>:] *\([0-9][0-9]*\).*/\1/p' | head -1)"
 
   if [[ -n "$EXTRACTED_TOKENS" ]]; then
     TOKENS="$EXTRACTED_TOKENS"

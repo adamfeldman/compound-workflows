@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.3] - 2026-03-11
+
+### Fixed
+- **capture-stats.sh: format-agnostic parsing** — extraction uses `[>:]` character class to handle space-delimited, comma-separated, newline-separated, and XML-style tag formats. Health check accepts any format containing `<usage>` wrapper with known field names.
+
+### Changed
+- **capture-stats-format.sh** — added test 4 for XML-style nested tags (`<total_tokens>N</total_tokens>`), now 5 test cases total
+
 ## [2.4.2] - 2026-03-11
 
 ### Fixed

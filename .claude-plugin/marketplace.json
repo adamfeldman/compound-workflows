@@ -12,7 +12,7 @@
     {
       "name": "compound-workflows",
       "description": "Compound engineering workflows: research, review, planning, and knowledge management",
-      "version": "2.4.2",
+      "version": "2.4.3",
       "author": {
         "name": "Adam Feldman"
       },

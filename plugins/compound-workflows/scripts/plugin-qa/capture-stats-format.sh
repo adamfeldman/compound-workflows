@@ -5,6 +5,8 @@
 #   1. Comma-separated (Task tool format)
 #   2. Newline-separated (Agent tool format)
 #   3. Empty/null usage (failure case)
+#   4. XML-style nested tags (<total_tokens>N</total_tokens>)
+#   5. Timeout variant
 #
 # Part of Tier 1 plugin QA. Exits 0 if all pass, 1 if any fail.
 
@@ -65,10 +67,27 @@ else
   add_finding "SERIOUS" "$CAPTURE_SCRIPT" "" "empty-usage" "Empty usage should produce status: failure"
 fi
 
-# --- Test 4: Timeout variant ---
+# --- Test 4: XML-style nested tags ---
 STATS_FILE="$TMPDIR/test4.yaml"
+USAGE_XML='<usage><total_tokens>8500</total_tokens><tool_uses>4</tool_uses><duration_ms>12000</duration_ms></usage>'
+STDERR_OUT="$TMPDIR/test4.stderr"
 
-bash "$CAPTURE_SCRIPT" --timeout "$STATS_FILE" "plan" "test-agent" "4.1" "opus" "test" "none" "test-run" 2>/dev/null
+bash "$CAPTURE_SCRIPT" "$STATS_FILE" "review" "test-agent" "4.1" "opus" "test" "none" "test-run" "$USAGE_XML" 2>"$STDERR_OUT"
+
+if grep -q 'tokens: 8500' "$STATS_FILE" && grep -q 'tools: 4' "$STATS_FILE" && grep -q 'duration_ms: 12000' "$STATS_FILE"; then
+  : # pass
+else
+  add_finding "CRITICAL" "$CAPTURE_SCRIPT" "" "xml-format" "Failed to extract values from XML-style tag format"
+fi
+
+if grep -q 'format may have changed' "$STDERR_OUT"; then
+  add_finding "SERIOUS" "$CAPTURE_SCRIPT" "" "xml-format-warning" "Health check warns on XML-style format (should accept)"
+fi
+
+# --- Test 5: Timeout variant ---
+STATS_FILE="$TMPDIR/test5.yaml"
+
+bash "$CAPTURE_SCRIPT" --timeout "$STATS_FILE" "plan" "test-agent" "5.1" "opus" "test" "none" "test-run" 2>/dev/null
 
 if grep -q 'status: timeout' "$STATS_FILE" && grep -q 'tokens: null' "$STATS_FILE"; then
   : # pass
