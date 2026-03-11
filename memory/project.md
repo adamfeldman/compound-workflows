@@ -85,6 +85,9 @@
 - **Plugin paths must use `find` fallback** — all script/file references in commands/skills need dynamic resolution: try local path, then `find "$HOME/.claude/plugins" ...`. Affects any new command referencing plugin scripts.
 - **version-check.sh context detection** — in source repo: 3-way (source vs installed vs release). In consumer project: 2-way (installed vs release only).
 - **`.beads/PRIME.md`** overrides bd prime to remove conflicting memory instructions
+- **Pre-existing dispatch migration debt** — Tier 2 QA (jak session) found: brainstorm.md still uses Task dispatch for red team (plan.md/deepen-plan.md migrated to Agent dispatch in v2.1.0). Also `repo-research-analyst` Dispatched By column in CLAUDE.md missing "brainstorm". Not blocking but should be cleaned up.
+- **p14 confirmed in practice** — every capture-stats.sh call during `/compound:work` shows "format may have changed" because Agent tool `<usage>` format differs from Task tool. Affects all work runs.
+- **Sonnet appropriateness = planning gate, not implementation step** — model-robustness verification belongs in specflow + readiness checks during `/compound:plan`, not as a post-implementation review. Captured in wtn.
 
 ## Dependency Chain
 - xu2 unblocked (voo done — dataset available)

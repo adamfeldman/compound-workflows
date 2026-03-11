@@ -10,6 +10,7 @@ When creating beads, estimate total remaining workflow time in minutes using `--
 | Plan | ~25-35 min | Research + write + readiness checks |
 | Deepen-plan | ~30-45 min | Agent swarm (~15-25 min) + synthesis + red team + convergence |
 | Work | ~30-120 min | Varies hugely by scope. Single command file: ~30-60 min. Multi-file/multi-command: ~60-120 min |
+| Work (jak data) | ~10 min | 8 dispatches: 6 parallel (19-67s each, wall ~67s) + step 7 (341s) + step 8 (48s). Well-specified plan with exact old/new text → fast execution. |
 | Review | ~15-20 min | Multi-agent parallel review |
 
 ## Estimation Formula
