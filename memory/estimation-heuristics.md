@@ -47,6 +47,10 @@ This is from the v2.0.0 workflow quota optimization (bead 22l) which moved 5 res
 
 **Projection:** If more dispatches can safely use Sonnet/Haiku (e.g., MINOR triage subagents, readiness check agents, specflow analyzer), the 33% savings could grow to 40-50%. Needs empirical validation from voo data.
 
+## Cost Data
+
+See `memory/cost-analysis.md` for detailed token economics, effective rates, per-agent cost estimates, and classification results.
+
 ## Data Source
 
 These timings are rough estimates from session observation. Bead 3zr will mine JSONL session logs for empirical data. Update this file when better data is available.

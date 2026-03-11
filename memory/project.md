@@ -87,7 +87,7 @@
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 - **Config toggles for optional compact-prep steps (bead xzn)** — P2. Version check + daily cost summary both optional.
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Key finding: the bug is execution sequencing (Step 3c runs before 3d), not display order. Scope narrowed to 3 commands (brainstorm, plan, deepen-plan — review.md has no triage flow). Next: `/compound:plan`.
-- **Cheaper-model dispatch audit (bead 5b6)** — P2, in_progress. 8sd (classify-stats) complete — 44 entries classified. Initial finding: no new Sonnet opportunities from classification alone (all relay already on Sonnet). Remaining Opus agents are analytical/judgment. Stats schema gap: `tokens` field lacks cache breakdown, so per-agent cost estimation requires the $493/M cache-inclusive effective rate (overestimates subagent cost). See `memory/cost-analysis.md`.
+- **Cheaper-model dispatch audit (bead 5b6)** — P1 (elevated: quota is a throughput problem), in_progress. 8sd complete. Dynamic model routing decided (not blanket Sonnet or static assignment). Tier 1: mechanical work steps + simple triage (~5-15% quota reduction). `<usage>` block confirmed: only total_tokens/tool_uses/duration_ms — no cache fields. Per-agent cache data unavailable from this source. See `memory/cost-analysis.md` and `docs/solutions/cost-modeling/2026-03-11-dynamic-model-routing-cost-analysis.md`.
 
 ## Critical Patterns
 - **Plugin paths must use `find` fallback** — all script/file references in commands/skills need dynamic resolution: try local path, then `find "$HOME/.claude/plugins" ...`. Affects any new command referencing plugin scripts.
@@ -96,6 +96,8 @@
 - **Pre-existing dispatch migration debt** — Tier 2 QA (jak session) found: brainstorm.md still uses Task dispatch for red team (plan.md/deepen-plan.md migrated to Agent dispatch in v2.1.0). Also `repo-research-analyst` Dispatched By column in CLAUDE.md missing "brainstorm". Not blocking but should be cleaned up.
 - **p14 confirmed in practice** — every capture-stats.sh call during `/compound:work` shows "format may have changed" because Agent tool `<usage>` format differs from Task tool. Affects all work runs.
 - **Sonnet appropriateness = planning gate, not implementation step** — model-robustness verification belongs in specflow + readiness checks during `/compound:plan`, not as a post-implementation review. Captured in wtn.
+- **`<usage>` block has no cache fields** — Agent/Task completion notifications only include total_tokens, tool_uses, duration_ms. No cache_read_tokens or cache_creation_tokens. Per-dispatch cache data requires session JSONL mining (bead 3zr) or upstream feature request.
+- **User is on Max 20x** — $200/month subscription, regularly exhausts weekly quota. Token costs in ccusage are a proxy for quota consumption, not actual charges. Sonnet downgrades are a throughput issue (quota wall stops all work), not a cost optimization.
 
 ## Dependency Chain
 - xu2 unblocked (voo done — dataset available). Depends on 8sd(done), wtn.
