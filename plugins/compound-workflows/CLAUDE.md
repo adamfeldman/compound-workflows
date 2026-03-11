@@ -184,6 +184,14 @@ Commands are prose instructions interpreted by LLMs. Cheaper models (Sonnet) and
 8. **Audit entire plugin scope, not just commands** — commands, skills, agents, and any `.md` file containing model-interpreted bash instructions are subject to the same heuristics. QA checks must match audit scope. A "plugin audit" means the whole `plugins/compound-workflows/` tree, not `commands/compound/` alone. (See bead jak v2.4.1: skills missed from heuristic audit.)
 9. **Don't accept limitations without feasibility assessment** — when a brainstorm or plan declares something "accepted" or "unavoidable" (e.g., "accept init-block prompts"), verify the assumption by checking whether the pattern is actually eliminable. Most $() init patterns can be rewritten as standalone commands, glob loops, or model-side tracking. Accepting a limitation without exploring alternatives leads to unnecessary technical debt. (See bead jak: Decision 1 accepted fixable init prompts.)
 
+## Permission Architecture
+
+The plugin ships a PreToolUse auto-approve hook (`templates/auto-approve.sh`) and a minimal committed baseline in `.claude/settings.json`. Users may also add static `Bash(X:*)` rules in `.claude/settings.local.json`.
+
+**Key principle: static rules serve all LLM-generated bash, not just plugin commands.** When analyzing which static rules to keep or remove, consider ad-hoc commands the LLM generates for debugging, data analysis, and iteration (e.g., `for id in $(bd search ...); do ...`). The hook audit log is blind to `$()`-containing commands that static rules handle — static rules fire before heuristics, so the hook never sees them. Use session JSONL logs as the true source for `$()` frequency analysis.
+
+**Evaluation order:** static rules → heuristics → hook → interactive prompt. Static rules suppress heuristics entirely. If a heuristic fires (e.g., `$()` detected), the hook cannot override it — only static rules can.
+
 ## Testing Changes
 
 1. Install the plugin in a test project
