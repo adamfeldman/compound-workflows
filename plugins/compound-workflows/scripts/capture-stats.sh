@@ -64,8 +64,8 @@ STATUS="success"
 if [[ -z "$USAGE_LINE" || "$USAGE_LINE" == "null" ]]; then
   STATUS="failure"
 else
-  # Health check: validate expected format
-  if ! echo "$USAGE_LINE" | grep -qE '<usage>total_tokens: [0-9]+, tool_uses: [0-9]+, duration_ms: [0-9]+</usage>'; then
+  # Health check: validate expected format (comma-separated or newline-separated)
+  if ! echo "$USAGE_LINE" | grep -qE '<usage>total_tokens: [0-9]+' ; then
     echo "Stats capture: <usage> format may have changed — consider filing a bug" >&2
     echo "  Received: $USAGE_LINE" >&2
   fi

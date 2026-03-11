@@ -433,7 +433,7 @@ Permission configuration:
    ⚠ cat:*     — bypasses Read tool path restrictions
    ⚠ rm:*      — unscoped by static rule (hook provides path-scoping but static rule fires FIRST and is broader)
    Plus: gh, grep, find, claude, ccusage, head, tail, sed, cp, timeout, open
-   Plus: mcp__pal__clink, mcp__pal__chat, mcp__pal__listmodels, WebSearch
+   Plus: mcp__pal__clink, mcp__pal__chat, mcp__pal__listmodels, WebSearch  <!-- context-lean-exempt: permission rule list -->
 
    WARNING: Static allow rules are evaluated BEFORE the hook. When a static
    rule matches, the hook never fires — its pipe/compound/redirect/path-scoping
@@ -473,8 +473,8 @@ Bash(cp:*)
 Bash(rm:*)
 Bash(timeout:*)
 Bash(open:*)
-mcp__pal__clink
-mcp__pal__chat
+mcp__pal__clink  # context-lean-exempt: permission rule list
+mcp__pal__chat  # context-lean-exempt: permission rule list
 mcp__pal__listmodels
 WebSearch
 ```

@@ -606,6 +606,7 @@ Synthesize all findings into a single summary for the user:
 - **file-counts:** N findings
 - **truncation-check:** N findings
 - **context-lean-grep:** N findings
+- **capture-stats-format:** N findings
 
 ### Tier 2: Semantic Analysis (Agents)
 - **context-lean-review:** N findings
