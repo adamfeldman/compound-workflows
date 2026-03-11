@@ -1,7 +1,7 @@
 ---
 title: "feat: Plugin heuristic audit — eliminate mid-workflow permission prompts"
 type: feat
-status: active
+status: completed
 date: 2026-03-10
 origin: docs/brainstorms/2026-03-10-plugin-heuristic-audit-brainstorm.md
 bead: jak
@@ -130,8 +130,8 @@ fi
 exit 0
 ```
 
-- [ ] Create the script file with the exact content above
-- [ ] Verify `chmod +x` is NOT needed — script is called via `bash validate-stats.sh`, not `./validate-stats.sh`
+- [x] Create the script file with the exact content above
+- [x] Verify `chmod +x` is NOT needed — script is called via `bash validate-stats.sh`, not `./validate-stats.sh`
 
 **Design notes:**
 - No `set -euo pipefail` — the script exits 0 by design at every path (diagnostic, never blocks). Using `set -e` would contradict this invariant and create latent bugs on future edits.
@@ -146,7 +146,7 @@ exit 0
 
 **File:** `plugins/compound-workflows/commands/compound/brainstorm.md`
 
-- [ ] **Line 94–102:** Replace the research-phase validation block.
+- [x] **Line 94–102:** Replace the research-phase validation block.
 
 **Old (lines 94–102):**
 ```
@@ -170,7 +170,7 @@ bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" 2
 ```
 ```
 
-- [ ] **Lines 361–369:** Replace the red-team-phase validation block.
+- [x] **Lines 361–369:** Replace the red-team-phase validation block.
 
 **Old (lines 361–369):**
 ```
@@ -196,7 +196,7 @@ bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <EXPECTED_TOTAL>
 Where `<EXPECTED_TOTAL>` is tracked by incrementing a counter during dispatch (already described above). The model substitutes the literal number (e.g., `5`). If validate-stats.sh reports a mismatch, warn but do not fail.
 ```
 
-- [ ] **Lines 477–482:** Replace the MINOR-triage validation block.
+- [x] **Lines 477–482:** Replace the MINOR-triage validation block.
 
 **Old (lines 477–482):**
 ```
@@ -221,12 +221,12 @@ bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <EXPECTED_TOTAL>
 
 **File:** `plugins/compound-workflows/commands/compound/review.md`
 
-- [ ] **Line 43:** Fix P5 — remove unnecessary subshell.
+- [x] **Line 43:** Fix P5 — remove unnecessary subshell.
 
 **Old:** `CACHED_SUBAGENT_MODEL=$(echo $CLAUDE_CODE_SUBAGENT_MODEL)`
 **New:** `CACHED_SUBAGENT_MODEL=$CLAUDE_CODE_SUBAGENT_MODEL`
 
-- [ ] **Lines 132–139:** Replace the stats validation block.
+- [x] **Lines 132–139:** Replace the stats validation block.
 
 **Old (lines 132–139):**
 ```
@@ -255,7 +255,7 @@ If validate-stats.sh reports a mismatch, warn with the names of missing agents �
 
 **File:** `plugins/compound-workflows/commands/compound/plan.md`
 
-- [ ] **Lines 124–130:** Replace the post-dispatch validation.
+- [x] **Lines 124–130:** Replace the post-dispatch validation.
 
 **Old (lines 124–130):**
 ```
@@ -279,7 +279,7 @@ bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <DISPATCH_COUNT>
 If validate-stats.sh reports a mismatch, warn with the names of missing agents. Do not fail the command.
 ```
 
-- [ ] **Lines 843–851:** Replace the Phase 6.95 Stats Validation.
+- [x] **Lines 843–851:** Replace the Phase 6.95 Stats Validation.
 
 **Old (lines 843–851):**
 ```
@@ -311,7 +311,7 @@ If validate-stats.sh reports a mismatch, warn with the names of missing agents (
 
 **File:** `plugins/compound-workflows/commands/compound/deepen-plan.md`
 
-- [ ] **Lines 69–75:** Replace the post-dispatch validation.
+- [x] **Lines 69–75:** Replace the post-dispatch validation.
 
 **Old (lines 69–75):**
 ```
@@ -335,7 +335,7 @@ bash $PLUGIN_ROOT/scripts/validate-stats.sh "$STATS_FILE" <DISPATCH_COUNT>
 If validate-stats.sh reports a mismatch, warn with the names of missing agents. Do not fail the command.
 ```
 
-- [ ] **Lines 1276–1284:** Replace the Post-Dispatch Stats Validation.
+- [x] **Lines 1276–1284:** Replace the Post-Dispatch Stats Validation.
 
 **Old (lines 1276–1284):**
 ```
@@ -371,11 +371,11 @@ This is the most complex step — three change types in one file.
 
 #### 6a: Fix P5 — remove unnecessary subshell
 
-- [ ] **Line 64:** `CACHED_SUBAGENT_MODEL=$(echo $CLAUDE_CODE_SUBAGENT_MODEL)` → `CACHED_SUBAGENT_MODEL=$CLAUDE_CODE_SUBAGENT_MODEL`
+- [x] **Line 64:** `CACHED_SUBAGENT_MODEL=$(echo $CLAUDE_CODE_SUBAGENT_MODEL)` → `CACHED_SUBAGENT_MODEL=$CLAUDE_CODE_SUBAGENT_MODEL`
 
 #### 6b: Replace ENTRY_COUNT block
 
-- [ ] **Lines 360–367:** Replace the stats validation block.
+- [x] **Lines 360–367:** Replace the stats validation block.
 
 **Old (lines 360–367):**
 ```
@@ -404,7 +404,7 @@ Track `DISPATCH_COUNT` by incrementing a counter after each successful `capture-
 
 The sentinel lifecycle changes from `rm -f` to Write tool "cleared" marker. The hook (`plugin-qa-check.sh`) already handles this correctly — its `grep -qE '^[0-9]+$'` validation falls through for non-numeric content, so "cleared" = not suppressed. No hook change needed.
 
-- [ ] **Line 339 (recovery stale check):** Replace the stale sentinel cleanup block.
+- [x] **Line 339 (recovery stale check):** Replace the stale sentinel cleanup block.
 
 **Old (lines 333–341):**
 ```
@@ -439,7 +439,7 @@ The sentinel lifecycle changes from `rm -f` to Write tool "cleared" marker. The 
 
 **Design note:** The stale check still uses `$()` in `$(cat ...)` and `$(date +%s)`. These are VAR=$() patterns that prompt. This is acceptable — recovery runs once per resumed session, not mid-workflow. The `rm -f` is eliminated, which was the dangerous pattern. The sentinel is cleared by writing "cleared" via Write tool (prompt-free).
 
-- [ ] **Lines 418–421 (Phase 4 Ship):** Replace `rm -f` sentinel clear.
+- [x] **Lines 418–421 (Phase 4 Ship):** Replace `rm -f` sentinel clear.
 
 **Old (lines 418–421):**
 ```
@@ -456,7 +456,7 @@ The sentinel lifecycle changes from `rm -f` to Write tool "cleared" marker. The 
    Use the **Write tool** to write `cleared` to `.workflows/.work-in-progress`. Do not use `rm` — the Write tool is prompt-free and the hook already handles non-numeric content correctly (falls through without suppressing QA).
 ```
 
-- [ ] **Phase 1.2.1 sentinel description** (near line 137, after the `date +%s >` code block). Update the prose that describes the sentinel lifecycle.
+- [x] **Phase 1.2.1 sentinel description** (near line 137, after the `date +%s >` code block). Update the prose that describes the sentinel lifecycle.
 
 **Old:** `This sentinel is checked by \`.claude/hooks/plugin-qa-check.sh\`. It is removed in Phase 4 (Ship) and cleaned up if stale in Phase 2.4 (Recovery).`
 
@@ -490,7 +490,7 @@ After Steps 2–6, the remaining `VAR=$()` and `VAR=$((...))` patterns in comman
 
 **Files and specific lines to mark (known inventory — verify against 7a discovery):**
 
-- [ ] **brainstorm.md** — init block (Phase 1.1):
+- [x] **brainstorm.md** — init block (Phase 1.1):
   - `PLUGIN_ROOT=$(find ...)` line → append `# heuristic-exempt`
   - `RUN_ID=$(uuidgen | cut -c1-8)` line → append `# heuristic-exempt`
 
@@ -498,22 +498,22 @@ After Steps 2–6, the remaining `VAR=$()` and `VAR=$((...))` patterns in comman
   Note: `CACHED_MODEL="${CLAUDE_CODE_SUBAGENT_MODEL:-opus}"` has no `$()` — no marker needed.
   Note: `EXPECTED_TOTAL=$((2 + <red-team-count>))` uses `$((...))` arithmetic expansion. **Empirically verified: `$((...))` IS a heuristic trigger** (same as `$()`). The QA regex `\$\(` catches both — no exclusion needed. If this line is not removed by Step 2's replacement, mark it `# heuristic-exempt`.
 
-- [ ] **plan.md** — Stats Setup section:
+- [x] **plan.md** — Stats Setup section:
   - `PLUGIN_ROOT=$(find ...)` → `# heuristic-exempt`
   - `RUN_ID=$(uuidgen ...)` → `# heuristic-exempt`
   - `STATS_FILE="...$(date ...)"` → `# heuristic-exempt`
 
-- [ ] **plan.md** — Phase 6.8.1 + Phase 6.9 (one-time hash comparisons at phase boundaries):
+- [x] **plan.md** — Phase 6.8.1 + Phase 6.9 (one-time hash comparisons at phase boundaries):
   - Line 398: `PLAN_HASH_BEFORE=$(shasum -a 256 <plan-path> | cut -d' ' -f1)` → `# heuristic-exempt`
   - Line 803: `PLAN_HASH_AFTER=$(shasum -a 256 <plan-path> | cut -d' ' -f1)` → `# heuristic-exempt`
 
-- [ ] **deepen-plan.md** — Phase 0 setup + manifest validation:
+- [x] **deepen-plan.md** — Phase 0 setup + manifest validation:
   - `PLUGIN_ROOT=$(find ...)` → `# heuristic-exempt`
   - `RUN_ID=$(uuidgen ...)` → `# heuristic-exempt`
   - `STATS_FILE="...$(date ...)"` → `# heuristic-exempt`
   - Line 241: `AGENT_COUNT=$(echo "$VALIDATED" | jq '.agents | length')` → `# heuristic-exempt` (manifest validation, runs once before dispatch)
 
-- [ ] **work.md** — Phase 1.1.1 + Phase 1.2 + recovery + Phase 4:
+- [x] **work.md** — Phase 1.1.1 + Phase 1.2 + recovery + Phase 4:
   - `PLUGIN_ROOT=$(find ...)` → `# heuristic-exempt`
   - `RUN_ID=$(uuidgen ...)` → `# heuristic-exempt`
   - `STATS_FILE="...$(date ...)"` → `# heuristic-exempt`
@@ -522,16 +522,16 @@ After Steps 2–6, the remaining `VAR=$()` and `VAR=$((...))` patterns in comman
   - Line 115: `WORKTREE_MGR=$(find ...)` → `# heuristic-exempt` (worktree manager resolution, Phase 1.2)
   - Line 459: `WORKTREE_MGR=$(find ...)` → `# heuristic-exempt` (worktree cleanup, Phase 4)
 
-- [ ] **review.md** — Phase 2.1 setup:
+- [x] **review.md** — Phase 2.1 setup:
   - `PLUGIN_ROOT=$(find ...)` → `# heuristic-exempt`
   - `RUN_ID=$(uuidgen ...)` → `# heuristic-exempt`
   - `STATS_FILE="...$(date ...)"` → `# heuristic-exempt`
 
-- [ ] **compact-prep.md** — 2 patterns to mark:
+- [x] **compact-prep.md** — 2 patterns to mark:
   - Line 140: `SNAPSHOT_FILE=".workflows/stats/$(date +%Y-%m-%d)-ccusage-snapshot.yaml"` → append `# heuristic-exempt`
   - Line 141: `TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"` → append `# heuristic-exempt`
 
-- [ ] **setup.md** — 3 patterns to mark:
+- [x] **setup.md** — 3 patterns to mark:
   - Line 353: `INSTALLED_VERSION=$(sed -n '2s/^# auto-approve v//p' .claude/hooks/auto-approve.sh)` → append `# heuristic-exempt`
   - Line 357: `TEMPLATE_VERSION=$(sed -n '2s/^# auto-approve v//p' "$HOOK_TEMPLATE")` → append `# heuristic-exempt`
   - Line 497: `EXACT_COUNT=$(jq -r '.permissions.allow[]? // empty' .claude/settings.local.json 2>/dev/null | grep -c -v '[:*?\[\{]' || echo "0")` → append `# heuristic-exempt`
@@ -548,7 +548,7 @@ grep -rnE '^\s*[A-Z_]+=.*\$\(' plugins/compound-workflows/commands/compound/*.md
 
 This should return empty. If any lines appear, they are gaps in the inventory — add `# heuristic-exempt` markers to each (if accepted init-block/recovery patterns) or investigate whether they are mid-workflow patterns that need replacement.
 
-- [ ] Verify the grep returns empty before proceeding to Step 8.
+- [x] Verify the grep returns empty before proceeding to Step 8.
 
 ### Step 8: Add QA regression check to context-lean-grep.sh
 
@@ -556,7 +556,7 @@ This should return empty. If any lines appear, they are gaps in the inventory �
 
 Add a new Check 5 after the existing Check 4 (dispatch-missing-output-instructions), before the `emit_output` line.
 
-- [ ] Add the following check:
+- [x] Add the following check:
 
 ```bash
 # --- Check 5: VAR=$() patterns that trigger mid-workflow permission prompts ---
@@ -593,9 +593,9 @@ done
 
 ### Step 9: Version bump + CHANGELOG + file counts
 
-- [ ] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` — PATCH increment. validate-stats.sh replaces existing inline functionality (not net-new capability), and the QA check is a development guardrail, not a user-facing feature. No new commands, agents, or skills.
-- [ ] Bump version in `.claude-plugin/marketplace.json` — match plugin.json
-- [ ] Update `plugins/compound-workflows/CHANGELOG.md`:
+- [x] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` — PATCH increment. validate-stats.sh replaces existing inline functionality (not net-new capability), and the QA check is a development guardrail, not a user-facing feature. No new commands, agents, or skills.
+- [x] Bump version in `.claude-plugin/marketplace.json` — match plugin.json
+- [x] Update `plugins/compound-workflows/CHANGELOG.md`:
 
 ```markdown
 ## v2.4.1 — Plugin Heuristic Audit
@@ -607,8 +607,8 @@ done
 - **fix:** QA regression check (Check 5 in context-lean-grep.sh) prevents `$()` pattern regrowth with `# heuristic-exempt` suppress markers
 ```
 
-- [ ] Verify `plugins/compound-workflows/README.md` — README does not list scripts by count or name. No update needed unless the README is changed to include script details.
-- [ ] Update `plugins/compound-workflows/CLAUDE.md` scripts section. Add validate-stats.sh to the listing:
+- [x] Verify `plugins/compound-workflows/README.md` — README does not list scripts by count or name. No update needed unless the README is changed to include script details.
+- [x] Update `plugins/compound-workflows/CLAUDE.md` scripts section. Add validate-stats.sh to the listing:
 
 **Old:**
 ```
@@ -629,28 +629,17 @@ scripts/
 
 ### Step 10: Run QA and verify
 
-- [ ] Run full QA (Tier 1 + Tier 2) via `/compound-workflows:plugin-changes-qa` or manually:
+- [x] Run full QA (Tier 1 + Tier 2) via `/compound-workflows:plugin-changes-qa` or manually:
   - **Tier 1 (scripts):** `bash plugins/compound-workflows/scripts/plugin-qa/stale-references.sh plugins/compound-workflows && bash plugins/compound-workflows/scripts/plugin-qa/file-counts.sh plugins/compound-workflows && bash plugins/compound-workflows/scripts/plugin-qa/truncation-check.sh plugins/compound-workflows && bash plugins/compound-workflows/scripts/plugin-qa/context-lean-grep.sh plugins/compound-workflows && bash plugins/compound-workflows/scripts/plugin-qa/version-sync.sh plugins/compound-workflows`
   - **Tier 2 (semantic agents):** Context-lean reviewer, role description reviewer, command completeness reviewer — validates semantic consistency of command file changes (Task dispatch patterns, inline role descriptions, AskUserQuestion usage, etc.)
-- [ ] All Tier 1 scripts and Tier 2 agents report zero findings.
-- [ ] Verify no ENTRY_COUNT patterns remain: `grep -rn 'ENTRY_COUNT=\$(' plugins/compound-workflows/commands/compound/` should return empty
-- [ ] Verify no unmarked VAR=$() patterns: the new Check 5 in context-lean-grep.sh should report zero findings (all accepted patterns have `# heuristic-exempt`)
-- [ ] Verify sentinel redesign: no `rm -f .workflows/.work-in-progress` in work.md: `grep -n 'rm.*work-in-progress' plugins/compound-workflows/commands/compound/work.md` should return empty
+- [x] All Tier 1 scripts and Tier 2 agents report zero findings.
+- [x] Verify no ENTRY_COUNT patterns remain: `grep -rn 'ENTRY_COUNT=\$(' plugins/compound-workflows/commands/compound/` should return empty
+- [x] Verify no unmarked VAR=$() patterns: the new Check 5 in context-lean-grep.sh should report zero findings (all accepted patterns have `# heuristic-exempt`)
+- [x] Verify sentinel redesign: no `rm -f .workflows/.work-in-progress` in work.md: `grep -n 'rm.*work-in-progress' plugins/compound-workflows/commands/compound/work.md` should return empty
 
-### Step 11: Sonnet appropriateness review
+### ~~Step 11: Sonnet appropriateness review~~ (Removed)
 
-Review the modified command files for robustness when executed by Sonnet (or other weaker models) instead of Opus. This plan's changes introduce model-side tracking patterns that require the executing model to:
-- Track a dispatch counter mentally and substitute literal numbers into bash commands
-- Distinguish between `$PLUGIN_ROOT` (bash variable) and `<DISPATCH_COUNT>` (model-side placeholder)
-- Use the `report` keyword explicitly for report-only validation
-
-- [ ] Scan all 5 modified command files for model-side instructions. For each instruction that asks the model to track/substitute/compute:
-  - Is the instruction explicit enough for Sonnet to follow?
-  - Is there a silent failure mode if Sonnet misunderstands? (C3's warn-on-empty catches missing substitution, but are there other failure paths?)
-  - Could the instruction be made more deterministic (e.g., pre-computed values, explicit examples)?
-- [ ] Verify angle-bracket placeholders (`<DISPATCH_COUNT>`, `<EXPECTED_TOTAL>`) are used consistently — no remaining `$DISPATCH_COUNT` or `$EXPECTED_TOTAL` in replacement text
-- [ ] Verify each validate-stats.sh call site either provides a literal/placeholder count or uses the `report` keyword — no ambiguous empty calls
-- [ ] Note for implementers: unsubstituted angle-bracket placeholders (e.g., literal `<DISPATCH_COUNT>` in bash) produce `"No such file or directory"` errors from bash's `<` redirect parsing — recognize this as a placeholder substitution failure, not a missing file
+Removed during pre-implementation review: Sonnet robustness was verified during planning (C3 warn-on-empty, S6 angle brackets, explicit prose instructions). A post-implementation review step is redundant when the plan content is already Sonnet-appropriate. Future plans will enforce this via specflow + readiness gates (tracked in bead wtn).
 
 ## Work Execution Notes
 
@@ -660,7 +649,7 @@ Review the modified command files for robustness when executed by Sonnet (or oth
 - **Batch 3:** Step 8 — depends on Step 7 (QA check must see markers)
 - **Batch 4:** Step 9 — version bump after all edits
 - **Batch 5:** Step 10 — full QA validation (Tier 1 + Tier 2)
-- **Batch 6:** Step 11 — Sonnet appropriateness review (can run after Step 10, or in parallel if QA is clean)
+- ~~**Batch 6:** Step 11~~ — Removed (Sonnet robustness verified during planning)
 
 **Step 6 complexity:** This step makes 3 types of changes to work.md (P5 fix, ENTRY_COUNT, sentinel). A single subagent handles all work.md edits to avoid merge conflicts. The sentinel redesign requires understanding both the code block changes AND the prose description changes.
 
