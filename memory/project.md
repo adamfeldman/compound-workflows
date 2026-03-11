@@ -77,9 +77,10 @@
 - **v2.2.0** — Red team + readiness re-check in plan (bead nn3): Phase 6.8 (3-provider red team with Yes/Skip gate, 7-dimension prompt, MINOR triage), Phase 6.9 (conditional full readiness re-check via SHA-256 hash), 7-rule decision tree, deepen-plan 7th dimension, brainstorm 6th dimension
 - **v2.3.0** — Per-agent token instrumentation (bead voo): capture-stats.sh, stats-capture-schema.md, all 5 commands instrumented, compact-prep ccusage snapshot, /compound-workflows:classify-stats skill, stats_capture + stats_classify settings. 10 steps via /compound:work (4 parallel batches). QA clean after TaskOutput ban phrasing fix.
 - **v2.4.1** — Plugin heuristic audit (bead jak): validate-stats.sh replaces 9 inline ENTRY_COUNT blocks, 2 P5 subshell fixes, sentinel redesign (Write tool clear vs rm), QA Check 5 (var-dollar-paren-heuristic), 27 heuristic-exempt markers. 10 steps via /compound:work (6 parallel in batch 1).
+- **v2.5.0** — Heuristic audit scope expansion (bead 3l7): init-values.sh (29 patterns), check-sentinel.sh (3 patterns), QA Check 5 expanded (skills+agents, backtick detection), 7 commands + 7 skills migrated. 51 $() patterns eliminated, 27 exempt markers removed, zero residuals. 5 subagent dispatches via worktree.
 
 ## In-Progress Work
-- **v2.5.0** — Heuristic audit scope expansion (bead 3l7): init-values.sh (29 patterns), check-sentinel.sh (3 patterns), QA Check 5 expanded (skills+agents, backtick detection), 7 commands + 7 skills migrated. 51 $() patterns eliminated, 27 exempt markers removed, zero residuals. 5 subagent dispatches via worktree.
+
 - **Fix capture-stats.sh usage format parser (bead jg6)** — P2. Parser emits spurious "format may have changed" warning for XML-style `<usage>` tags. Regex needs updating.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P3 (lowered: clink handles model selection, not urgent). Brainstorm complete. Accumulated notes: Opus model bug, ad-hoc red team skill idea, cost configurability, CLI file access verified. Next: `/compound:plan`.
