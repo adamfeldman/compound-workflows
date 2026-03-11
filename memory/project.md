@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v2.4.2 (plugins/compound-workflows/)
+- Plugin: compound-workflows v2.5.0 (plugins/compound-workflows/)
 - 26 agents, 20 skills, 8 commands
 - Commands under `/compound:*`, skills under `/compound-workflows:*`
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -49,6 +49,8 @@
 - **`bash -c` is unsafe as a static rule** — `Bash(bash -c:*)` auto-approves arbitrary inline code (universal bypass). No path-scoping possible because the argument is inline code, not a file path. Permissive profile only at best, never safe profile. Tested: `bash -c 'VAR=$(cmd); echo $VAR'` auto-approves via `Bash(bash:*)` but that's equally unsafe. The init-values.sh approach is superior: `bash script.sh` has no $() in tool input at all.
 - **Zero $() in agent YAML files** — confirmed empirically. Agent prompts are loaded as system prompts for subagents, not as Bash tool input in the orchestrator. QA scan includes agents for future-proofing but currently 0 hits.
 - **Multi-word static rule prefixes work** — `Bash(for id:*)` exists in settings.local.json and matches commands starting with `for id`. Confirmed: multi-word matching is supported. `Bash(bash -c:*)` would also work syntactically.
+- **Cache tokens dominate Claude Code cost** — daily: 140M cache read vs 200k I/O tokens. Cache:I/O ratio ~710x. Effective Opus rate per I/O token (cache-inclusive): $493/M. Subagent ratio is lower (fresh context, ~50-100x estimated). Stats `tokens` field only captures I/O, not cache — per-agent cost requires the cache-inclusive rate. See `memory/cost-analysis.md`.
+- **Task→Agent dispatch migration incomplete** — wgl (v2.1.0) only migrated deepen-plan + plan red-team. ~30 Task dispatches remain: brainstorm (8), review (7), plan (5), compound (8), work (2), plugin-changes-qa skill (5). Benefits: model from frontmatter, consistency, Agent tool features (worktree isolation). Not a capability or cost improvement — cleanup only. Tracked in bead 2kj.
 - **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format
@@ -77,14 +79,14 @@
 - **v2.4.1** — Plugin heuristic audit (bead jak): validate-stats.sh replaces 9 inline ENTRY_COUNT blocks, 2 P5 subshell fixes, sentinel redesign (Write tool clear vs rm), QA Check 5 (var-dollar-paren-heuristic), 27 heuristic-exempt markers. 10 steps via /compound:work (6 parallel in batch 1).
 
 ## In-Progress Work
-- **Heuristic audit scope expansion (bead 3l7)** — P1. Plan complete, ready for `/compound:work`. Red team (3 providers): 4 CRITICAL + 8 SERIOUS + 8 MINOR all resolved. Re-check (Phase 6.9): 0 CRITICAL, 0 SERIOUS, 7 MINOR all resolved. Decision tree → recommend work. Key additions during MINOR triage: script hardening (shellcheck/shebang/negative tests), clarified parallelization notes, specified date format strings, PLUGIN_ROOT self-resolution via dirname, backtick detection applies globally (no fence scoping). Stats validated 12/12.
+- **v2.5.0** — Heuristic audit scope expansion (bead 3l7): init-values.sh (29 patterns), check-sentinel.sh (3 patterns), QA Check 5 expanded (skills+agents, backtick detection), 7 commands + 7 skills migrated. 51 $() patterns eliminated, 27 exempt markers removed, zero residuals. 5 subagent dispatches via worktree.
 - **Fix capture-stats.sh usage format parser (bead jg6)** — P2. Parser emits spurious "format may have changed" warning for XML-style `<usage>` tags. Regex needs updating.
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/compound:brainstorm`.
 - **Red team model selection (bead aig)** — P3 (lowered: clink handles model selection, not urgent). Brainstorm complete. Accumulated notes: Opus model bug, ad-hoc red team skill idea, cost configurability, CLI file access verified. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 - **Config toggles for optional compact-prep steps (bead xzn)** — P2. Version check + daily cost summary both optional.
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Key finding: the bug is execution sequencing (Step 3c runs before 3d), not display order. Scope narrowed to 3 commands (brainstorm, plan, deepen-plan — review.md has no triage flow). Next: `/compound:plan`.
-- **Cheaper-model dispatch audit (bead 5b6)** — P2. voo done — dataset now available. Next: `/compound:brainstorm`.
+- **Cheaper-model dispatch audit (bead 5b6)** — P2, in_progress. 8sd (classify-stats) complete — 44 entries classified. Initial finding: no new Sonnet opportunities from classification alone (all relay already on Sonnet). Remaining Opus agents are analytical/judgment. Stats schema gap: `tokens` field lacks cache breakdown, so per-agent cost estimation requires the $493/M cache-inclusive effective rate (overestimates subagent cost). See `memory/cost-analysis.md`.
 
 ## Critical Patterns
 - **Plugin paths must use `find` fallback** — all script/file references in commands/skills need dynamic resolution: try local path, then `find "$HOME/.claude/plugins" ...`. Affects any new command referencing plugin scripts.
@@ -95,8 +97,11 @@
 - **Sonnet appropriateness = planning gate, not implementation step** — model-robustness verification belongs in specflow + readiness checks during `/compound:plan`, not as a post-implementation review. Captured in wtn.
 
 ## Dependency Chain
-- xu2 unblocked (voo done — dataset available)
-- 5b6 unblocked (voo done — dataset available)
+- xu2 unblocked (voo done — dataset available). Depends on 8sd(done), wtn.
+- 5b6 in_progress — 8sd(done), classify-stats run complete. Stats schema gap identified (no per-agent cache data).
+- **8sd closed** — classify-stats validated on full dataset (44 entries, 7 files). Unblocks xu2 and 5b6.
+- **2kj created** — P3. Migrate ~30 remaining Task dispatches to Agent dispatch across 5 commands + 1 skill. Consistency/cleanup, not capability. brainstorm.md (8), review.md (7), plan.md (5), compound.md (8), work.md (2), plugin-changes-qa (5).
+- **7k6 created** — P3. Hook to inject current date into session context. MEMORY.md date goes stale on resumed sessions from prior days.
 - h0g unblocked (removed aig dependency)
 - **3k3 absorbed into permission-prompt-optimization** — plan fully triaged: 4 CRITICAL + 7 SERIOUS from red team resolved, re-check clean, security sentinel + architecture strategist + code simplicity reviewers ran. Plan ready for work. Key changes: pipes/`$()`/heredocs/globs added to pre-checks, realpath adopted, profiles collapsed 3→2 (Standard/Permissive), hook shipped as template file, quote-aware tokenization specified.
 - **a6t created** — P2. Agent timeout/recovery rules in plan command. Don't skip agents that are actively working.
