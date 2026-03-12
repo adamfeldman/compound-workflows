@@ -157,7 +157,7 @@ case "$CMD" in
     STEM="$(sanitize_stem "$STEM_ARG")"
     DATE_VAL="$(compute_date)"
     RUN_ID_VAL="$(compute_run_id)"
-    STATS_FILE_VAL=".workflows/stats/${DATE_VAL}-${CMD}-${STEM}.yaml"
+    STATS_FILE_VAL="$(compute_repo_root)/.workflows/stats/${DATE_VAL}-${CMD}-${STEM}.yaml"
 
     validate_plugin_root
     validate_date "$DATE_VAL"
@@ -178,7 +178,7 @@ case "$CMD" in
     fi
     DATE_VAL="$(compute_date)"
     RUN_ID_VAL="$(compute_run_id)"
-    STATS_FILE_VAL=".workflows/stats/${DATE_VAL}-work-${STEM}.yaml"
+    STATS_FILE_VAL="$(compute_repo_root)/.workflows/stats/${DATE_VAL}-work-${STEM}.yaml"
     WORKTREE_MGR_VAL="$(resolve_worktree_mgr)"
 
     validate_plugin_root
