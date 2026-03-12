@@ -431,8 +431,10 @@ Permission configuration:
    Adds interpreter access — reduces prompts to near-zero but:
    ⚠ bash:*    — allows arbitrary script execution (BYPASSES hook guardrails)
    ⚠ python3:* — allows arbitrary code execution (BYPASSES hook guardrails)
+   ⚠ git:*     — allows all git operations including destructive (BYPASSES hook is_dangerous_git)
    ⚠ cat:*     — bypasses Read tool path restrictions
-   Plus: gh, grep, find, claude, ccusage, head, tail, sed, cp, timeout, open
+   Plus: gh, grep, find, claude, ccusage, head, tail, sed, cp, timeout, open,
+         ls, mkdir, md5, bd, if, for, [[, xargs, tee, WebFetch
    Plus: mcp__pal__clink, mcp__pal__chat, mcp__pal__listmodels, WebSearch  <!-- context-lean-exempt: permission rule list -->
 
    WARNING: Static allow rules are evaluated BEFORE the hook. When a static
@@ -472,10 +474,21 @@ Bash(sed:*)
 Bash(cp:*)
 Bash(timeout:*)
 Bash(open:*)
+Bash(git:*)
+Bash(mkdir:*)
+Bash(md5:*)
+Bash(ls:*)
+Bash(bd:*)
+Bash(if:*)
+Bash(for:*)
+Bash([[:*)
+Bash(xargs:*)
+Bash(tee:*)
 mcp__pal__clink  # context-lean-exempt: permission rule list
 mcp__pal__chat  # context-lean-exempt: permission rule list
 mcp__pal__listmodels
 WebSearch
+WebFetch(domain:*)
 ```
 
 **Merge logic:**
@@ -715,15 +728,20 @@ commands still trigger heuristics when avoidance isn't possible.
 
 These low-risk static rules suppress heuristics for safe commands:
 
-  Bash(which:*)  — availability checks (which cmd && ...)
-  Bash(echo:*)   — output and separators
-  Bash(mkdir:*)  — directory creation chains
+  Bash(which:*)      — availability checks (which cmd && ...)
+  Bash(echo:*)       — output and separators
+  Bash(mkdir:*)      — directory creation chains
+  Bash(ls:*)         — directory listings
+  Bash(git log:*)    — read-only git history
+  Bash(git diff:*)   — read-only git diffs
+  Bash(git status:*) — read-only git status
+  Bash(git branch:*) — read-only git branch listing
 
 Add to settings.local.json? (yes/no)
 These only suppress heuristics — the hook still checks safety.
 ```
 
-**If yes:** Merge `Bash(which:*)`, `Bash(echo:*)`, `Bash(mkdir:*)` into `.claude/settings.local.json` using the same merge logic as Step 7e. Count additions.
+**If yes:** Merge `Bash(which:*)`, `Bash(echo:*)`, `Bash(mkdir:*)`, `Bash(ls:*)`, `Bash(git log:*)`, `Bash(git diff:*)`, `Bash(git status:*)`, `Bash(git branch:*)` into `.claude/settings.local.json` using the same merge logic as Step 7e. Count additions.
 
 **If no:** Move on.
 

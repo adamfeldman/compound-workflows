@@ -1,7 +1,7 @@
 ---
 title: "fix: expand permissive profile with missing safe rules"
 type: fix
-status: active
+status: completed
 date: 2026-03-12
 ---
 
@@ -61,8 +61,8 @@ Empirical testing in Claude Code 2.1.74 revealed:
 ## Implementation
 
 - [x] **Step 0:** Verify pattern matching behavior (see results above)
-- [ ] **Step 1:** Add 11 rules to permissive profile rule list in `skills/do-setup/SKILL.md` (line ~460)
-- [ ] **Step 2:** Update permissive summary block (line ~435 area):
+- [x] **Step 1:** Add 11 rules to permissive profile rule list in `skills/do-setup/SKILL.md` (line ~460)
+- [x] **Step 2:** Update permissive summary block (line ~435 area):
   ```
   ⚠ bash:*    — allows arbitrary script execution (BYPASSES hook guardrails)
   ⚠ python3:* — allows arbitrary code execution (BYPASSES hook guardrails)
@@ -71,16 +71,16 @@ Empirical testing in Claude Code 2.1.74 revealed:
   Plus: gh, grep, find, claude, ccusage, head, tail, sed, cp, timeout, open,
         ls, mkdir, md5, bd, if, for, [[, xargs, tee, WebFetch
   ```
-- [ ] **Step 3:** Update CHANGELOG.md. Add new version section:
+- [x] **Step 3:** Update CHANGELOG.md. Add new version section:
   ```
   - **Expand permissive profile** — Add 11 rules: git, ls, mkdir, md5, bd, shell constructs (if, for, [[, xargs, tee), WebFetch. Add safe git patterns and ls to standard add-on. Existing permissive users: re-run `/do:setup` to pick up new rules.
   - **Documentation: $() is a hard heuristic** — Step 0 verification discovered that static rules do NOT suppress the $() heuristic in Claude Code 2.1.74, contradicting prior documentation. This means `Bash(X:*)` rules only help for commands without $() — the Bash Generation Rules (avoiding $()) remain the primary mitigation.
   ```
-- [ ] **Step 4:** Update standard profile add-on (line ~718 area):
+- [x] **Step 4:** Update standard profile add-on (line ~718 area):
   - Add `ls` (basic, safe — same class as existing `which`, `echo`, `mkdir`)
   - Add specific safe git patterns: `Bash(git log:*)`, `Bash(git diff:*)`, `Bash(git status:*)`, `Bash(git branch:*)` (NOT broad `Bash(git:*)` — that would bypass hook's `is_dangerous_git()` check)
-- [ ] **Step 5:** Bump version to 3.0.5 in `plugin.json` and `marketplace.json` (PATCH). Current version is 3.0.4.
-- [ ] **Step 6:** Run QA — this touches a skill file
+- [x] **Step 5:** Bump version to 3.0.5 in `plugin.json` and `marketplace.json` (PATCH). Current version is 3.0.4.
+- [x] **Step 6:** Run QA — this touches a skill file
 
 ## Resolved Questions
 
