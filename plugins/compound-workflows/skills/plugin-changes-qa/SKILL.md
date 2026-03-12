@@ -16,7 +16,7 @@ Discover and run all bash scripts in the plugin-qa directory. These are fast, de
 
 ### Step 1.1: Resolve Plugin Root
 
-Run `bash plugins/compound-workflows/scripts/init-values.sh plugin-changes-qa`. Read the output and track REPO_ROOT and PLUGIN_ROOT values. If the script is not found (not in source repo), run `find ~/.claude/plugins -name "init-values.sh" -path "*/compound-workflows/*" | head -1` to find it, then run `bash <found-path> plugin-changes-qa`.
+Run `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh plugin-changes-qa`. Read the output and track REPO_ROOT and PLUGIN_ROOT values.
 
 Verify PLUGIN_ROOT is valid:
 
@@ -68,8 +68,11 @@ Task general-purpose (run_in_background: true): "
 You are a context-lean compliance reviewer for the compound-workflows plugin.
 
 Read ALL command files in: $PLUGIN_ROOT/commands/compound/
+Read ALL workflow skill files matching: $PLUGIN_ROOT/skills/do-*/SKILL.md
 
-For each command file, verify:
+Note: Command files are now thin aliases (12 lines) that redirect to /do:* skills. The workflow logic lives in the do-* skill files. Apply context-lean checks to BOTH command files and do-* skill files.
+
+For each command and skill file, verify:
 1. **No large agent returns in orchestrator context** — every Task dispatch must include OUTPUT INSTRUCTIONS that direct the agent to write to disk and return only a 2-3 sentence summary
 2. **MCP calls wrapped in subagents** — any mcp__pal__clink or mcp__pal__chat call must be inside a Task block, never called directly by the orchestrator
 3. **OUTPUT INSTRUCTIONS present** — every Task dispatch (except trivial inline tasks) must have an === OUTPUT INSTRUCTIONS (MANDATORY) === block
@@ -112,6 +115,8 @@ Read all agent definition files in: $PLUGIN_ROOT/agents/
 Then read all command files in: $PLUGIN_ROOT/commands/compound/
 And all skill files matching: $PLUGIN_ROOT/skills/*/SKILL.md
 
+Note: Command files are now thin aliases that redirect to /do:* skills. Task dispatches to agents are in the do-* skill files (e.g., skills/do-brainstorm/SKILL.md), not in the command files. Focus agent dispatch verification on the skill files.
+
 For each Task dispatch in commands and skills, verify:
 1. **Agent name matches** — the Task dispatch references a valid agent from the registry
 2. **Role description is accurate** — the inline role description in the Task dispatch matches the agent definition file's description
@@ -145,15 +150,23 @@ Task general-purpose (run_in_background: true): "
 You are a command completeness and conventions reviewer for the compound-workflows plugin.
 
 Read ALL command files in: $PLUGIN_ROOT/commands/compound/
+Read ALL workflow skill files matching: $PLUGIN_ROOT/skills/do-*/SKILL.md
 Read the Command Conventions section in: $PLUGIN_ROOT/CLAUDE.md
 
-For each command file, verify:
-1. **AskUserQuestion usage** — commands must use AskUserQuestion (the tool) for user interaction, never raw conversational questions without the tool
-2. **Phase/step numbering** — verify commands have clear phase and step numbering (Phase 1, Step 1.1, etc.) with no gaps or duplicates
+**Architecture note:** Commands are now thin aliases (12 lines) that redirect to /do:* skills. The full workflow logic lives in the skill files. Apply different checks to each:
+
+**For thin alias command files** (commands/compound/*.md), verify:
+1. **YAML frontmatter** — verify name, description fields are present
+2. **compound: namespace** — the name field should use the compound: prefix
+3. **Alias template format** — the command should contain a deprecation notice, reference #$ARGUMENTS, and invoke the corresponding /do:* skill
+4. **No stale workflow logic** — thin aliases should NOT contain phases, steps, or Task dispatches (those belong in the skill files)
+
+**For do-* skill files** (skills/do-*/SKILL.md), verify:
+1. **AskUserQuestion usage** — skills that interact with users must use AskUserQuestion (the tool) for user interaction, never raw conversational questions without the tool
+2. **Phase/step numbering** — verify skills have clear phase and step numbering (Phase 1, Step 1.1, etc.) with no gaps or duplicates
 3. **YAML frontmatter** — verify name, description, and appropriate fields are present
-4. **Required sections** — commands should have clear prerequisites, main tasks, and output/report sections
-5. **compound: namespace** — the name field should use the compound: prefix
-6. **Argument handling** — if the command accepts arguments, it should reference #$ARGUMENTS and handle empty arguments gracefully
+4. **Required sections** — skills should have clear prerequisites, main tasks, and output/report sections
+5. **Argument handling** — if the skill accepts arguments, it should reference #$ARGUMENTS and handle empty arguments gracefully
 
 For each issue found, report:
 - File path
@@ -162,7 +175,7 @@ For each issue found, report:
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
 Write your COMPLETE findings to: .workflows/plugin-qa/agents/completeness-review.md
-Structure with: ## Summary, ## Findings (grouped by command), ## Recommendations
+Structure with: ## Summary, ## Findings (grouped by file), ## Recommendations
 After writing the file, return ONLY a 2-3 sentence summary.
 DO NOT return your full analysis in your response.
 "

@@ -67,7 +67,7 @@ while IFS= read -r match; do
   # Skip code blocks
   is_in_code_block "$file" "$line_num" && continue
 
-  # Extract command names from this line
+  # Extract command names from this line (both compound: and do: namespaces)
   while IFS= read -r ref; do
     [[ -z "$ref" ]] && continue
     cmd_name="${ref#compound:}"
@@ -76,7 +76,56 @@ while IFS= read -r match; do
       add_finding "SERIOUS" "$file" "$line_num" "missing-command" "Reference to non-existent command: /$ref"
     fi
   done < <(echo "$line_text" | grep -oE 'compound:[a-z][a-z0-9-]*' || true)
-done < <(grep -rnE 'compound:[a-z][a-z0-9-]*' \
+
+  # Also check do: namespace references against command list (do:X maps to command X)
+  while IFS= read -r ref; do
+    [[ -z "$ref" ]] && continue
+    cmd_name="${ref#do:}"
+    [[ -z "$cmd_name" ]] && continue
+    if ! echo "$commands_list" | grep -qxF "$cmd_name" 2>/dev/null; then
+      # Not a command — will be checked by Check 2b against skills
+      :
+    fi
+  done < <(echo "$line_text" | grep -oE 'do:[a-z][a-z0-9-]*' || true)
+done < <(grep -rnE '(compound|do):[a-z][a-z0-9-]*' \
+  "$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/skills" \
+  --include="*.md" 2>/dev/null || true)
+
+# --- Check 2b: References to non-existent do: skills ---
+# Build skill name index from do-* directory names
+
+do_skills_list=""
+for dir in "$PLUGIN_ROOT"/skills/do-*/; do
+  [[ -d "$dir" ]] || continue
+  # Extract directory name, convert do-X to X (the part after "do:")
+  dir_name="$(basename "$dir")"
+  skill_name="${dir_name#do-}"
+  do_skills_list="${do_skills_list}${skill_name}"$'\n'
+done
+
+while IFS= read -r match; do
+  [[ -z "$match" ]] && continue
+  file="${match%%:*}"
+  rest="${match#*:}"
+  line_num="${rest%%:*}"
+  line_text="${rest#*:}"
+
+  # Skip CHANGELOG.md
+  case "$file" in */CHANGELOG.md) continue ;; esac
+
+  # Skip code blocks
+  is_in_code_block "$file" "$line_num" && continue
+
+  # Extract do: skill references from this line
+  while IFS= read -r ref; do
+    [[ -z "$ref" ]] && continue
+    skill_name="${ref#do:}"
+    [[ -z "$skill_name" ]] && continue
+    if ! echo "$do_skills_list" | grep -qxF "$skill_name" 2>/dev/null; then
+      add_finding "SERIOUS" "$file" "$line_num" "missing-do-skill" "Reference to non-existent skill: /$ref"
+    fi
+  done < <(echo "$line_text" | grep -oE 'do:[a-z][a-z0-9-]*' || true)
+done < <(grep -rnE 'do:[a-z][a-z0-9-]*' \
   "$PLUGIN_ROOT/commands" "$PLUGIN_ROOT/agents" "$PLUGIN_ROOT/skills" \
   --include="*.md" 2>/dev/null || true)
 

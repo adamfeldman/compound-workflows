@@ -193,7 +193,7 @@ Write the complete convergence file to the specified output path. Follow this fo
 
 [The recommendation text from step 6]
 
-Recommended next step: [Start /compound:work | Deepen further | Consolidate first]
+Recommended next step: [Start /do:work | Deepen further | Consolidate first]
 
 ## Signals
 
@@ -222,7 +222,7 @@ Recommended next step: [Start /compound:work | Deepen further | Consolidate firs
 ```
 
 **Recommended next step mapping:**
-- "Plan appears converged, ready for work" → `Start /compound:work`
+- "Plan appears converged, ready for work" → `Start /do:work`
 - "Consolidate, then evaluate" → `Consolidate first`
 - "Recommend another run" → `Deepen further`
 - "Recommend another run after consolidation" → `Consolidate first`

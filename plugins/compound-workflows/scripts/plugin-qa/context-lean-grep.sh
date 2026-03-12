@@ -21,10 +21,24 @@ source "$(cd "$(dirname "$0")" && pwd -P)/lib.sh"
 resolve_plugin_root "${1:-}"
 init_findings
 
-# --- Collect command files ---
+# --- Collect scannable files for Checks 1-4 ---
 cmd_dir="$PLUGIN_ROOT/commands/compound"
-if [[ ! -d "$cmd_dir" ]]; then
-  echo "Warning: commands/compound/ directory not found" >&2
+check14_files=()
+
+if [[ -d "$cmd_dir" ]]; then
+  for f in "$cmd_dir"/*.md; do
+    [[ -f "$f" ]] || continue
+    check14_files+=("$f")
+  done
+fi
+
+for f in "$PLUGIN_ROOT"/skills/do-*/SKILL.md; do
+  [[ -f "$f" ]] || continue
+  check14_files+=("$f")
+done
+
+if [[ "${#check14_files[@]}" -eq 0 ]]; then
+  echo "Warning: no command or do-* skill files found" >&2
   emit_output "Context-Lean Grep Check"
   exit 0
 fi
@@ -32,8 +46,7 @@ fi
 # --- Check 1: Pattern B -- "After receiving the response" + "write it to" ---
 # These two phrases on the same line or nearby indicate MCP response transiting orchestrator
 
-for f in "$cmd_dir"/*.md; do
-  [[ -f "$f" ]] || continue
+for f in "${check14_files[@]}"; do
   line_num=0
   while IFS= read -r line; do
     line_num=$((line_num + 1))
@@ -50,8 +63,7 @@ done
 # --- Check 2: TaskOutput calls (banned) ---
 # Skip ban instruction lines (e.g., "DO NOT call TaskOutput") — only flag actual usage
 
-for f in "$cmd_dir"/*.md; do
-  [[ -f "$f" ]] || continue
+for f in "${check14_files[@]}"; do
   matches="$(grep -nE 'TaskOutput' "$f" || true)"
   if [[ -n "$matches" ]]; then
     while IFS= read -r match; do
@@ -73,8 +85,7 @@ done
 
 # --- Check 3: MCP pal calls -- flag for manual verification ---
 
-for f in "$cmd_dir"/*.md; do
-  [[ -f "$f" ]] || continue
+for f in "${check14_files[@]}"; do
   matches="$(grep -nE 'mcp__pal__(clink|chat)' "$f" || true)"
   if [[ -n "$matches" ]]; then
     while IFS= read -r match; do
@@ -103,9 +114,7 @@ done
 # Lines where "Task" or "Agent" appear mid-sentence (prose descriptions) are skipped.
 # Lines containing "context-lean-exempt" are skipped (legitimate exceptions).
 
-for f in "$cmd_dir"/*.md; do
-  [[ -f "$f" ]] || continue
-
+for f in "${check14_files[@]}"; do
   # Read entire file into an array (Bash 3.2 compatible -- use while loop)
   line_count=0
   # Use a temp file to hold lines since Bash 3.2 lacks mapfile

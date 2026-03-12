@@ -7,7 +7,7 @@ user-invocable: false
 
 # Compound Workflows Setup
 
-Interactive setup for `compound-workflows.local.md` — configures which agents run during `/compound:review` and `/compound:work`.
+Interactive setup for `compound-workflows.local.md` — configures which agents run during `/do:review` and `/do:work`.
 
 ## Step 1: Check Existing Config
 
@@ -142,7 +142,7 @@ stats_classify: true
 # Review Context
 
 Add project-specific review instructions here.
-These notes are passed to all review agents during /compound:review and /compound:work.
+These notes are passed to all review agents during /do:review and /do:work.
 
 Examples:
 - "Our API is public — extra scrutiny on input validation"

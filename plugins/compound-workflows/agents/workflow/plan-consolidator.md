@@ -227,7 +227,7 @@ User-deferred findings are added to the plan's "Open Questions" section:
 
 - If the section does not exist, create it (placed before the "Sources" section, or at the end of the plan if no Sources section exists)
 - Each deferred item includes: the finding description, severity, and why it was deferred
-- This ensures `/compound:work` Phase 1.1 surfaces them during implementation
+- This ensures `/do:work` Phase 1.1 surfaces them during implementation
 
 ### 8. Pass-Through Rule
 

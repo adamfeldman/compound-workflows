@@ -1,6 +1,6 @@
 # compound-workflows
 
-Self-contained compound engineering workflows for Claude Code. 26 agents, 20 skills, and 8 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
+Self-contained compound engineering workflows for Claude Code. 26 agents, 28 skills, and 8 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
 
 - [What This Adds](#what-this-adds)
 - [Installation](#installation)
@@ -12,7 +12,7 @@ Self-contained compound engineering workflows for Claude Code. 26 agents, 20 ski
 - [Session Recovery](#session-recovery)
 - [Attribution](#attribution)
 
-> **Warning:** Do not install alongside Every's compound engineering plugin. This plugin bundles all agents and skills and is fully self-contained. Installing both will cause agent name conflicts and unpredictable dispatch behavior. Run `/compound:setup` to detect and resolve conflicts.
+> **Warning:** Do not install alongside Every's compound engineering plugin. This plugin bundles all agents and skills and is fully self-contained. Installing both will cause agent name conflicts and unpredictable dispatch behavior. Run `/do:setup` to detect and resolve conflicts.
 
 ## What This Adds
 
@@ -21,13 +21,13 @@ Self-contained compound engineering workflows for Claude Code. 26 agents, 20 ski
 | Agent outputs | Disk-persisted to `.workflows/` (context stays lean) |
 | Task tracking | Beads preferred, TodoWrite fallback |
 | Red-team challenges | 3-provider parallel (Gemini + OpenAI + Claude Opus) |
-| Large plan execution | Subagent dispatch (`/compound:work`) |
+| Large plan execution | Subagent dispatch (`/do:work`) |
 | Research traceability | Retained across sessions |
 | Phase gates | Enforced (open questions must be resolved/deferred) |
 | Plan deepening | Multi-run with numbered directories |
 | Knowledge search | 5 directories, tagged by source type |
 | Bundled agents | 26 specialized agents (research, review, workflow) |
-| Bundled skills | 20 reusable patterns and reference materials |
+| Bundled skills | 28 reusable patterns, workflow skills, and reference materials |
 
 ## Installation
 
@@ -39,22 +39,24 @@ Self-contained compound engineering workflows for Claude Code. 26 agents, 20 ski
 Then run setup to detect your environment:
 
 ```
-/compound:setup
+/do:setup
 ```
 
 ## Commands
 
-| Command | Description |
+| Skill / Command | Description |
 |---------|-------------|
-| `/compound:setup` | Detect environment, recommend enhancements, configure directories |
-| `/compound:brainstorm` | Explore requirements through collaborative dialogue |
-| `/compound:plan` | Transform ideas into implementation plans with research agents |
-| `/compound:deepen-plan` | Enhance plans with parallel research + red-team challenges |
-| `/compound:work` | Execute plans via subagent dispatch with beads/TodoWrite tracking |
-| `/compound:review` | Multi-agent code review with disk-persisted findings |
-| `/compound:compound` | Document solved problems to build institutional knowledge |
-| `/compound:compact-prep` | Pre-compaction checklist — save memory, compound, commit, queue resume task |
+| `/do:setup` | Detect environment, recommend enhancements, configure directories |
+| `/do:brainstorm` | Explore requirements through collaborative dialogue |
+| `/do:plan` | Transform ideas into implementation plans with research agents |
+| `/do:deepen-plan` | Enhance plans with parallel research + red-team challenges |
+| `/do:work` | Execute plans via subagent dispatch with beads/TodoWrite tracking |
+| `/do:review` | Multi-agent code review with disk-persisted findings |
+| `/do:compound` | Document solved problems to build institutional knowledge |
+| `/do:compact-prep` | Pre-compaction checklist — save memory, compound, commit, queue resume task |
 | `/compound-workflows:recover` | Recover context from dead/exhausted sessions — parse JSONL logs, cross-reference state |
+
+> **v3.0.0 migration:** Workflow commands moved from `/compound:*` to `/do:*` namespace. The old `/compound:*` names still work as aliases during the transition period but will be removed in a future version. Full invocation: `/compound-workflows:do:brainstorm`. Shorthand: `/do:brainstorm`.
 
 ## Workflow Cycle
 
@@ -75,7 +77,7 @@ Each step produces documents that feed the next. Solutions feed future brainstor
 | **GitHub CLI** (`gh`) | Optional | PR creation in work/review commands |
 | [**ccusage**](https://ccusage.com) | Optional | Daily cost/token tracking in compact-prep. Install: `npm install -g ccusage` |
 
-Run `/compound:setup` to see what's installed and get instructions for anything missing.
+Run `/do:setup` to see what's installed and get instructions for anything missing.
 
 ## Directory Conventions
 
@@ -84,16 +86,16 @@ This plugin expects the following project structure:
 ```
 your-project/
 +-- docs/
-|   +-- brainstorms/     # Output from /compound:brainstorm
-|   +-- plans/           # Output from /compound:plan
-|   +-- solutions/       # Output from /compound:compound
+|   +-- brainstorms/     # Output from /do:brainstorm
+|   +-- plans/           # Output from /do:plan
+|   +-- solutions/       # Output from /do:compound
 |   +-- decisions/       # Decision records (optional)
 +-- memory/              # Project memory files (optional)
 +-- resources/           # External reference material (optional)
 +-- .workflows/          # Disk-persisted agent outputs (recommend committing for traceability)
 ```
 
-Run `/compound:setup` to create missing directories.
+Run `/do:setup` to create missing directories.
 
 ## Key Concept: Disk-Persisted Agents
 
@@ -110,7 +112,7 @@ See `skills/disk-persist-agents/SKILL.md` for the full pattern.
 
 Context exhaustion is inevitable in long sessions. compound-workflows handles this two ways:
 
-**Proactive: `/compound:compact-prep`** — Run before `/compact` to save session state. Updates memory files, checks for uncommitted work, offers to compound learnings, and queues a resume task. After compaction, say "resume" to pick up where you left off.
+**Proactive: `/do:compact-prep`** — Run before `/compact` to save session state. Updates memory files, checks for uncommitted work, offers to compound learnings, and queues a resume task. After compaction, say "resume" to pick up where you left off.
 
 **Reactive: `/compound-workflows:recover`** — When a session dies without compaction (context exhaustion, crash, forgot to compact). Parses the JSONL session log, cross-references git history, beads state, `.workflows/` artifacts, and plan files to reconstruct what happened and what's left to do. Extracts memory-worthy content that would otherwise be lost.
 

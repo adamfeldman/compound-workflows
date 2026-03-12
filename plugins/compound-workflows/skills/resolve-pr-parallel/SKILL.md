@@ -24,7 +24,7 @@ Claude Code automatically detects git context:
 Fetch unresolved review threads using the GraphQL script:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/resolve-pr-parallel/scripts/get-pr-comments PR_NUMBER
+bash ${CLAUDE_SKILL_DIR}/scripts/get-pr-comments PR_NUMBER
 ```
 
 This returns only **unresolved, non-outdated** threads with file paths, line numbers, and comment bodies.
@@ -120,7 +120,7 @@ Use the agent summaries (which include thread IDs and changed file paths) to com
 - For each resolved comment, use the thread ID from the agent summary to resolve the thread programmatically:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/resolve-pr-parallel/scripts/resolve-pr-thread THREAD_ID
+bash ${CLAUDE_SKILL_DIR}/scripts/resolve-pr-thread THREAD_ID
 ```
 
 - Push to remote
@@ -138,7 +138,7 @@ Resolution reports are typically ~20 lines each — reading them is acceptable w
 Re-fetch comments to confirm all threads are resolved:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/resolve-pr-parallel/scripts/get-pr-comments PR_NUMBER
+bash ${CLAUDE_SKILL_DIR}/scripts/get-pr-comments PR_NUMBER
 ```
 
 Should return an empty array `[]`. If threads remain, repeat from step 1.

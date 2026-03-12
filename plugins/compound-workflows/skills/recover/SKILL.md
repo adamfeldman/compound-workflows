@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # Recover — Dead Session Recovery
 
-Recovers context from a dead or exhausted Claude Code session by reading its JSONL session log, cross-referencing external state, and producing a structured recovery manifest. This is the **reactive** counterpart to `/compound:compact-prep` (proactive).
+Recovers context from a dead or exhausted Claude Code session by reading its JSONL session log, cross-referencing external state, and producing a structured recovery manifest. This is the **reactive** counterpart to `/do:compact-prep` (proactive).
 
 ## Input
 
@@ -160,11 +160,14 @@ Include both `user` and `assistant` entries in the tail (both with text content,
 
 ### Step 2.3: Command detection
 
-Scan for the last active `/compound:*` command:
+Scan for the last active command invocation.
+
+> **Dual-namespace detection:** Session logs from before v3.0.0 use `/compound:*` command names;
+> logs from v3.0.0+ use `/do:*`. Search for BOTH patterns to handle old and new sessions.
 
 - Look for `user` entries with `isMeta: true` — these are command invocations
 - Look for entries whose content contains `<command-name>` tags — these mark command execution
-- Extract the command name (e.g., `/compound:work`, `/compound:brainstorm`)
+- Extract the command name (e.g., `/do:work`, `/do:brainstorm`, or pre-v3.0.0 `/compound:work`, `/compound:brainstorm`)
 
 If a command is detected, infer its phase by looking at subsequent activity:
 - What agents were dispatched (Task/Agent tool_use calls)?
@@ -312,8 +315,8 @@ Keep this to 3-5 sentences — enough to orient a new session.]
 ## Recommended Next Step
 
 [If compound command detected:]
-"Resume `/compound:[command]` — the session was in Phase [N] ([phase description]).
-To resume, run: /compound:[command] [arguments]
+"Resume `/do:[command]` — the session was in Phase [N] ([phase description]).
+To resume, run: /do:[command] [arguments]
 [If the command has built-in recovery (deepen-plan): note it will auto-detect the interrupted state.]
 [If the command does not have built-in recovery: note the user starts fresh with recovery context available on disk.]"
 
@@ -344,7 +347,7 @@ Summarize rather than quote if entries are very long.]
 
 ## Active Command
 
-[Detected /compound:* command and inferred phase from Phase 2.3, or:]
+[Detected /do:* (or pre-v3.0.0 /compound:*) command and inferred phase from Phase 2.3, or:]
 "No compound command detected — interactive session."
 [If multiple commands were invoked, note prior ones as completed.]
 
@@ -417,16 +420,16 @@ Tell the user: "Full recovery manifest written to `.workflows/recover/<session-i
 
 ### Step 5.3: Offer next steps
 
-**If a `/compound:*` command was detected:**
+**If a `/do:*` (or pre-v3.0.0 `/compound:*`) command was detected:**
 
-Tell the user: "The session was running `/compound:[command]` [with arguments if detected]. To resume, run:"
+Tell the user: "The session was running `/do:[command]` [with arguments if detected]. To resume, run:"
 
 ```
-/compound:[command] [arguments]
+/do:[command] [arguments]
 ```
 
 Note whether the command supports auto-recovery:
-- `/compound:deepen-plan` — detects interrupted manifests and resumes automatically
+- `/do:deepen-plan` — detects interrupted manifests and resumes automatically
 - Other commands — the user starts fresh, but recovery context is available on disk at `.workflows/recover/<session-id>/`
 
 Use **AskUserQuestion**: "What would you like to do?"

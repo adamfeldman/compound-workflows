@@ -1,6 +1,6 @@
 # Agent Instructions — compound-workflows-marketplace
 
-This repo contains the **compound-workflows** Claude Code plugin. Commands use the `/compound:*` namespace; skills use `/compound-workflows:*`.
+This repo contains the **compound-workflows** Claude Code plugin. Workflow skills use the `/do:*` namespace (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect to `/do:*` during the v3.0.0 transition period.
 
 ## Project Structure
 
@@ -9,7 +9,7 @@ plugins/compound-workflows/
 ├── .claude-plugin/plugin.json    # Plugin manifest (version here)
 ├── agents/{research,review,workflow}/  # 26 agent YAML files
 ├── skills/                       # Skill directories (SKILL.md each)
-├── commands/compound/            # Slash commands (max 8 per dir)
+├── commands/compound/            # Thin aliases redirecting to /do:* skills
 ├── scripts/plugin-qa/           # Tier 1 QA scripts (6 scripts + lib.sh)
 ├── CLAUDE.md                     # Plugin dev instructions
 ├── CHANGELOG.md                  # Version history
@@ -57,7 +57,7 @@ Three `Task general-purpose` agents with disk-persisted output:
 
 ### Hook-Based Enforcement
 
-The PostToolUse hook in `.claude/settings.json` auto-triggers Tier 1 scripts after git commits touching plugin files. The hook is suppressed during `/compound:work` via the `.workflows/.work-in-progress` sentinel file.
+The PostToolUse hook in `.claude/settings.json` auto-triggers Tier 1 scripts after git commits touching plugin files. The hook is suppressed during `/do:work` via the `.workflows/.work-in-progress` sentinel file.
 
 ### Expected Result
 
@@ -95,15 +95,17 @@ After release, update locally via CLI (`claude plugin update compound-workflows@
 
 ## Routing
 
-Do not use plan mode, ad-hoc research agents, or inline answers for tasks that have a compound command. Route through compound commands instead:
+Do not use plan mode, ad-hoc research agents, or inline answers for tasks that have a workflow skill. Route through skills instead:
 
-- **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/compound:brainstorm` — do not answer exploratory questions directly
-- **Building a known feature or task**: `/compound:plan` to design, then `/compound:work` to execute — do not implement without a plan
-- **Plan needs deeper research**: `/compound:deepen-plan` before executing
-- **Reviewing code changes**: `/compound:review` — do not review inline
-- **Solved a non-obvious problem**: `/compound:compound` to capture institutional knowledge
-- **Before `/compact`**: `/compound:compact-prep` to preserve session context
+- **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/do:brainstorm` — do not answer exploratory questions directly
+- **Building a known feature or task**: `/do:plan` to design, then `/do:work` to execute — do not implement without a plan
+- **Plan needs deeper research**: `/do:deepen-plan` before executing
+- **Reviewing code changes**: `/do:review` — do not review inline
+- **Solved a non-obvious problem**: `/do:compound` to capture institutional knowledge
+- **Before `/compact`**: `/do:compact-prep` to preserve session context
 - **Recovering a dead/exhausted session**: `/compound-workflows:recover`
+
+> **v3.0.0 transition:** During the transition period, `/compound:*` aliases redirect to `/do:*`. Aliases will be removed in a future version. Update muscle memory, docs, and memory files to use `/do:*`.
 
 ## Sequential Feature Execution
 
@@ -130,7 +132,7 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
 
 ## Key Conventions
 
-- Commands use `compound:` namespace prefix
+- Workflow skills use `do:` namespace prefix; `compound:` aliases redirect for backwards compat
 - All Task dispatches include inline role descriptions for graceful fallback
 - Red team uses 3 independent providers in parallel (Gemini, OpenAI, Claude Opus)
 - Red team provider method (clink vs pal chat) is runtime-detected, not stored in config
@@ -149,7 +151,7 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
 
 ## Bash Generation Rules
 
-> Injected by `/compound:setup` — teaches the model to generate bash that avoids Claude Code's permission prompt heuristics.
+> Injected by `/do:setup` — teaches the model to generate bash that avoids Claude Code's permission prompt heuristics.
 
 These rules apply to the command string submitted to the Bash tool — what Claude Code's heuristic inspector evaluates. They do NOT apply to script files written via the Write tool (heuristics don't inspect file content).
 

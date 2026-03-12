@@ -257,8 +257,8 @@ Structure your findings as:
 ## Integration Points
 
 This agent is designed to be invoked by:
-- `/compound:plan` - To inform planning with institutional knowledge
-- `/compound:deepen-plan` - To add depth with relevant learnings
+- `/do:plan` - To inform planning with institutional knowledge
+- `/do:deepen-plan` - To add depth with relevant learnings
 - Manual invocation before starting work on a feature
 
 The goal is to surface relevant learnings in under 30 seconds for a typical solutions directory, enabling fast knowledge retrieval during planning phases.
