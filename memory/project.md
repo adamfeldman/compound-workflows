@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.0.0 (plugins/compound-workflows/)
+- Plugin: compound-workflows v3.0.3 (plugins/compound-workflows/)
 - 26 agents, 28 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -54,6 +54,8 @@
 - **"Quoted characters in flag names" heuristic: glob + redirect** — empirically verified 2026-03-11. Two confirmed trigger combinations: (1) glob (`*`) + redirect (`>`) in same command (e.g., `ls *.md 2>/dev/null`), (2) quoted dash string (`"---"`) + redirect in compound commands (e.g., `cmd 2>/dev/null; echo "---"`). `2>/dev/null` is the common enabler. Neither pattern triggers without the redirect. `--flag=value` alone is NOT a trigger. Fix: stop reflexively appending `2>/dev/null` to commands.
 - **Ad-hoc model-generated bash is the remaining heuristic problem** — v2.5.0 fixed all plugin command/skill templates. The remaining 5-15 permission prompts per session come from bash the model generates in normal conversation (debugging, bead management, data analysis). No CLAUDE.md instructions exist to guide this. Brainstorm dndn addresses it.
 - **Multi-word static rule prefixes work** — `Bash(for id:*)` exists in settings.local.json and matches commands starting with `for id`. Confirmed: multi-word matching is supported. `Bash(bash -c:*)` would also work syntactically.
+- **`Bash(bd:*)` does NOT match `bd <subcommand>`** — despite the glob, `bd show`, `bd list`, `bd create` etc. still prompt. Explicit per-subcommand rules required (e.g., `Bash(bd show:*)`, `Bash(bd list:*)`). Root cause unknown — likely Claude Code glob matching behavior. Discovered 2026-03-12 from user's settings.local.json audit.
+- **`{"` in bd metadata does NOT trigger prompts** — `bd create --metadata '{"impact":...}'` does not trigger the "expansion obfuscation" heuristic in practice, despite containing `{"`. User confirmed never prompted for impact metadata. Contradicts theoretical expectation.
 - **Cache tokens dominate Claude Code cost** — daily: 140M cache read vs 200k I/O tokens. Cache:I/O ratio ~710x. Effective Opus rate per I/O token (cache-inclusive): $493/M. Subagent ratio is lower (fresh context, ~50-100x estimated). Stats `tokens` field only captures I/O, not cache — per-agent cost requires the cache-inclusive rate. See `memory/cost-analysis.md`.
 - **Task→Agent dispatch migration incomplete** — wgl (v2.1.0) only migrated deepen-plan + plan red-team. ~30 Task dispatches remain: brainstorm (8), review (7), plan (5), compound (8), work (2), plugin-changes-qa skill (5). Benefits: model from frontmatter, consistency, Agent tool features (worktree isolation). Not a capability or cost improvement — cleanup only. Tracked in bead 2kj.
 - **`${CLAUDE_SKILL_DIR}` works in plugin skills, NOT in commands** — load-time string substitution, gives absolute path to skill directory. Empirically confirmed 2026-03-11: skill at `skills/do-test/SKILL.md` received `/Users/adamf/.claude/plugins/cache/.../2.6.1/skills/do-test`. Commands get literal `${CLAUDE_SKILL_DIR}` unsubstituted. `${CLAUDE_SESSION_ID}` works in both. Bash injection (`!`command``) works in neither.
@@ -110,7 +112,7 @@
 - **version-check.sh context detection** — in source repo: 3-way (source vs installed vs release). In consumer project: 2-way (installed vs release only).
 - **`.beads/PRIME.md`** overrides bd prime to remove conflicting memory instructions
 - **Pre-existing dispatch migration debt** — Tier 2 QA (jak session) found: brainstorm.md still uses Task dispatch for red team (plan.md/deepen-plan.md migrated to Agent dispatch in v2.1.0). Also `repo-research-analyst` Dispatched By column in CLAUDE.md missing "brainstorm". Not blocking but should be cleaned up.
-- **p14 confirmed in practice** — every capture-stats.sh call during `/compound:work` shows "format may have changed" because Agent tool `<usage>` format differs from Task tool. Affects all work runs.
+- **p14 fixed (4qc9, v3.0.2)** — capture-stats.sh now distinguishes "no `<usage>` data" (informational) from "usage data present but unparseable" (format warning). Prior: every non-Task `<usage>` format triggered misleading "format may have changed" warning.
 - **Sonnet appropriateness = planning gate, not implementation step** — model-robustness verification belongs in specflow + readiness checks during `/compound:plan`, not as a post-implementation review. Captured in wtn.
 - **`<usage>` block has no cache fields** — Agent/Task completion notifications only include total_tokens, tool_uses, duration_ms. No cache_read_tokens or cache_creation_tokens. Per-dispatch cache data requires session JSONL mining (bead 3zr) or upstream feature request.
 - **User is on Max 20x** — $200/month subscription, regularly exhausts weekly quota. Token costs in ccusage are a proxy for quota consumption, not actual charges. Sonnet downgrades are a throughput issue (quota wall stops all work), not a cost optimization.
