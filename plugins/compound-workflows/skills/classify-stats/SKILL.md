@@ -8,8 +8,6 @@ disable-model-invocation: false
 
 Reads unclassified stats entries from `.workflows/stats/*.yaml`, dispatches a classifier subagent to propose `complexity` and `output_type` labels, presents proposals in batch table format for user confirmation, then rewrites YAML files in place with classification fields added.
 
-Invoked as `/compound-workflows:classify-stats` (overflow pattern — `commands/compound/` is at the 8-command limit).
-
 ## Phase 1: Config Check and Entry Discovery
 
 ### Step 1.1: Check Classification Toggle
@@ -59,7 +57,7 @@ This is informational only — classification proceeds on whatever entries exist
 
 ### Step 2.1: Resolve Plugin Root
 
-Run `bash plugins/compound-workflows/scripts/init-values.sh classify-stats`. Read the output and track REPO_ROOT and PLUGIN_ROOT values. If the script is not found (not in source repo), run `find ~/.claude/plugins -name "init-values.sh" -path "*/compound-workflows/*" | head -1` to find it, then run `bash <found-path> classify-stats`.
+Run `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh classify-stats`. Read the output and track REPO_ROOT and PLUGIN_ROOT values.
 
 ### Step 2.2: Prepare Classification Input
 
@@ -125,7 +123,7 @@ Look at file names and skim first ~20 lines of each artifact to understand what 
 Use these heuristics when artifacts are sparse or unavailable:
 - `red-team-relay` agents: almost always mechanical/relay
 - Research-category agents (repo-research-analyst, learnings-researcher, etc.): typically analytical/research
-- Review-category agents during `/compound:review`: typically mechanical/review or analytical/review depending on token count (high token count suggests deeper analysis)
+- Review-category agents during `/do:review`: typically mechanical/review or analytical/review depending on token count (high token count suggests deeper analysis)
 - `plan-consolidator`: typically mechanical/synthesis
 - `convergence-advisor`: typically analytical/synthesis
 - `plan-readiness-reviewer`: typically analytical/review

@@ -91,7 +91,7 @@ Detect design tradeoffs flagged by reviewers that were never explicitly decided.
 - SERIOUS: Unresolved dispute affects multiple steps but a reasonable default exists
 - MINOR: Unresolved dispute is cosmetic or affects only naming/formatting
 
-**Graceful handling:** If no gate logs exist (plan not created by /compound:plan), skip this pass entirely and report "No prior gate decisions found -- skipping."
+**Graceful handling:** If no gate logs exist (plan not created by /do:plan), skip this pass entirely and report "No prior gate decisions found -- skipping."
 
 ---
 

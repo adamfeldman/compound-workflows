@@ -1,7 +1,7 @@
 ---
 title: "feat: Plugin script path resolution — commands→skills migration"
 type: feat
-status: active
+status: completed
 date: 2026-03-11
 origin: docs/brainstorms/2026-03-11-plugin-script-path-resolution-brainstorm.md
 ---

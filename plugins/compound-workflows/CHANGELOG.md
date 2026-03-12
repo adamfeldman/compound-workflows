@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.0] - 2026-03-12
+
+### Breaking Changes
+- **Namespace rename: `compound:` to `do:`** — all 8 workflow commands migrated from `commands/compound/` to `skills/do-*/`. Invocation changes from `/compound:brainstorm` to `/do:brainstorm` (shorthand) or `/compound-workflows:do:brainstorm` (full). Thin aliases in `commands/compound/` redirect to `/do:*` for one version.
+
+### Features
+- **`${CLAUDE_SKILL_DIR}` path resolution** — all workflow skills and script-referencing skills use `${CLAUDE_SKILL_DIR}` (Claude Code v2.1.69+) for path resolution. Works reliably in installed plugin contexts, eliminating hardcoded repo-relative paths and `find` fallbacks.
+- **No 8-command limit** — skills have no per-directory limit (commands were capped at 8 per directory). All 8 workflows are now skills with room for growth.
+- **init-values.sh PLUGIN_ROOT validation** — new `.claude-plugin/plugin.json` existence check validates the `${CLAUDE_SKILL_DIR}/../../` depth assumption at runtime. Fails loudly if the skill directory structure changes.
+- **Skill-to-skill reference validation (QA Check 2b)** — new check in `stale-references.sh` validates `/do:<name>` references against existing `skills/do-*/` directories. Catches stale cross-references between skills.
+
+### Migration Notes
+- Thin aliases in `commands/compound/` redirect `/compound:*` to `/do:*` skills for one version. Users should update muscle memory, docs, and any memory files referencing `/compound:*`.
+- Aliases will be removed in the next version.
+- 5 existing skills updated to use `${CLAUDE_SKILL_DIR}`: version, plugin-changes-qa, classify-stats, git-worktree, resolve-pr-parallel.
+- Skills: 20 to 28 (8 new workflow skills). Agents: 26 (unchanged). Commands: 8 (now thin aliases).
+
 ## [2.6.1] - 2026-03-11
 
 ### Features

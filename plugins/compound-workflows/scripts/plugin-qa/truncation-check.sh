@@ -55,10 +55,16 @@ check_file() {
   fi
 }
 
-# --- Check command files ---
+# --- Check command files (thin aliases — lowered threshold) ---
 for f in "$PLUGIN_ROOT"/commands/compound/*.md; do
   [[ -f "$f" ]] || continue
-  check_file "$f" 20 "Command"
+  check_file "$f" 3 "Command"
+done
+
+# --- Check do-* skill files (workflow skills migrated from commands) ---
+for f in "$PLUGIN_ROOT"/skills/do-*/SKILL.md; do
+  [[ -f "$f" ]] || continue
+  check_file "$f" 20 "Skill"
 done
 
 # --- Check agent files (direct children of category dirs) ---
