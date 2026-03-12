@@ -113,6 +113,8 @@
 - **Plugin-wide config toggles (bead 4a1o)** — P3. Created during ka3w plan. Extends ka3w's config toggle pattern to other commands (red team, readiness, etc.).
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
 - **Stats capture fails in worktrees (bead j6ui)** — P2 bug. init-values.sh emits relative STATS_FILE path; breaks in worktrees. Fix: prepend compute_repo_root(). 10m.
+- **Setup PAL detection checks wrong file (bead 17bh)** — P2 bug. Greps ~/.claude/settings.json but PAL isn't there. Fix: detect mcp__pal__* tools at runtime instead of grepping config files.
+- **Setup is not idempotent (bead flu6)** — P2 bug. Re-runs treat everything as fresh install. Should detect existing config (compound-workflows.md, settings.local.json, hooks, routing, bash rules) and skip/confirm. Subsumes gjvi (permissions re-ask).
 
 ## Critical Patterns
 - **Plugin paths use `${CLAUDE_SKILL_DIR}`** — skills use `${CLAUDE_SKILL_DIR}/../../scripts/` for init-values.sh. init-values.sh validates PLUGIN_ROOT via `.claude-plugin/plugin.json` existence check. Commands don't get CLAUDE_SKILL_DIR (they're thin aliases).
