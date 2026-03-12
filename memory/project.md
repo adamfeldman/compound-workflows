@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.1.1 (plugins/compound-workflows/)
+- Plugin: compound-workflows v3.1.2 (plugins/compound-workflows/)
 - 26 agents, 29 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -104,6 +104,8 @@
 
 - **v3.1.1** — Compact-prep performance fix (bead rdij): direct memory writes (no temp files), immediate ccusage snapshot in check phase. Eliminates ~15min overhead from deferred temp-file pattern.
 
+- **v3.1.2** — Stats capture worktree path fix (bead j6ui): make STATS_FILE absolute via compute_repo_root() in init-values.sh. Fixes capture-stats.sh writing to nonexistent directory in worktrees.
+
 ## In-Progress Work
 
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/do:brainstorm`.
@@ -114,9 +116,7 @@
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 - **Plugin-wide config toggles (bead 4a1o)** — P3. Created during ka3w plan. Extends ka3w's config toggle pattern to other commands (red team, readiness, etc.).
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
-- **Stats capture fails in worktrees (bead j6ui)** — P2 bug. init-values.sh emits relative STATS_FILE path; breaks in worktrees. Fix: prepend compute_repo_root(). 10m.
-- **Setup PAL detection checks wrong file (bead 17bh)** — P2 bug. Greps ~/.claude/settings.json but PAL isn't there. Fix: detect mcp__pal__* tools at runtime instead of grepping config files.
-- **Setup is not idempotent (bead flu6)** — P2 bug. Re-runs treat everything as fresh install. Should detect existing config (compound-workflows.md, settings.local.json, hooks, routing, bash rules) and skip/confirm. Subsumes gjvi (permissions re-ask).
+- **Fix usage-pipe race + work-in-progress scoping (bead 8one)** — P2 bug. Plan complete (`docs/plans/2026-03-12-fix-usage-pipe-isolation-plan.md`). Next: `/do:work`. Two shared static files have race conditions under concurrent sessions. Fix: eliminate .usage-pipe (named-field string arg 9), scope .work-in-progress per-session (.work-in-progress.d/$RUN_ID directory). 13+ files in one atomic commit.
 
 ## Critical Patterns
 - **Plugin paths use `${CLAUDE_SKILL_DIR}`** — skills use `${CLAUDE_SKILL_DIR}/../../scripts/` for init-values.sh. init-values.sh validates PLUGIN_ROOT via `.claude-plugin/plugin.json` existence check. Commands don't get CLAUDE_SKILL_DIR (they're thin aliases).
