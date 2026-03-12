@@ -48,7 +48,7 @@ Read the output and track these values for use throughout: PLUGIN_ROOT, VERSION_
 Generate a short run ID (e.g., 8 hex chars) and create the run directory:
 
 ```bash
-mkdir -p .workflows/compact-prep/<run-id>/memory-pending/
+mkdir -p .workflows/compact-prep/<run-id>/
 ```
 
 This directory scopes all temp files for this run. No cleanup of prior runs needed — each gets its own directory. The directory is retained after completion for analytics value.
@@ -57,7 +57,7 @@ This directory scopes all temp files for this run. No cleanup of prior runs need
 
 ## Check Phase
 
-**NO SIDE EFFECTS on production files.** All checks run silently, collecting results for the batch prompt. The only writes permitted are to the temp directory `.workflows/compact-prep/<run-id>/memory-pending/`. Config-toggled-off checks are skipped entirely — they don't run and don't appear later.
+**NO SIDE EFFECTS on production files.** All checks run silently, collecting results for the batch prompt. Config-toggled-off checks are skipped entirely — they don't run and don't appear later.
 
 **Check-phase failure handling:** If any check fails (e.g., `version-check.sh` errors, `ccusage` crashes, `bd` unavailable), note it as "unavailable" in the summary and omit the corresponding batch action. Do not halt or retry during the check phase — failures are informational.
 
@@ -75,11 +75,7 @@ Review the conversation for memory-worthy information. Scan for:
 
 Read existing memory files first. Only write if there's genuinely new information.
 
-For each proposed update:
-1. Create parent directories if needed (use `mkdir -p` for nested paths)
-2. Use the **Write tool** to write the **complete new file content** to `.workflows/compact-prep/<run-id>/memory-pending/<path>` — mirror the target path structure (e.g., `memory/patterns.md` maps to `memory-pending/patterns.md`, `memory/sub/file.md` maps to `memory-pending/sub/file.md`). Do NOT write to `memory/` during check phase.
-
-Record: number of updates identified, which files, and an **abbreviated diff per file** showing key additions/removals. These diffs appear in the batch prompt so the user can review the actual changes they're approving.
+Record: number of updates identified, which files, and a **1-2 sentence description per file** of what will be added or changed.
 
 ### Check B: Beads Check (informational only — no batch action)
 
@@ -159,6 +155,14 @@ Record: cost string, savings string. Display-only in summary — no associated b
 
 If JSON parsing fails, note the raw summary output rather than erroring.
 
+If cost data was successfully retrieved, persist the snapshot now:
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/../../scripts/append-snapshot.sh "<SNAPSHOT_FILE>" "<TIMESTAMP>" <total_cost> <input_tokens> <output_tokens> [additional_key=value pairs]
+```
+
+This is non-interactive housekeeping — no user approval needed.
+
 ### Check G: Push Remote Detection
 
 **Skip entirely if `compact_push: false`.**
@@ -184,8 +188,8 @@ Display the summary to provide visibility into what the checks found:
 ```
 Session end summary:
 - Memory: N updates identified
-  - patterns.md: +2 lines (bash heuristic discovery), -0 lines
-  - project.md: ~3 lines changed (ka3w status -> plan phase)
+  - patterns.md: add bash heuristic discovery
+  - project.md: update ka3w status
 - Beads: N issues still in_progress / clean
 - Git: N uncommitted files / clean
 - Compound: worthy (summary) / nothing to compound    [omit line if check skipped]
@@ -193,7 +197,7 @@ Session end summary:
 - Cost: today $X.XX (saved ~$Y.YY via Sonnet)          [omit line if check skipped]
 ```
 
-Memory detail is important: the user is approving writes based on these descriptions, not blind counts. Show the per-file abbreviated diffs from Check A.
+Memory detail is important: the user is approving writes based on these descriptions, not blind counts. Show the per-file descriptions from Check A.
 
 For config-disabled steps, show the summary line as "skipped (config)" for transparency.
 
@@ -255,10 +259,10 @@ Each batch item maps to one or more execute steps:
 
 | Batch item | Execute steps |
 |------------|--------------|
-| "Skip memory updates" | Step 1 (copy temp files) |
+| "Skip memory updates" | Step 1 (write memory updates) |
 | "Skip commit" | Step 2 (commit pre-compound) only |
 | "Skip compound" | Step 3 (compound) + Step 4 (commit compound docs) |
-| "Skip push" | Step 7 (push) |
+| "Skip push" | Step 6 (push) |
 
 Skipping "compound" skips both the compound run AND its post-compound commit (one logical unit). Skipping "commit" skips only the pre-compound commit (Step 2). Step 4 (commit compound docs) is always tied to compound — if compound ran and produced output, its docs are committed regardless of the "Skip commit" selection.
 
@@ -274,11 +278,11 @@ Execute approved actions in **strict dependency order**. Do not reorder. Per-ste
 
 **Reminder: selecting = SKIP in the batch prompt. If the user selected "Skip X", do NOT execute X.**
 
-### Step 1: Copy Memory Temp Files
+### Step 1: Write Memory Updates
 
 **Skip if:** user selected "Skip memory updates" OR no memory updates were identified.
 
-Copy each file from `.workflows/compact-prep/<run-id>/memory-pending/<path>` to `memory/<path>` using the **Read tool** to read each temp file and the **Write tool** to write to the target path. Create parent directories as needed.
+Read existing memory files, apply the updates identified in Check A, and write directly to `memory/` using the **Read tool** and **Edit tool** (or **Write tool** for new files). Create parent directories as needed.
 
 Tell the user what was updated (1-2 sentences per update, not a wall of text).
 
@@ -287,7 +291,7 @@ Tell the user what was updated (1-2 sentences per update, not a wall of text).
 **Skip if:** user selected "Skip commit" AND `compact_auto_commit` is false.
 **Execute if:** user did NOT select "Skip commit" OR `compact_auto_commit` is true.
 
-Re-run `git status` to get a **fresh file set** — do NOT use stale Check C results. Memory files were copied in Step 1 and must be included in this commit.
+Re-run `git status` to get a **fresh file set** — do NOT use stale Check C results. Memory files were written in Step 1 and must be included in this commit.
 
 - If **auto-commit** (`compact_auto_commit: true`): suggest a commit message and execute without prompting. Use the **Write tool** to write the message to `.workflows/scratch/commit-msg-compact-prep.txt`, then run `git add` for modified/new files and `git commit -F .workflows/scratch/commit-msg-compact-prep.txt`.
 - If **manual**: ask the user for a message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/scratch/commit-msg-compact-prep.txt`, then run `git add` for modified/new files and `git commit -F .workflows/scratch/commit-msg-compact-prep.txt`.
@@ -339,21 +343,7 @@ bash <VERSION_CHECK>
 
 If versions match or version check is unavailable: no-op, proceed silently.
 
-### Step 6: Persist ccusage Snapshot
-
-**Non-interactive.** No batch action — this is background housekeeping.
-
-If cost summary data was successfully retrieved in Check F (ccusage was available AND JSON parsing succeeded), persist a snapshot:
-
-```bash
-bash ${CLAUDE_SKILL_DIR}/../../scripts/append-snapshot.sh "<SNAPSHOT_FILE>" "<TIMESTAMP>" <total_cost> <input_tokens> <output_tokens> [additional_key=value pairs]
-```
-
-If ccusage was not available or parsing failed, skip silently.
-
-This step is in the execute phase (not check phase) to respect the "no side effects during check" principle.
-
-### Step 7: Push
+### Step 6: Push
 
 **Skip if:** user selected "Skip push" OR has_remote is false OR `compact_push: false`.
 
@@ -365,7 +355,7 @@ The `-u` flag sets upstream tracking if not already set.
 
 ### Per-Step Retry Semantics
 
-On failure at any step (1-7), present via **AskUserQuestion**:
+On failure at any step (1-6), present via **AskUserQuestion**:
 - **Retry** — re-attempt the failed step
 - **Skip** — proceed to the next step
 - **Abort** — stop executing, proceed to summary with partial results

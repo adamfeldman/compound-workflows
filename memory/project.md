@@ -2,7 +2,7 @@
 
 ## Overview
 - Plugin: compound-workflows v3.1.0 (plugins/compound-workflows/)
-- 26 agents, 28 skills, 8 commands (thin aliases)
+- 26 agents, 29 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
 - GitHub repo: adamfeldman/compound-workflows (public)
