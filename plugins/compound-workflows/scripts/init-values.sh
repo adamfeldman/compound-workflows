@@ -37,6 +37,12 @@ if [[ -z "$PLUGIN_ROOT" ]] || [[ ! -d "$PLUGIN_ROOT" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$PLUGIN_ROOT/.claude-plugin/plugin.json" ]]; then
+  echo "Error: PLUGIN_ROOT validation failed — .claude-plugin/plugin.json not found at $PLUGIN_ROOT" >&2
+  echo "  Resolved PLUGIN_ROOT: $PLUGIN_ROOT" >&2
+  exit 1
+fi
+
 # ── Parse arguments ──────────────────────────────────────────────────────────
 CMD="${1:-}"
 STEM_ARG="${2:-}"
