@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **capture-stats.sh: distinguish missing usage from changed format** — Added `elif` branch to differentiate "no `<usage>` data in response" (informational, normal for some dispatch types) from "usage data present but unparseable" (actual format change warning). Previously both triggered the misleading "format may have changed" warning. New QA test case (Test 6) validates the distinction.
 - **do:work stats capture worktree reminder** — Added explicit warning in the Stats Capture section that `capture-stats.sh` must be called from the main repo root, not from the worktree cwd. `.workflows/stats/` does not exist in worktrees.
+- **Remove `rm:*` from permissive profile** — `rm` is destructive and static rules fire before the hook, bypassing path-scoping guardrails. Removed from both the warning list and rule list in do:setup.
 
 ## [3.0.1] - 2026-03-12
 
