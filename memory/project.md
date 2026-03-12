@@ -98,12 +98,15 @@
 
 - **v3.0.5** — Permissive profile expansion (bead u1fd): 11 new rules (git, ls, mkdir, md5, bd, if, for, [[, xargs, tee, WebFetch). Standard add-on gains ls + 4 safe git patterns (log, diff, status, branch). Step 0 verification: $() is hard heuristic, bd:* matches subcommands, cp with flags is hard. 13 planned bd subcommand rules dropped.
 
+- **v3.0.5 (cont.)** — capture-stats.sh `<usage>` format discovery (bead 8one brainstorm): `<usage>` notifications come in two formats — colon-delimited (`<usage>total_tokens: N, tool_uses: N, duration_ms: N</usage>`) and XML sub-elements (`<usage><total_tokens>N</total_tokens>...</usage>`). "Strip outer tags" only works for colon-delimited (inner content has no angle brackets). XML sub-element inner content STILL has angle brackets. Skill instructions must say "extract values and format as `total_tokens: N, tool_uses: N, duration_ms: N`" — never "strip tags and pass inner content."
+
 ## In-Progress Work
 
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/do:brainstorm`.
 - **Downgrade analytical agents to Sonnet (bead sze8)** — P1. Blocked by wtn. Candidates: semantic-checks, spec-flow-analyzer, plan-readiness-reviewer, minor-triage. Red-team-opus stays Opus.
 - **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt.
 - **Research agents need web search (bead ixz4)** — P2. Brainstorm/plan research agents don't search GitHub issues or official docs for upstream constraints. Caused miss on CLAUDE_PLUGIN_ROOT #9354.
+- **Usage-pipe race + work-in-progress scoping (bead 8one)** — P2. Brainstorm complete at `docs/brainstorms/2026-03-12-usage-pipe-isolation-brainstorm.md`. Two fixes: (1) eliminate `.usage-pipe` — pass named-field string as arg 9 to capture-stats.sh, script parses by field name. (2) Scope `.work-in-progress` per-session via `.work-in-progress.d/$RUN_ID` directory. Next: `/do:plan`.
 - **Write tool discipline (bead dj65)** — P2 bug. Plan ready at `docs/plans/2026-03-12-fix-write-tool-discipline-plan.md`. 10 violation fixes + `write-tool-discipline.sh` QA script + Tier 1 scope expansion to `skills/*/workflows/*.md`. Red-teamed (3 providers, 2 CRITICAL + 7 SERIOUS all resolved). Next: `/do:work`.
 - **Red team model selection (bead aig)** — P3. Brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
