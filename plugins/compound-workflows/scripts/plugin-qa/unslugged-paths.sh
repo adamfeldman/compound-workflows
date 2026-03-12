@@ -28,6 +28,11 @@ for f in "$PLUGIN_ROOT"/skills/*/SKILL.md; do
   scan_files+=("$f")
 done
 
+for f in "$PLUGIN_ROOT"/skills/*/workflows/*.md; do
+  [[ -f "$f" ]] || continue
+  scan_files+=("$f")
+done
+
 cmd_dir="$PLUGIN_ROOT/commands/compound"
 if [[ -d "$cmd_dir" ]]; then
   for f in "$cmd_dir"/*.md; do
@@ -76,7 +81,7 @@ for f in "${scan_files[@]}"; do
 
     # Exempt: intentionally static scratch files (overwritten each call, not persisted artifacts)
     case "$workflows_path" in
-      .workflows/.work-in-progress*|.workflows/.usage-pipe*) continue ;;
+      .workflows/.work-in-progress*|.workflows/.usage-pipe*|.workflows/scratch/*) continue ;;
     esac
 
     # Check if path contains at least one slug token

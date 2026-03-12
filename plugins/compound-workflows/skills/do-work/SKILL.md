@@ -276,7 +276,7 @@ You are executing one step of a larger work plan. Your job is to implement ONLY 
    - Are strategies consistent across layers? (error handling, retry alignment)
    Skip if trivial (leaf-node change, no callbacks, no state persistence).
 8. Run tests to verify your changes work
-9. Stage and commit your changes with the commit message suggested in the task description (or write an appropriate conventional commit message)
+9. Stage and commit your changes: use the commit message suggested in the task description (or write an appropriate conventional commit message). Use the **Write tool** to write the message to `.workflows/scratch/commit-msg-<TASK_ID>.txt`, then run `git commit -F .workflows/scratch/commit-msg-<TASK_ID>.txt`.
 10. Do NOT push to remote — the orchestrator handles that
 11. Do NOT create PRs
 12. Do NOT modify beads issues (bd commands) — the orchestrator handles that

@@ -1,7 +1,7 @@
 ---
 title: "fix: Write tool discipline — replace heredoc/echo/commit patterns in LLM-interpreted files"
 type: fix
-status: active
+status: completed
 date: 2026-03-12
 bead: dj65
 ---
@@ -84,8 +84,8 @@ Create `plugins/compound-workflows/scripts/migrate-stats-keys.sh` following the 
 
 **Why script delegation:** The `if/echo/fi` block contains conditional logic, file appends, and stdout status output. Moving to a script keeps all heuristic-triggering patterns out of the Bash tool input. Consistent with `append-snapshot.sh` and `capture-stats.sh` precedent.
 
-- [ ] Create `plugins/compound-workflows/scripts/migrate-stats-keys.sh`
-- [ ] Make executable (`chmod +x`)
+- [x] Create `plugins/compound-workflows/scripts/migrate-stats-keys.sh`
+- [x] Make executable (`chmod +x`)
 
 ### Step 2: Fix All Violations (10 sites)
 
@@ -93,23 +93,23 @@ Apply fixes in any order (independent sites in different files/sections). For ea
 
 **Heredoc fixes:**
 
-- [ ] **#1 compound-docs/SKILL.md ~L223:** Replace `cat >> file << 'EOF'` block with two-step logic: "If `docs/solutions/patterns/common-solutions.md` exists, use the Edit tool to append the pattern block. If it does not exist, use the Write tool to create it." Preserve the template content verbatim (placeholder brackets, heading levels, blank lines).
-- [ ] **#2 create-agent-skills/workflows/create-new-skill.md ~L159:** Replace `cat > file << 'EOF'` with: "Use the Write tool to create `~/.claude/commands/{skill-name}.md` with the following content (note: `$ARGUMENTS` is a Claude Code variable — include it literally, do not expand):" followed by the same content block.
+- [x] **#1 compound-docs/SKILL.md ~L223:** Replace `cat >> file << 'EOF'` block with two-step logic: "If `docs/solutions/patterns/common-solutions.md` exists, use the Edit tool to append the pattern block. If it does not exist, use the Write tool to create it." Preserve the template content verbatim (placeholder brackets, heading levels, blank lines).
+- [x] **#2 create-agent-skills/workflows/create-new-skill.md ~L159:** Replace `cat > file << 'EOF'` with: "Use the Write tool to create `~/.claude/commands/{skill-name}.md` with the following content (note: `$ARGUMENTS` is a Claude Code variable — include it literally, do not expand):" followed by the same content block.
 
 **Echo redirect fixes:**
 
-- [ ] **#3 do-setup/SKILL.md ~L321:** Replace `echo '...' >> .gitignore` with: "Read `.gitignore` (if it exists). If `compound-workflows.local.md` is not already listed, use the Edit tool to append `compound-workflows.local.md` as a new line."
-- [ ] **#4 do-setup/SKILL.md ~L662-663:** Replace the entire `if/echo/fi` bash block with: `bash ${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh`. Read the stdout for `STATS_KEYS_ADDED=true` status. (Use SKILL_DIR-relative path per plugin convention.)
-- [ ] **#5 compound-docs/SKILL.md ~L211:** Replace `echo "- See also: ..." >> file` with: "Use the Edit tool to append `- See also: [$FILENAME]($REAL_FILE)` to the target document."
-- [ ] **#6 setup/SKILL.md ~L158-159:** Replace the `if/echo/fi` bash block with same `migrate-stats-keys.sh` call as #4 (using `${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh`).
+- [x] **#3 do-setup/SKILL.md ~L321:** Replace `echo '...' >> .gitignore` with: "Read `.gitignore` (if it exists). If `compound-workflows.local.md` is not already listed, use the Edit tool to append `compound-workflows.local.md` as a new line."
+- [x] **#4 do-setup/SKILL.md ~L662-663:** Replace the entire `if/echo/fi` bash block with: `bash ${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh`. Read the stdout for `STATS_KEYS_ADDED=true` status. (Use SKILL_DIR-relative path per plugin convention.)
+- [x] **#5 compound-docs/SKILL.md ~L211:** Replace `echo "- See also: ..." >> file` with: "Use the Edit tool to append `- See also: [$FILENAME]($REAL_FILE)` to the target document."
+- [x] **#6 setup/SKILL.md ~L158-159:** Replace the `if/echo/fi` bash block with same `migrate-stats-keys.sh` call as #4 (using `${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh`).
 
 **Unspecified commit method fixes:**
 
-- [ ] **#7 do-compact-prep/SKILL.md ~L46:** Expand "commit (ask for message or suggest one)" to: "Ask the user for a commit message or suggest one. Use the Write tool to write the agreed message to `.workflows/scratch/commit-msg-<RUN_ID>.txt`, then run `git commit -F .workflows/scratch/commit-msg-<RUN_ID>.txt`."
-- [ ] **#8 do-compact-prep/SKILL.md ~L74:** Same expansion as #7.
-- [ ] **#9 do-work/SKILL.md ~L279 (subagent template):** Expand "Stage and commit your changes with the commit message suggested in the task description" with Write tool + `git commit -F` pattern. Use unique filename: `.workflows/scratch/commit-msg-<TASK_ID>.txt` (subagents have task IDs, not RUN_IDs). This is inside a Task subagent dispatch template. **Assumption:** subagents operate in their own Bash tool context with the same heuristic constraints as the orchestrator — this is assumed based on orchestrator behavior but has not been empirically verified for subagent contexts. Fix is good practice regardless. Note: the Phase 4 orchestrator commit (~L415) is already properly specified.
-- [ ] **Pre-implementation verification for #9:** Before fixing, empirically test whether a Task subagent inherits static allow rules from `.claude/settings.json`. If `Bash(git:*)` is inherited, the subagent's `git commit -m` would auto-approve (making the fix good practice but not strictly necessary). If NOT inherited, the fix is critical. Document the result.
-- [ ] **#10 resolve-pr-parallel/SKILL.md ~L119:** Expand "Commit changes with a clear message" to include Write tool + `git commit -F` method.
+- [x] **#7 do-compact-prep/SKILL.md ~L46:** Expand "commit (ask for message or suggest one)" to: "Ask the user for a commit message or suggest one. Use the Write tool to write the agreed message to `.workflows/scratch/commit-msg-<RUN_ID>.txt`, then run `git commit -F .workflows/scratch/commit-msg-<RUN_ID>.txt`."
+- [x] **#8 do-compact-prep/SKILL.md ~L74:** Same expansion as #7.
+- [x] **#9 do-work/SKILL.md ~L279 (subagent template):** Expand "Stage and commit your changes with the commit message suggested in the task description" with Write tool + `git commit -F` pattern. Use unique filename: `.workflows/scratch/commit-msg-<TASK_ID>.txt` (subagents have task IDs, not RUN_IDs). This is inside a Task subagent dispatch template. **Assumption:** subagents operate in their own Bash tool context with the same heuristic constraints as the orchestrator — this is assumed based on orchestrator behavior but has not been empirically verified for subagent contexts. Fix is good practice regardless. Note: the Phase 4 orchestrator commit (~L415) is already properly specified.
+- [x] **Pre-implementation verification for #9:** Before fixing, empirically test whether a Task subagent inherits static allow rules from `.claude/settings.json`. If `Bash(git:*)` is inherited, the subagent's `git commit -m` would auto-approve (making the fix good practice but not strictly necessary). If NOT inherited, the fix is critical. Document the result.
+- [x] **#10 resolve-pr-parallel/SKILL.md ~L119:** Expand "Commit changes with a clear message" to include Write tool + `git commit -F` method.
 
 ### Step 3: Create `write-tool-discipline.sh` QA Script
 
@@ -149,9 +149,9 @@ emit_output "Write Tool Discipline Check"
 
 **Self-detection note:** Script contains detection patterns as regex strings. Not a live risk since `scripts/` is not in scan scope. Document in header comment.
 
-- [ ] Create `write-tool-discipline.sh`
-- [ ] Make executable
-- [ ] Verify it returns 0 findings on fixed codebase
+- [x] Create `write-tool-discipline.sh`
+- [x] Make executable
+- [x] Verify it returns 0 findings on fixed codebase
 
 ### Step 4: Expand Scan Scope in All Tier 1 QA Scripts
 
@@ -159,10 +159,10 @@ Add `skills/*/workflows/*.md` to the scan scope of all existing Tier 1 scripts t
 
 Scripts to update (verify each has a scan file collection step):
 
-- [ ] `context-lean-grep.sh` — has the narrowest scope (only `do-*/SKILL.md`), most critical to expand
-- [ ] `no-shell-atomicity.sh`
-- [ ] `unslugged-paths.sh`
-- [ ] `truncation-check.sh` — requires workflow-specific thresholds (see sub-step below)
+- [x] `context-lean-grep.sh` — has the narrowest scope (only `do-*/SKILL.md`), most critical to expand
+- [x] `no-shell-atomicity.sh`
+- [x] `unslugged-paths.sh`
+- [x] `truncation-check.sh` — requires workflow-specific thresholds (see sub-step below)
 
 **Note:** `stale-references.sh` already uses recursive `grep -rnE --include="*.md"` across `$PLUGIN_ROOT/skills` — it already covers `skills/*/workflows/*.md`. No expansion needed.
 
@@ -170,9 +170,9 @@ Scripts to update (verify each has a scan file collection step):
 - No frontmatter requirement (or optional)
 - Higher minimum line threshold (e.g., 20-50 lines — calibrate against current workflow file sizes)
 - Appropriate max-line cap if applicable
-- [ ] Read current workflow file sizes to calibrate thresholds
-- [ ] Add `workflow` file type rules to truncation-check.sh
-- [ ] Verify expanded truncation-check passes on all existing workflow files
+- [x] Read current workflow file sizes to calibrate thresholds
+- [x] Add `workflow` file type rules to truncation-check.sh
+- [x] Verify expanded truncation-check passes on all existing workflow files
 
 Scripts that do NOT need the expansion:
 - `version-sync.sh` — checks version strings in plugin.json/marketplace.json/CHANGELOG.md, does not scan .md content. **Skip.**
@@ -183,36 +183,36 @@ Scripts to verify at implementation time:
 
 For each script, add the glob pattern to the scan file collection step. Run each script individually after modification to confirm no new findings from the expanded scope (or fix any legitimate findings discovered).
 
-- [ ] Verify which scripts need expansion
-- [ ] Add `skills/*/workflows/*.md` glob to each
-- [ ] Run each modified script to check for new findings
-- [ ] Fix any legitimate new findings (scope expansion may surface violations beyond write-tool patterns)
+- [x] Verify which scripts need expansion
+- [x] Add `skills/*/workflows/*.md` glob to each
+- [x] Run each modified script to check for new findings
+- [x] Fix any legitimate new findings (scope expansion may surface violations beyond write-tool patterns)
 
 ### Step 5: Update Plugin Infrastructure
 
-- [ ] Verify `write-tool-discipline.sh` is discovered by plugin-changes-qa (check if it auto-discovers `scripts/plugin-qa/*.sh` or has a static list — register only if static)
-- [ ] Verify `file-counts.sh` expectations — check if it tracks QA script counts; update only if it does
-- [ ] Update CLAUDE.md Tier 1 scripts table (add write-tool-discipline.sh row)
-- [ ] Update AGENTS.md Tier 1 scripts table (if it lists QA scripts)
-- [ ] Verify README.md component counts still accurate
-- [ ] Update plugin.json + marketplace.json version (PATCH bump)
-- [ ] Update CHANGELOG.md
+- [x] Verify `write-tool-discipline.sh` is discovered by plugin-changes-qa (check if it auto-discovers `scripts/plugin-qa/*.sh` or has a static list — register only if static)
+- [x] Verify `file-counts.sh` expectations — check if it tracks QA script counts; update only if it does
+- [x] Update CLAUDE.md Tier 1 scripts table (add write-tool-discipline.sh row)
+- [x] Update AGENTS.md Tier 1 scripts table (if it lists QA scripts)
+- [x] Verify README.md component counts still accurate
+- [x] Update plugin.json + marketplace.json version (PATCH bump)
+- [x] Update CHANGELOG.md
 
 ### Step 6: Run Full QA
 
-- [ ] Run `/compound-workflows:plugin-changes-qa` (both Tier 1 + Tier 2)
-- [ ] Fix any findings
-- [ ] Commit atomically: all fixes + new script + scope expansion + infrastructure updates
+- [x] Run `/compound-workflows:plugin-changes-qa` (both Tier 1 + Tier 2)
+- [x] Fix any findings
+- [x] Commit atomically: all fixes + new script + scope expansion + infrastructure updates
 
 ## Acceptance Criteria
 
-- [ ] No `<< 'EOF'` or `<< 'YAML_EOF'` heredoc patterns in LLM-interpreted .md files (commands, skills, skill workflows, agents minus references)
-- [ ] No `echo >>` file modification patterns in LLM-interpreted .md files
-- [ ] All commit instructions in skills specify Write tool + `git commit -F` method
-- [ ] `write-tool-discipline.sh` exists and returns 0 findings
-- [ ] All applicable Tier 1 QA scripts scan `skills/*/workflows/*.md` (except stale-references.sh which already recurses)
-- [ ] All existing QA scripts pass (including expanded scope)
-- [ ] `migrate-stats-keys.sh` exists and preserves conditional + status output behavior
+- [x] No `<< 'EOF'` or `<< 'YAML_EOF'` heredoc patterns in LLM-interpreted .md files (commands, skills, skill workflows, agents minus references)
+- [x] No `echo >>` file modification patterns in LLM-interpreted .md files
+- [x] All commit instructions in skills specify Write tool + `git commit -F` method
+- [x] `write-tool-discipline.sh` exists and returns 0 findings
+- [x] All applicable Tier 1 QA scripts scan `skills/*/workflows/*.md` (except stale-references.sh which already recurses)
+- [x] All existing QA scripts pass (including expanded scope)
+- [x] `migrate-stats-keys.sh` exists and preserves conditional + status output behavior
 
 ## Design Decisions
 

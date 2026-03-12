@@ -37,6 +37,11 @@ for f in "$PLUGIN_ROOT"/skills/do-*/SKILL.md; do
   check14_files+=("$f")
 done
 
+for f in "$PLUGIN_ROOT"/skills/*/workflows/*.md; do
+  [[ -f "$f" ]] || continue
+  check14_files+=("$f")
+done
+
 if [[ "${#check14_files[@]}" -eq 0 ]]; then
   echo "Warning: no command or do-* skill files found" >&2
   emit_output "Context-Lean Grep Check"
@@ -73,7 +78,7 @@ for f in "${check14_files[@]}"; do
         continue
       fi
       # Skip lines where TaskOutput appears in a negative context
-      if echo "$line_text" | grep -qE 'TaskOutput.*(banned|prohibited|forbidden)' 2>/dev/null; then
+      if echo "$line_text" | grep -qE 'TaskOutput.*(banned|prohibited|forbidden|is never used)' 2>/dev/null; then
         continue
       fi
       line_num="$(echo "$match" | cut -d: -f1)"
@@ -197,6 +202,11 @@ for f in "$PLUGIN_ROOT"/skills/*/SKILL.md; do
   [[ -f "$f" ]] || continue
   # Skip files under references/
   case "$f" in */references/*) continue ;; esac
+  check5_files+=("$f")
+done
+
+for f in "$PLUGIN_ROOT"/skills/*/workflows/*.md; do
+  [[ -f "$f" ]] || continue
   check5_files+=("$f")
 done
 

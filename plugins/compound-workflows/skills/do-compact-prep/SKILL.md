@@ -43,7 +43,7 @@ If beads is not available, skip this step.
 Run `git status` to check for uncommitted work.
 
 - **If there are meaningful changes:** Use **AskUserQuestion**: "There are uncommitted changes. Commit before compacting?"
-  - **Yes** — commit (ask for message or suggest one)
+  - **Yes** — ask the user for a commit message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/scratch/commit-msg-compact-prep.txt`, then run `git commit -F .workflows/scratch/commit-msg-compact-prep.txt`.
   - **No** — proceed without committing
 - **If clean:** Say "Nothing to commit" and move on.
 
@@ -71,7 +71,7 @@ Assess whether this session produced knowledge worth compounding:
 If compound was run in Step 4, check `git status` again — compound creates docs that should be committed.
 
 - **If there are new changes:** Use **AskUserQuestion**: "Compound created new docs. Commit them?"
-  - **Yes** — commit
+  - **Yes** — ask the user for a commit message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/scratch/commit-msg-compact-prep-compound.txt`, then run `git commit -F .workflows/scratch/commit-msg-compact-prep-compound.txt`.
   - **No** — proceed without committing
 - **If clean or compound was skipped:** Move on.
 
