@@ -605,6 +605,11 @@ tracker: [beads|todowrite]
 gh_cli: [available|not available]
 stats_capture: true
 stats_classify: true
+compact_version_check: false
+compact_cost_summary: true
+compact_auto_commit: false
+compact_compound_check: true
+compact_push: true
 ```
 
 Fill in based on detected environment. Red team provider preferences are NOT stored — they're detected at runtime each session (CLI availability varies by machine and may change). Stats toggles default to `true` — capture and classification are enabled unless explicitly disabled.
@@ -641,7 +646,22 @@ Do not use plan mode, ad-hoc research agents, or inline answers for tasks that h
 - **Reviewing code changes**: `/do:review` — do not review inline
 - **Solved a non-obvious problem**: `/do:compound` to capture institutional knowledge
 - **Before `/compact`**: `/do:compact-prep` to preserve session context
+- **Abandoning a session** ("done for today", "wrapping up for the day", "closing out", "ending the session"): `/do:abandon` — do not just close the terminal
 - **Recovering a dead/exhausted session**: `/compound-workflows:recover`
+
+### Session-End Detection
+
+When you detect session-end language ("done for today", "wrapping up for the day", "closing out",
+"ending the session", "abandoning"), add an inline text suggestion:
+
+> Tip: run `/do:abandon` to capture session knowledge before closing.
+
+**This is a suggestion, not a gate.** Do not ask, do not block, do not repeat if the user continues working.
+
+**Suppression rules:**
+- Suppress after the user dismisses it or ignores it twice in the same session (track in conversation context)
+- Ambiguous phrases ("I'm done", "that's all") excluded from triggers — they fire on task completion, creating cry-wolf pattern
+- If the user says "stop suggesting /abandon", stop immediately for the remainder of the session
 ```
 
 ### 8d: Migration Check
@@ -660,6 +680,22 @@ bash ${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh
 ```
 
 Read the stdout for `STATS_KEYS_ADDED=true` status.
+
+**Compact-prep config key migration:** If `compound-workflows.local.md` exists, check for each of the 5 compact config keys independently and append any that are missing with their defaults. Keys may be partially present (e.g., user added some manually). Handle each key independently:
+
+**Migration procedure:** Read `compound-workflows.local.md` (create with `touch` if it does not exist). For each of the 5 compact config keys below, check whether the key is already present (`grep -q`). For any missing key, use the **Edit tool** to append it at the end of the file with its default value.
+
+| Key | Default |
+|-----|---------|
+| `compact_version_check` | `false` |
+| `compact_cost_summary` | `true` |
+| `compact_auto_commit` | `false` |
+| `compact_compound_check` | `true` |
+| `compact_push` | `true` |
+
+Handle each key independently — partial presence is expected during migration.
+
+Defaults rationale: most keys default to `true` (enabled, preserves current behavior). Exceptions: `compact_version_check` defaults to `false` (only relevant to plugin developers, not regular users) and `compact_auto_commit` defaults to `false` (opt-in to auto-execute — stronger behavior change).
 
 If an old-format `compound-workflows.local.md` exists (look for `review_agents:` in the local file, or `review_agents: compound-engineering`), inform the user:
 

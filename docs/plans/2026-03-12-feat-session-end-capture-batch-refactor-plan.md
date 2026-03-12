@@ -1,7 +1,7 @@
 ---
 title: "feat: Session-end capture + compact-prep batch refactor"
 type: feat
-status: active
+status: completed
 date: 2026-03-12
 bead: ka3w
 origin: docs/brainstorms/2026-03-12-session-end-capture-brainstorm.md
@@ -25,19 +25,19 @@ Rewrite compact-prep from a sequential 9-step checklist with 4-5 interactive pro
 
 ## Acceptance Criteria
 
-- [ ] compact-prep presents ONE consolidated batch prompt instead of 4-5 sequential prompts
-- [ ] `--abandon` flag skips queue-next-task and adapts summary wording
-- [ ] `/do:abandon` thin skill invokes `/do:compact-prep --abandon`
-- [ ] 5 config toggles respected: toggled-off steps don't appear in check phase or batch prompt
-- [ ] Memory writes go to temp files during check, copied after approval
-- [ ] Execute phase follows hard ordering: memory-copy → commit → compound → commit compound docs → version actions → ccusage snapshot → push
-- [ ] Per-step retry (retry/skip/abort) on any execute-phase failure
-- [ ] Push omitted from batch if no git remote configured
-- [ ] Session-end language detection in AGENTS.md suggests `/do:abandon` inline
-- [ ] Suggestion suppressed after user dismisses or ignores twice
-- [ ] Free-text "Other" option in batch prompt with parsing rules
-- [ ] All Tier 1 QA scripts pass
-- [ ] Tier 2 semantic agents pass
+- [x] compact-prep presents ONE consolidated batch prompt instead of 4-5 sequential prompts
+- [x] `--abandon` flag skips queue-next-task and adapts summary wording
+- [x] `/do:abandon` thin skill invokes `/do:compact-prep --abandon`
+- [x] 5 config toggles respected: toggled-off steps don't appear in check phase or batch prompt
+- [x] Memory writes go to temp files during check, copied after approval
+- [x] Execute phase follows hard ordering: memory-copy → commit → compound → commit compound docs → version actions → ccusage snapshot → push
+- [x] Per-step retry (retry/skip/abort) on any execute-phase failure
+- [x] Push omitted from batch if no git remote configured
+- [x] Session-end language detection in AGENTS.md suggests `/do:abandon` inline
+- [x] Suggestion suppressed after user dismisses or ignores twice
+- [x] Free-text "Other" option in batch prompt with parsing rules
+- [x] All Tier 1 QA scripts pass
+- [x] Tier 2 semantic agents pass
 
 ## Implementation
 
@@ -59,9 +59,9 @@ compact_push: true
 
 Defaults: all enabled (preserves current behavior) except `compact_auto_commit` (defaults `false`, opt-in to auto-execute) and `compact_version_check` (defaults `false` — only relevant to plugin developers, not regular users).
 
-- [ ] Add keys to Step 8b template in do-setup SKILL.md
-- [ ] Add migration logic in Step 8d: first check file exists (`touch compound-workflows.local.md` or `[ -f ... ]` guard), then for each of the 5 keys, `grep -q 'key_name:' compound-workflows.local.md`. If absent, append `key_name: <default>` at end of file. Handle each key independently (partial presence expected during migration). Defaults: `compact_version_check: false`, `compact_cost_summary: true`, `compact_auto_commit: false`, `compact_compound_check: true`, `compact_push: true` [red-team M1: config file may not exist]
-- [ ] Add keys to reference skill (`plugins/compound-workflows/skills/setup/SKILL.md`) Step 8b template and migration. Note: this is a separate skill from do-setup — it provides reference material and has its own config template that must be kept in sync manually (see plugin CLAUDE.md "Setup: Three-Way Relationship")
+- [x] Add keys to Step 8b template in do-setup SKILL.md
+- [x] Add migration logic in Step 8d: first check file exists (`touch compound-workflows.local.md` or `[ -f ... ]` guard), then for each of the 5 keys, `grep -q 'key_name:' compound-workflows.local.md`. If absent, append `key_name: <default>` at end of file. Handle each key independently (partial presence expected during migration). Defaults: `compact_version_check: false`, `compact_cost_summary: true`, `compact_auto_commit: false`, `compact_compound_check: true`, `compact_push: true` [red-team M1: config file may not exist]
+- [x] Add keys to reference skill (`plugins/compound-workflows/skills/setup/SKILL.md`) Step 8b template and migration. Note: this is a separate skill from do-setup — it provides reference material and has its own config template that must be kept in sync manually (see plugin CLAUDE.md "Setup: Three-Way Relationship")
 
 **1.2 Document config reading pattern in compact-prep:**
 
@@ -75,10 +75,10 @@ This is the core change — restructuring from 9 sequential steps into a two-pha
 
 #### 2.0 Input & Initialization
 
-- [ ] Parse `#$ARGUMENTS` for `--abandon` flag (LLM-interpreted — the LLM reads the argument string and understands the intent semantically, not via regex or substring matching)
-- [ ] Read `compound-workflows.local.md` for all 5 config toggle keys
-- [ ] Run `init-values.sh compact-prep` to get PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE
-- [ ] Generate a run ID and create run directory: `mkdir -p .workflows/compact-prep/<run-id>/memory-pending/`
+- [x] Parse `#$ARGUMENTS` for `--abandon` flag (LLM-interpreted — the LLM reads the argument string and understands the intent semantically, not via regex or substring matching)
+- [x] Read `compound-workflows.local.md` for all 5 config toggle keys
+- [x] Run `init-values.sh compact-prep` to get PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE
+- [x] Generate a run ID and create run directory: `mkdir -p .workflows/compact-prep/<run-id>/memory-pending/`
 
 **Flag detection:** The LLM reads `$ARGUMENTS` and determines whether abandon mode is intended. This is semantic interpretation, not bash parsing — no regex or token-boundary detection needed. Strip `--abandon` from arguments to get the remaining post-compaction task (if any — unlikely in abandon mode, but don't break if provided).
 
@@ -348,8 +348,8 @@ No `allowed-tools` or model specifications needed — compact-prep handles its o
 
 **Divergence from brainstorm:** Decision 4 specified a thin alias command in `commands/compound/`. Changed to a skill because research found the 8-command registration cap in `commands/compound/` — adding a 9th risks silent loss. [red-team S6: document divergence for traceability]
 
-- [ ] Create skills/do-abandon/SKILL.md
-- [ ] Verify skill frontmatter matches plugin conventions
+- [x] Create skills/do-abandon/SKILL.md
+- [x] Verify skill frontmatter matches plugin conventions
 
 ### Phase 4: Auto-Detect Routing
 
@@ -390,23 +390,23 @@ When you detect session-end language ("done for today", "wrapping up for the day
 
 Copy the exact text from Phase 4.1 (routing entry) and Phase 4.2 (session-end detection subsection) into do-setup Step 8c's canonical routing template, after the existing routing entries. The text is identical — no adaptation needed for the setup context.
 
-- [ ] Add /do:abandon routing entry to AGENTS.md
-- [ ] Add session-end detection section to AGENTS.md
-- [ ] Update do-setup Step 8c canonical routing
+- [x] Add /do:abandon routing entry to AGENTS.md
+- [x] Add session-end detection section to AGENTS.md
+- [x] Update do-setup Step 8c canonical routing
 
 ### Phase 5: Plugin Manifests
 
-- [ ] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` (MINOR — new skill. Read current version, increment middle number, reset patch to 0)
-- [ ] Bump version in `.claude-plugin/marketplace.json`
-- [ ] Update `plugins/compound-workflows/CHANGELOG.md`
-- [ ] Update `plugins/compound-workflows/README.md` — verify skill count (new: do-abandon)
-- [ ] Update `plugins/compound-workflows/CLAUDE.md` — add do-abandon to skills directory listing, update do-compact-prep description
+- [x] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` (MINOR — new skill. Read current version, increment middle number, reset patch to 0)
+- [x] Bump version in `.claude-plugin/marketplace.json`
+- [x] Update `plugins/compound-workflows/CHANGELOG.md`
+- [x] Update `plugins/compound-workflows/README.md` — verify skill count (new: do-abandon)
+- [x] Update `plugins/compound-workflows/CLAUDE.md` — add do-abandon to skills directory listing, update do-compact-prep description
 
 ### Phase 6: QA
 
-- [ ] Run `/compound-workflows:plugin-changes-qa` (both tiers)
-- [ ] Verify all Tier 1 scripts pass (especially file-counts.sh after adding new skill)
-- [ ] Verify Tier 2 semantic agents pass
+- [x] Run `/compound-workflows:plugin-changes-qa` (both tiers)
+- [x] Verify all Tier 1 scripts pass (especially file-counts.sh after adding new skill)
+- [x] Verify Tier 2 semantic agents pass
 - [ ] Manual test: run `/do:compact-prep` in a test session, verify single batch prompt
 - [ ] Manual test: run `/do:abandon`, verify Step 8 skipped
 - [ ] Manual test: set `compact_version_check: false`, verify version check omitted from batch

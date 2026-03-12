@@ -1,55 +1,109 @@
 ---
 name: do:compact-prep
 description: Prepare for context compaction — save memory, commit, queue next task
-argument-hint: "[optional: task to resume after compaction]"
+argument-hint: "[--abandon] [optional: task to resume after compaction]"
 ---
 
 # /compact-prep — Pre-Compaction Checklist
 
-Run this before `/compact` to preserve session context. Execute all steps in order.
+Run this before `/compact` to preserve session context. Uses a two-phase architecture: gather all information first (check phase), present a single consolidated prompt (batch phase), then execute approved actions (execute phase).
 
-## Input
+## Input & Initialization
 
-<post_compaction_task> #$ARGUMENTS </post_compaction_task>
+<arguments> #$ARGUMENTS </arguments>
 
-## Step 1: Update Memory
+### Parse Arguments
 
-Review the conversation for anything worth persisting to `memory/`. Focus on:
+The LLM reads `<arguments>` and determines:
+
+1. **Abandon mode** — whether `--abandon` is intended. This is semantic interpretation, not regex or substring matching. Variations like `--abandon`, `abandon`, `abandoning session`, etc. all trigger abandon mode.
+2. **Post-compaction task** — any remaining text after stripping the abandon flag (if present). Unlikely in abandon mode, but don't break if provided.
+
+### Read Config
+
+Read `compound-workflows.local.md` for these 5 config keys. For each key: if the file doesn't exist, the key is absent, or the value is unreadable, use the default.
+
+| Key | Default | Effect when `false` |
+|-----|---------|-------------------|
+| `compact_version_check` | `false` | Skip version check entirely |
+| `compact_cost_summary` | `true` | Skip cost summary entirely |
+| `compact_auto_commit` | `false` | N/A — this is an auto-execute toggle, not a skip toggle (see below) |
+| `compact_compound_check` | `true` | Skip compound assessment entirely |
+| `compact_push` | `true` | Skip push remote detection entirely |
+
+**`compact_auto_commit` semantics:** Unlike the other 4 toggles which are skip toggles (false = step doesn't run), `compact_auto_commit` is an auto-execute toggle. When `true`: git status check still runs in the check phase, "Skip commit" does NOT appear in the batch action list, and commit executes automatically with a suggested message in the execute phase.
+
+### Initialize Values
+
+Run init-values.sh to get shared values:
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh compact-prep
+```
+
+Read the output and track these values for use throughout: PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE. If init-values.sh fails or any critical value is empty, warn the user and stop.
+
+### Generate Run ID and Directory
+
+Generate a short run ID (e.g., 8 hex chars) and create the run directory:
+
+```bash
+mkdir -p .workflows/compact-prep/<run-id>/memory-pending/
+```
+
+This directory scopes all temp files for this run. No cleanup of prior runs needed — each gets its own directory. The directory is retained after completion for analytics value.
+
+---
+
+## Check Phase
+
+**NO SIDE EFFECTS on production files.** All checks run silently, collecting results for the batch prompt. The only writes permitted are to the temp directory `.workflows/compact-prep/<run-id>/memory-pending/`. Config-toggled-off checks are skipped entirely — they don't run and don't appear later.
+
+**Check-phase failure handling:** If any check fails (e.g., `version-check.sh` errors, `ccusage` crashes, `bd` unavailable), note it as "unavailable" in the summary and omit the corresponding batch action. Do not halt or retry during the check phase — failures are informational.
+
+**Ordering:** Checks are order-independent (all side-effect-free). Run them in whatever order is natural.
+
+### Check A: Memory Scan
+
+Review the conversation for memory-worthy information. Scan for:
 
 - **Facts learned** — names, roles, relationships, financial details, confirmed data points
-- **Working style observations** — editing patterns, communication preferences, questioning style, iteration approach
-- **Terms/jargon** — new acronyms, shorthand, or project codenames used
-- **Decision rationale** — scan the user's responses for *why* they chose something, not just *what* they chose. The "because" clauses in their replies are the high-value context. Decisions often survive in documents; the reasoning behind them often doesn't. Persist rationale to memory as context alongside the core information being remembered.
+- **Working style observations** — editing patterns, communication preferences, questioning style
+- **Terms/jargon** — new acronyms, shorthand, or project codenames
+- **Decision rationale** — *why* the user chose something (the "because" clauses in their replies)
 - **Corrections** — anything that contradicts existing memory (update or remove the old entry)
 
-Read relevant memory files first, then update only if there's genuinely new information. Don't duplicate what's already stored.
+Read existing memory files first. Only write if there's genuinely new information.
 
-Tell the user what you updated and why (1-2 sentences per update, not a wall of text).
+For each proposed update:
+1. Create parent directories if needed (use `mkdir -p` for nested paths)
+2. Use the **Write tool** to write the **complete new file content** to `.workflows/compact-prep/<run-id>/memory-pending/<path>` — mirror the target path structure (e.g., `memory/patterns.md` maps to `memory-pending/patterns.md`, `memory/sub/file.md` maps to `memory-pending/sub/file.md`). Do NOT write to `memory/` during check phase.
 
-## Step 2: Beads Check
+Record: number of updates identified, which files, and an **abbreviated diff per file** showing key additions/removals. These diffs appear in the batch prompt so the user can review the actual changes they're approving.
 
-If beads (`bd`) is available:
+### Check B: Beads Check (informational only — no batch action)
 
-1. Check for in-progress issues:
-   ```bash
-   bd list --status=in_progress
-   ```
-   If any exist, warn the user: "N issues are still in_progress. Close or note them before compacting — you'll lose track of where you were otherwise."
+If `bd` is available:
 
-If beads is not available, skip this step.
+```bash
+bd list --status=in_progress
+```
 
-## Step 3: Commit Check (pre-compound)
+Record: count of in-progress issues. This is display-only in the summary — no "skip beads" action in the batch. Beads require manual judgment to close or leave open.
 
-Run `git status` to check for uncommitted work.
+If `bd` is not available, skip silently.
 
-- **If there are meaningful changes:** Use **AskUserQuestion**: "There are uncommitted changes. Commit before compacting?"
-  - **Yes** — ask the user for a commit message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/scratch/commit-msg-compact-prep.txt`, then run `git commit -F .workflows/scratch/commit-msg-compact-prep.txt`.
-  - **No** — proceed without committing
-- **If clean:** Say "Nothing to commit" and move on.
+### Check C: Git Status
 
-This runs before compound so that current work is saved first.
+```bash
+git status
+```
 
-## Step 4: Compound Check
+Record: number of uncommitted files, brief description of what changed.
+
+### Check D: Compound Assessment
+
+**Skip entirely if `compact_compound_check: false`.**
 
 Assess whether this session produced knowledge worth compounding:
 
@@ -58,64 +112,38 @@ Assess whether this session produced knowledge worth compounding:
 - Strategic/architectural decision with reusable rationale?
 - Research that surfaced reusable findings?
 
-**If yes**, use **AskUserQuestion**:
+Record: worthy/not-worthy. If worthy, include a 1-2 sentence summary.
 
-"This session has compound-worthy knowledge: [1-2 sentence summary of what's worth capturing]. Run `/do:compound` now? (Must run before compacting — compound needs the full conversation context.)"
-- **Yes — run /do:compound now** — pause compact-prep, user runs compound, then resume at Step 5
-- **Skip** — proceed without compounding
+### Check E: Version Check
 
-**If no:** Say "Nothing to compound" and move on.
+**Skip entirely if `compact_version_check: false`.**
 
-## Step 5: Commit Check (post-compound)
-
-If compound was run in Step 4, check `git status` again — compound creates docs that should be committed.
-
-- **If there are new changes:** Use **AskUserQuestion**: "Compound created new docs. Commit them?"
-  - **Yes** — ask the user for a commit message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/scratch/commit-msg-compact-prep-compound.txt`, then run `git commit -F .workflows/scratch/commit-msg-compact-prep-compound.txt`.
-  - **No** — proceed without committing
-- **If clean or compound was skipped:** Move on.
-
-## Step 6: Version Check
-
-Run the version check script to compare source, installed, and released versions:
-
-```bash
-bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh compact-prep
-```
-
-Read the output. Track the values PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
-
-Then run the version check using the VERSION_CHECK value from the output:
+Run `version-check.sh` using the VERSION_CHECK path from init-values.sh:
 
 ```bash
 bash <VERSION_CHECK>
 ```
 
-If VERSION_CHECK is empty or the script is not found, say "version-check.sh not found — skipping".
-- **If all versions match** (exit code 0): Say "Versions OK." and move on.
-- **If STALE or UNRELEASED detected** (exit code 1): Present the script's full output to the user, then use **AskUserQuestion** for each actionable item:
-  - **STALE** — "Plugin is stale. Update now?"
-    - **Yes** — run `claude plugin update compound-workflows@compound-workflows-marketplace`
-    - **No** — proceed without updating
-  - **UNRELEASED** — only act on this if `plugins/compound-workflows/` exists locally (you're in the plugin source repo). For regular users, UNRELEASED is informational only — skip it.
-    - **In source repo** — "Version X.Y.Z has no release. Create one now?"
-      - **Yes** — create tag and release: `git tag vX.Y.Z && git push origin vX.Y.Z && gh release create vX.Y.Z --title "vX.Y.Z" --notes "<changelog entry>"`
-      - **No** — proceed without releasing
+If VERSION_CHECK is empty or the script is not found, note as "unavailable."
 
-## Step 7: Daily Cost Summary
+Record: versions match / STALE / UNRELEASED status, and the full script output for reference.
 
-Check if `ccusage` is installed and report today's cost/token usage:
+Note: The check always makes the network call (unless config-toggled off). Results are informational in the summary line. STALE/UNRELEASED findings are NOT part of the batch — they get a separate dedicated prompt in the execute phase (Section 2.3.5).
+
+### Check F: Cost Summary (informational only — no batch action)
+
+**Skip entirely if `compact_cost_summary: false`.**
+
+Check if `ccusage` is installed:
 
 ```bash
-which ccusage 2>/dev/null
+which ccusage
 ```
 
-**If ccusage is available:**
-
-Use the DATE_COMPACT value from init-values.sh output:
+If available, run:
 
 ```bash
-ccusage daily --json --breakdown --since <DATE_COMPACT> --offline 2>/dev/null
+ccusage daily --json --breakdown --since <DATE_COMPACT> --offline
 ```
 
 Parse the JSON output defensively — field naming varies across ccusage versions:
@@ -125,35 +153,234 @@ Parse the JSON output defensively — field naming varies across ccusage version
 
 Check for all three field names when extracting cost data.
 
-**Display format:** "Today's cost: $X.XX (input: Nk tokens, output: Mk tokens)" — include per-model breakdown if `--breakdown` data is available.
+**Sonnet savings estimate:** If breakdown data shows both Opus and Sonnet usage, calculate estimated savings: `sonnet_cost * 4` (what those tokens would have cost on Opus minus what they actually cost on Sonnet — Sonnet is ~5x cheaper, so savings = sonnet_cost * 4). Calculate percentage: `savings / (total_cost + savings) * 100`.
 
-**Sonnet savings estimate:** If breakdown data shows both Opus and Sonnet usage, calculate estimated savings: `sonnet_cost * 4` (what those tokens would have cost on Opus minus what they actually cost on Sonnet — Sonnet is ~5x cheaper, so savings = sonnet_cost * 4). Calculate percentage: `savings / (total_cost + savings) * 100`. Display as: "Estimated Sonnet savings: ~$X.XX (N% — Sonnet tokens would have cost ~$Y.YY on Opus)".
+Record: cost string, savings string. Display-only in summary — no associated batch action.
 
-If JSON parsing fails for any reason, show the raw summary output rather than erroring.
+If JSON parsing fails, note the raw summary output rather than erroring.
 
-**If ccusage is not available:** "ccusage not installed — skip token tracking. Install: `npm install -g ccusage`"
+### Check G: Push Remote Detection
 
-> **Limitation:** ccusage tracks daily aggregate usage across all sessions, not per-session or per-agent breakdowns.
+**Skip entirely if `compact_push: false`.**
 
-### Step 7b: Persist ccusage Snapshot
+```bash
+git remote -v
+```
 
-If ccusage data was successfully retrieved and parsed in Step 7 (i.e., ccusage was available AND JSON parsing succeeded), persist a snapshot to the stats directory. If ccusage was not available or parsing failed, skip this entirely — do not error.
+Record: has_remote (boolean) — determines whether push appears in the batch.
 
-Use the SNAPSHOT_FILE, TIMESTAMP, and PLUGIN_ROOT values from init-values.sh output:
+---
+
+## Batch Prompt
+
+Build the consolidated prompt from check results. Only include actions for checks that ran AND produced actionable results.
+
+**CRITICAL: Selecting = SKIP (not approve). Empty selection = proceed with all actions.**
+
+### Summary Section (always shown)
+
+Display the summary to provide visibility into what the checks found:
+
+```
+Session end summary:
+- Memory: N updates identified
+  - patterns.md: +2 lines (bash heuristic discovery), -0 lines
+  - project.md: ~3 lines changed (ka3w status -> plan phase)
+- Beads: N issues still in_progress / clean
+- Git: N uncommitted files / clean
+- Compound: worthy (summary) / nothing to compound    [omit line if check skipped]
+- Versions: all match / STALE / UNRELEASED             [omit line if check skipped]
+- Cost: today $X.XX (saved ~$Y.YY via Sonnet)          [omit line if check skipped]
+```
+
+Memory detail is important: the user is approving writes based on these descriptions, not blind counts. Show the per-file abbreviated diffs from Check A.
+
+For config-disabled steps, show the summary line as "skipped (config)" for transparency.
+
+### Action List — Inverted Multi-Select
+
+Build the skip-list dynamically based on what's actionable:
+
+| Condition | Action in batch |
+|-----------|----------------|
+| Memory updates identified | "Skip memory updates" |
+| Uncommitted files AND `compact_auto_commit` is false | "Skip commit" |
+| Compound-worthy | "Skip compound" |
+| has_remote is true | "Skip push" |
+
+**Omissions — do NOT include these in the action list:**
+- If `compact_auto_commit: true`: commit doesn't appear — it auto-executes
+- Steps toggled off via config: summary line shows "skipped (config)" but no batch action
+- Steps with no actionable result (e.g., git clean, versions match, nothing to compound): no action in list, but summary line still shows
+- Version actions are NOT in the batch — they get a separate dedicated prompt in the execute phase
+
+**If zero actions are actionable:** Skip the AskUserQuestion entirely. Show the summary, say "Nothing to act on," and proceed directly to the Queue Task / Summary sections.
+
+### AskUserQuestion Format
+
+Use **AskUserQuestion**:
+
+```
+question: "[summary text above]\n\nSelect actions to SKIP (leave empty to proceed with all):"
+multiSelect: true
+options:
+  - label: "Skip memory updates"
+    description: "N files to update (file1.md, file2.md)"
+  - label: "Skip commit"
+    description: "N uncommitted files"
+  - label: "Skip compound"
+    description: "[1-2 sentence summary of what's worth capturing]"
+  - label: "Skip push"
+    description: "Push commits to remote"
+```
+
+Note: AskUserQuestion automatically adds an "Other" option with free-text input — do not add it to the options list manually.
+
+### Empty Selection Confirmation
+
+If the user submits with nothing selected (empty = proceed with all), add a single confirmation via **AskUserQuestion** (Yes/No): "Proceed with all N actions?" This prevents accidental approval from a quick Enter press.
+
+### Free-Text Handling (when user selects "Other")
+
+If the user selects "Other" and provides free text:
+- **Best-effort interpretation** — apply reasonable judgment, not deterministic parsing
+- If unambiguous (e.g., "commit with message 'fix typo'"): apply it
+- If ambiguous (e.g., "just do the important stuff"): ask a single clarifying follow-up
+- The per-step retry/skip/abort mechanism in the execute phase is the real safety net — if free text is misinterpreted, the user can correct at execution time
+- Common free-text use case: specifying a commit message (e.g., "commit with message 'session end cleanup'")
+
+### Batch-to-Execute Mapping
+
+Each batch item maps to one or more execute steps:
+
+| Batch item | Execute steps |
+|------------|--------------|
+| "Skip memory updates" | Step 1 (copy temp files) |
+| "Skip commit" | Step 2 (commit pre-compound) only |
+| "Skip compound" | Step 3 (compound) + Step 4 (commit compound docs) |
+| "Skip push" | Step 7 (push) |
+
+Skipping "compound" skips both the compound run AND its post-compound commit (one logical unit). Skipping "commit" skips only the pre-compound commit (Step 2). Step 4 (commit compound docs) is always tied to compound — if compound ran and produced output, its docs are committed regardless of the "Skip commit" selection.
+
+### Commit Message Handling
+
+Auto-suggest descriptive commit messages based on what changed (e.g., "docs: update memory files" for pre-compound, "docs: compound solution -- [topic]" for post-compound). The user can override via the "Other" free-text field. If `compact_auto_commit: true`, commit messages are always auto-generated.
+
+---
+
+## Execute Phase
+
+Execute approved actions in **strict dependency order**. Do not reorder. Per-step retry on failure.
+
+**Reminder: selecting = SKIP in the batch prompt. If the user selected "Skip X", do NOT execute X.**
+
+### Step 1: Copy Memory Temp Files
+
+**Skip if:** user selected "Skip memory updates" OR no memory updates were identified.
+
+Copy each file from `.workflows/compact-prep/<run-id>/memory-pending/<path>` to `memory/<path>` using the **Read tool** to read each temp file and the **Write tool** to write to the target path. Create parent directories as needed.
+
+Tell the user what was updated (1-2 sentences per update, not a wall of text).
+
+### Step 2: Commit (pre-compound)
+
+**Skip if:** user selected "Skip commit" AND `compact_auto_commit` is false.
+**Execute if:** user did NOT select "Skip commit" OR `compact_auto_commit` is true.
+
+Re-run `git status` to get a **fresh file set** — do NOT use stale Check C results. Memory files were copied in Step 1 and must be included in this commit.
+
+- If **auto-commit** (`compact_auto_commit: true`): suggest a commit message and execute without prompting. Use the **Write tool** to write the message to `.workflows/scratch/commit-msg-compact-prep.txt`, then run `git add` for modified/new files and `git commit -F .workflows/scratch/commit-msg-compact-prep.txt`.
+- If **manual**: ask the user for a message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/scratch/commit-msg-compact-prep.txt`, then run `git add` for modified/new files and `git commit -F .workflows/scratch/commit-msg-compact-prep.txt`.
+- If no uncommitted changes exist at this point: no-op, proceed silently.
+
+### Step 3: Run Compound
+
+**Skip if:** user selected "Skip compound" OR compound was not worthy.
+
+Before pausing:
+1. Use the **Write tool** to write batch state to `.workflows/compact-prep/<run-id>.json` with: `{ "run_id": "<run-id>", "abandon_mode": <bool>, "approved_actions": [...], "skipped_actions": [...], "current_step": 3, "completed_steps": [<list>], "config": { <5 config keys> }, "timestamp": "<timestamp>" }`
+2. Tell the user: "Running /do:compound now. Resume compact-prep after compound completes."
+3. Pause — the user runs `/do:compound` separately.
+4. On resume: read state file from `.workflows/compact-prep/<run-id>.json`, continue at Step 4.
+
+### Step 4: Commit Compound Docs
+
+**Skip if:** compound was skipped (Step 3 was skipped).
+
+Check `git status` for new files from compound.
+
+- If **no new files** (compound ran but produced nothing): no-op, proceed silently. Do NOT trigger retry/skip/abort.
+- If **new files** and auto-commit: commit automatically with a suggested message (e.g., "docs: compound solution -- [topic]"). Use the **Write tool** to write the message to `.workflows/scratch/commit-msg-compact-prep-compound.txt`, then run `git add` for the new files and `git commit -F .workflows/scratch/commit-msg-compact-prep-compound.txt`.
+- If **new files** and manual: commit with a suggested or user-provided message using the same Write-then-commit-F pattern.
+
+### Step 5: Version Actions
+
+**This step is NOT part of the batch prompt.** Version actions are high-impact (install new plugin, create GitHub release) and deserve explicit consent.
+
+**Skip entirely if `compact_version_check: false`.**
+
+Re-run `version-check.sh` to get **fresh status** (check-phase results may be stale after commits):
+
+```bash
+bash <VERSION_CHECK>
+```
+
+**If STALE:** Present a **separate dedicated AskUserQuestion**:
+
+"Plugin is stale (installed X.Y.Z, released A.B.C). Update now?"
+- **Yes** — run `claude plugin update compound-workflows@compound-workflows-marketplace`
+- **No** — skip
+
+**If UNRELEASED (source repo only):** Present a **separate dedicated AskUserQuestion**:
+
+"Version X.Y.Z has no release. Create one now?"
+- **Yes** — create local tag (`git tag vX.Y.Z`). If push was NOT skipped in the batch, also push the tag and create a release (`git push origin vX.Y.Z` then `gh release create vX.Y.Z --title "vX.Y.Z" --notes "<changelog entry>"`). If push WAS skipped, the tag stays local only. If `gh release create` fails after the tag was created, clean up the orphan tag: `git tag -d vX.Y.Z` and `git push origin :refs/tags/vX.Y.Z` (if it was pushed).
+- **No** — skip
+
+If versions match or version check is unavailable: no-op, proceed silently.
+
+### Step 6: Persist ccusage Snapshot
+
+**Non-interactive.** No batch action — this is background housekeeping.
+
+If cost summary data was successfully retrieved in Check F (ccusage was available AND JSON parsing succeeded), persist a snapshot:
 
 ```bash
 bash ${CLAUDE_SKILL_DIR}/../../scripts/append-snapshot.sh "<SNAPSHOT_FILE>" "<TIMESTAMP>" <total_cost> <input_tokens> <output_tokens> [additional_key=value pairs]
 ```
 
-**Core fields** (positional args): timestamp, total_cost_usd, input_tokens, output_tokens.
+If ccusage was not available or parsing failed, skip silently.
 
-**Extensible fields** (trailing key=value args): If the parsed ccusage output includes additional data (e.g., `cache_read_tokens`, `cache_write_tokens`, per-model cost breakdown), pass them as `key=value` pairs. The schema is extensible — unknown fields are preserved for future analysis.
+This step is in the execute phase (not check phase) to respect the "no side effects during check" principle.
 
-After the call, add a brief note to the Step 7 output: "ccusage snapshot saved to .workflows/stats/"
+### Step 7: Push
 
-## Step 8: Queue Post-Compaction Task
+**Skip if:** user selected "Skip push" OR has_remote is false OR `compact_push: false`.
 
-If the user provided a post-compaction task in `#$ARGUMENTS`, confirm it back to them clearly:
+```bash
+git push -u origin HEAD
+```
+
+The `-u` flag sets upstream tracking if not already set.
+
+### Per-Step Retry Semantics
+
+On failure at any step (1-7), present via **AskUserQuestion**:
+- **Retry** — re-attempt the failed step
+- **Skip** — proceed to the next step
+- **Abort** — stop executing, proceed to summary with partial results
+
+No automatic retry — the user must explicitly choose. If user retries and it fails again, present the same three options.
+
+**Compound is special:** Compound pauses compact-prep entirely (user runs `/do:compound` separately). If compound fails or the user cancels mid-compound, that's handled by compound's own error handling — compact-prep resumes at Step 4 regardless.
+
+---
+
+## Queue Post-Compaction Task
+
+**Abandon mode:** Skip this step entirely. Do not ask about post-compaction tasks — the user isn't coming back.
+
+**Regular mode:** If the user provided a post-compaction task in the arguments, confirm it back clearly:
 
 > **After compaction, say `resume` and I'll:** [restate the task]
 
@@ -161,19 +388,37 @@ If no task was provided, ask:
 
 > **Anything specific to pick up after compaction, or just `resume`?**
 
-## Step 9: Ready to Compact
+---
 
-Output a brief summary block:
+## Summary
+
+Always shown in both modes. Adapt wording based on mode.
+
+**Regular mode:**
 
 ```
 Ready to compact.
-- Memory: [updated X files / no updates needed]
-- Beads: [synced, N issues closed / no beads / N issues still in_progress]
-- Compound: [done / run NOW before compacting / nothing to compound]
-- Git: [clean / uncommitted changes — user declined commit]
-- Versions: [all match / updated plugin / released vX.Y.Z / user declined]
-- Cost: [today $X.XX, saved ~$Y.YY via Sonnet / ccusage not installed / parse error — raw output shown]
+- Memory: [updated X files / no updates needed / skipped]
+- Beads: [N issues in_progress / clean / no beads]
+- Compound: [done / nothing to compound / failed -- run manually before compacting / skipped / skipped (config)]
+- Git: [clean / uncommitted -- user skipped commit / auto-committed]
+- Versions: [all match / updated / released / user skipped / skipped (config)]
+- Cost: [today $X.XX, saved ~$Y.YY / ccusage not installed / skipped (config)]
 - After compaction: [task description / general resume]
 
 Run /compact when ready.
+```
+
+**Abandon mode:**
+
+```
+Session captured.
+- Memory: [updated X files / no updates needed / skipped]
+- Beads: [N issues in_progress / clean / no beads]
+- Compound: [done / nothing to compound / skipped / skipped (config)]
+- Git: [clean / uncommitted -- user skipped commit / auto-committed]
+- Versions: [all match / updated / released / user skipped / skipped (config)]
+- Cost: [today $X.XX, saved ~$Y.YY / ccusage not installed / skipped (config)]
+
+Session knowledge preserved. Safe to close.
 ```

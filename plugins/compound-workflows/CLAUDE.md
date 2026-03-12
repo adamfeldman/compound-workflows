@@ -45,8 +45,9 @@ templates/
 └── auto-approve.sh          # PreToolUse hook template — installed to .claude/hooks/ by /do:setup
 
 skills/
+├── do-abandon/              # Workflow: session-end capture without resumption (thin skill, delegates to do-compact-prep --abandon)
 ├── do-brainstorm/           # Workflow: explore requirements through collaborative dialogue
-├── do-compact-prep/         # Workflow: pre-compaction checklist — save memory, compound, commit
+├── do-compact-prep/         # Workflow: pre-compaction batch — check-then-act architecture, single consolidated prompt, --abandon flag
 ├── do-compound/             # Workflow: document solved problems for institutional knowledge
 ├── do-deepen-plan/          # Workflow: enhance plans with parallel research + red-team challenges
 ├── do-plan/                 # Workflow: transform ideas into implementation plans
@@ -140,11 +141,14 @@ Keys: stack, review_agents, plan_review_agents, depth, plan_readiness_skip_check
 
 ### `compound-workflows.local.md` (gitignored, per-machine)
 
-Machine-specific environment detection.
+Machine-specific environment detection and compact-prep behavior toggles.
 - `do-work` reads: tracker
 - `do-review` reads: gh_cli
+- `do-compact-prep` reads: compact_version_check, compact_cost_summary, compact_auto_commit, compact_compound_check, compact_push
 
-Keys: tracker, gh_cli.
+Keys: tracker, gh_cli, stats_capture, stats_classify, compact_version_check, compact_cost_summary, compact_auto_commit, compact_compound_check, compact_push.
+
+**Config reading pattern:** Read `compound-workflows.local.md` at the start of the command. For each key: if present, use its value; if absent, use the default. Most keys default to `true` (enabled) when missing. Exceptions: `compact_auto_commit` defaults to `false` (opt-in auto-execute) and `compact_version_check` defaults to `false` (only relevant to plugin developers). This follows the existing `stats_capture` convention where missing = enabled, with documented exceptions for keys where the default should be off.
 
 ### Red team dispatch (runtime, not stored)
 
