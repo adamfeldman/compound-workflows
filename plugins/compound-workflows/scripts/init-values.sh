@@ -11,7 +11,7 @@
 #   work                                   -> PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR
 #   compact-prep                           -> PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE
 #   setup                                  -> PLUGIN_ROOT, VERSION_CHECK
-#   plugin-changes-qa, classify-stats      -> REPO_ROOT, PLUGIN_ROOT
+#   plugin-changes-qa, classify-stats      -> REPO_ROOT, PLUGIN_ROOT, DATE, RUN_ID
 #   version                                -> VERSION_CHECK
 #
 # Exit codes:
@@ -223,11 +223,17 @@ case "$CMD" in
 
   plugin-changes-qa|classify-stats)
     REPO_ROOT_VAL="$(compute_repo_root)"
+    DATE_VAL="$(compute_date)"
+    RUN_ID_VAL="$(compute_run_id)"
 
     validate_plugin_root
+    validate_date "$DATE_VAL"
+    validate_run_id "$RUN_ID_VAL"
 
     echo "REPO_ROOT=$REPO_ROOT_VAL"
     echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+    echo "DATE=$DATE_VAL"
+    echo "RUN_ID=$RUN_ID_VAL"
     ;;
 
   version)
