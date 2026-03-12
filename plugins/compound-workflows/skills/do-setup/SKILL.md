@@ -432,7 +432,6 @@ Permission configuration:
    ⚠ bash:*    — allows arbitrary script execution (BYPASSES hook guardrails)
    ⚠ python3:* — allows arbitrary code execution (BYPASSES hook guardrails)
    ⚠ cat:*     — bypasses Read tool path restrictions
-   ⚠ rm:*      — unscoped by static rule (hook provides path-scoping but static rule fires FIRST and is broader)
    Plus: gh, grep, find, claude, ccusage, head, tail, sed, cp, timeout, open
    Plus: mcp__pal__clink, mcp__pal__chat, mcp__pal__listmodels, WebSearch  <!-- context-lean-exempt: permission rule list -->
 
@@ -471,7 +470,6 @@ Bash(head:*)
 Bash(tail:*)
 Bash(sed:*)
 Bash(cp:*)
-Bash(rm:*)
 Bash(timeout:*)
 Bash(open:*)
 mcp__pal__clink  # context-lean-exempt: permission rule list
