@@ -39,6 +39,11 @@ Origin: bead 3l7, settings.json vs settings.local.json imprecision. Brainstorm D
 - `bd create` priority range is 0-4 (P0-P4), not arbitrary numbers
 - Pre-commit hook shim: use `bd hooks run pre-commit` (not `bd hook pre-commit`)
 
+## Git Worktree + Squash Workflow
+- After squash-merge, `git branch -d` warns "not fully merged" — squash creates a new SHA unreachable from the branch tip. Use `git branch -D` (force). This is expected, not an error.
+- `bd worktree remove` may fail if Dolt server is down — fallback: `git worktree remove` + `git branch -D`
+- Worktree parallel dispatch works: two background agents editing separate files in the same worktree commit without conflict (git locks prevent interleave)
+
 ## Empirical Over Speculative
 When analyzing heuristic triggers, permission behavior, or any undocumented Claude Code internals: **test empirically before claiming root cause.** Run isolated test commands, vary one factor at a time, and confirm before updating documentation. User corrected: "The trigger is likely the combination" → "test empirically." Speculation propagates as fact through brainstorm → plan → implementation. A 30-second test prevents wrong conclusions that take sessions to unwind.
 
