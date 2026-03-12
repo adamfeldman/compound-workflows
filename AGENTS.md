@@ -10,7 +10,7 @@ plugins/compound-workflows/
 ├── agents/{research,review,workflow}/  # 26 agent YAML files
 ├── skills/                       # Skill directories (SKILL.md each)
 ├── commands/compound/            # Thin aliases redirecting to /do:* skills
-├── scripts/plugin-qa/           # Tier 1 QA scripts (6 scripts + lib.sh)
+├── scripts/plugin-qa/           # Tier 1 QA scripts (7 scripts + lib.sh)
 ├── CLAUDE.md                     # Plugin dev instructions
 ├── CHANGELOG.md                  # Version history
 └── README.md                     # User-facing docs
@@ -34,7 +34,7 @@ Run `/compound-workflows:plugin-changes-qa` after ANY change to commands, agents
 
 ### Tier 1: Structural Scripts (Deterministic)
 
-Six bash scripts in `plugins/compound-workflows/scripts/plugin-qa/`:
+Seven bash scripts in `plugins/compound-workflows/scripts/plugin-qa/`:
 
 | Script | What it checks |
 |--------|----------------|
@@ -44,6 +44,7 @@ Six bash scripts in `plugins/compound-workflows/scripts/plugin-qa/`:
 | `context-lean-grep.sh` | MCP response transit patterns, banned TaskOutput calls, MCP calls needing Task-wrapping verification, Task dispatches missing OUTPUT INSTRUCTIONS |
 | `version-sync.sh` | Validates version consistency across plugin.json, marketplace.json, and CHANGELOG.md |
 | `capture-stats-format.sh` | Tests capture-stats.sh with both Agent and Task `<usage>` formats, empty usage, and timeout variant |
+| `unslugged-paths.sh` | Checks .workflows/ write paths have variable placeholders (catches static filenames that would overwrite on repeat runs) |
 
 ### Tier 2: Semantic Agents (LLM)
 

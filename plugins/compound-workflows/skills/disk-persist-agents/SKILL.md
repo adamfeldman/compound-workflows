@@ -150,7 +150,7 @@ Focus on: similar features, established patterns, project conventions.
 Read the codebase, not just file names.
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE findings to: .workflows/plan-research/my-feature/agents/repo-research.md
+Write your COMPLETE findings to: .workflows/plan-research/<topic-stem>/agents/repo-research.md
 After writing the file, return ONLY a 2-3 sentence summary.
 "
 ```
