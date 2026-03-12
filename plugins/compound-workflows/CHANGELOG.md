@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.0] - 2026-03-12
+
+### Features
+
+- **Faster session-end workflow** — compact-prep rewritten from 9 sequential prompts to a check-then-act batch architecture with a single consolidated prompt. All checks run silently, then one AskUserQuestion presents what to skip (inverted multi-select).
+- **`/do:abandon` skill for session-end capture** — new thin workflow skill for sessions that won't be resumed. Invokes `/do:compact-prep --abandon`, which skips post-compaction task queue and adapts summary wording.
+- **5 config toggles for compact-prep** — `compact_version_check`, `compact_cost_summary`, `compact_auto_commit`, `compact_compound_check`, `compact_push` in `compound-workflows.local.md`. Toggled-off steps skip entirely (no check, no batch action). `compact_auto_commit` is opt-in (default false); others default true.
+- **Session-end language auto-detection** — routing rules detect abandonment language ("done for today", "wrapping up") and suggest `/do:abandon` inline. Suppressed after 2 ignores or explicit dismissal.
+- **`--abandon` flag on compact-prep** — skips post-compaction task queue and adapts summary for sessions that won't be resumed. `/do:abandon` is the user-facing entry point.
+
+### Changed
+
+- Skills: 28 to 29 (added do-abandon)
+
 ## [3.0.6] - 2026-03-12
 
 ### Added

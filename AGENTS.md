@@ -108,9 +108,24 @@ Do not use plan mode, ad-hoc research agents, or inline answers for tasks that h
 - **Reviewing code changes**: `/do:review` — do not review inline
 - **Solved a non-obvious problem**: `/do:compound` to capture institutional knowledge
 - **Before `/compact`**: `/do:compact-prep` to preserve session context
+- **Abandoning a session** ("done for today", "wrapping up for the day", "closing out", "ending the session"): `/do:abandon` — do not just close the terminal
 - **Recovering a dead/exhausted session**: `/compound-workflows:recover`
 
 > **v3.0.0 transition:** During the transition period, `/compound:*` aliases redirect to `/do:*`. Aliases will be removed in a future version. Update muscle memory, docs, and memory files to use `/do:*`.
+
+### Session-End Detection
+
+When you detect session-end language ("done for today", "wrapping up for the day", "closing out",
+"ending the session", "abandoning"), add an inline text suggestion:
+
+> Tip: run `/do:abandon` to capture session knowledge before closing.
+
+**This is a suggestion, not a gate.** Do not ask, do not block, do not repeat if the user continues working.
+
+**Suppression rules:**
+- Suppress after the user dismisses it or ignores it twice in the same session (track in conversation context)
+- Ambiguous phrases ("I'm done", "that's all") excluded from triggers — they fire on task completion, creating cry-wolf pattern
+- If the user says "stop suggesting /abandon", stop immediately for the remainder of the session
 
 ## Sequential Feature Execution
 

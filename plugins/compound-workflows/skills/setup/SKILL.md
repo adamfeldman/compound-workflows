@@ -137,6 +137,11 @@ review_agents: [{computed agent list}]
 plan_review_agents: [{computed plan agent list}]
 stats_capture: true
 stats_classify: true
+compact_version_check: false
+compact_cost_summary: true
+compact_auto_commit: false
+compact_compound_check: true
+compact_push: true
 ---
 
 # Review Context
@@ -160,6 +165,24 @@ bash ${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh
 Read the stdout for `STATS_KEYS_ADDED=true` status.
 
 Stats toggles default to enabled — missing keys are treated as enabled by orchestrator commands (Decision 6: "Missing keys = enabled"). The migration adds keys for explicitness.
+
+### Migration: Compact Config Keys
+
+If `compound-workflows.local.md` exists, check for each of the 5 compact config keys independently and append any that are missing with their defaults. Keys may be partially present (e.g., user added some manually). Handle each key independently:
+
+**Migration procedure:** Read `compound-workflows.local.md` (create with `touch` if it does not exist). For each of the 5 compact config keys below, check whether the key is already present (`grep -q`). For any missing key, use the **Edit tool** to append it at the end of the file with its default value.
+
+| Key | Default |
+|-----|---------|
+| `compact_version_check` | `false` |
+| `compact_cost_summary` | `true` |
+| `compact_auto_commit` | `false` |
+| `compact_compound_check` | `true` |
+| `compact_push` | `true` |
+
+Handle each key independently — partial presence is expected during migration.
+
+Defaults: most keys default to `true` (enabled, preserves current behavior). Exceptions: `compact_version_check` defaults to `false` (only relevant to plugin developers) and `compact_auto_commit` defaults to `false` (opt-in to auto-execute).
 
 ## Step 5: Confirm
 

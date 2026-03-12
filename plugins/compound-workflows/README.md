@@ -1,6 +1,6 @@
 # compound-workflows
 
-Self-contained compound engineering workflows for Claude Code. 26 agents, 28 skills, and 8 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
+Self-contained compound engineering workflows for Claude Code. 26 agents, 29 skills, and 8 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
 
 - [What This Adds](#what-this-adds)
 - [Installation](#installation)
@@ -27,7 +27,7 @@ Self-contained compound engineering workflows for Claude Code. 26 agents, 28 ski
 | Plan deepening | Multi-run with numbered directories |
 | Knowledge search | 5 directories, tagged by source type |
 | Bundled agents | 26 specialized agents (research, review, workflow) |
-| Bundled skills | 28 reusable patterns, workflow skills, and reference materials |
+| Bundled skills | 29 reusable patterns, workflow skills, and reference materials |
 
 ## Installation
 
@@ -54,6 +54,7 @@ Then run setup to detect your environment:
 | `/do:review` | Multi-agent code review with disk-persisted findings |
 | `/do:compound` | Document solved problems to build institutional knowledge |
 | `/do:compact-prep` | Pre-compaction checklist — save memory, compound, commit, queue resume task |
+| `/do:abandon` | Session-end capture without resumption — memory, compound, commit, push |
 | `/compound-workflows:recover` | Recover context from dead/exhausted sessions — parse JSONL logs, cross-reference state |
 
 > **v3.0.0 migration:** Workflow commands moved from `/compound:*` to `/do:*` namespace. The old `/compound:*` names still work as aliases during the transition period but will be removed in a future version. Full invocation: `/compound-workflows:do:brainstorm`. Shorthand: `/do:brainstorm`.
@@ -112,7 +113,9 @@ See `skills/disk-persist-agents/SKILL.md` for the full pattern.
 
 Context exhaustion is inevitable in long sessions. compound-workflows handles this two ways:
 
-**Proactive: `/do:compact-prep`** — Run before `/compact` to save session state. Updates memory files, checks for uncommitted work, offers to compound learnings, and queues a resume task. After compaction, say "resume" to pick up where you left off.
+**Proactive: `/do:compact-prep`** — Run before `/compact` to save session state. Uses a check-then-act batch architecture: all checks run silently, then one consolidated prompt lets you skip actions. Updates memory files, checks for uncommitted work, offers to compound learnings, and queues a resume task. After compaction, say "resume" to pick up where you left off.
+
+**Ending a session: `/do:abandon`** — When you're done for the day and won't resume. Same checks and captures as compact-prep but skips the post-compaction task queue. Captures memory, compounds learnings, commits, and pushes.
 
 **Reactive: `/compound-workflows:recover`** — When a session dies without compaction (context exhaustion, crash, forgot to compact). Parses the JSONL session log, cross-references git history, beads state, `.workflows/` artifacts, and plan files to reconstruct what happened and what's left to do. Extracts memory-worthy content that would otherwise be lost.
 
