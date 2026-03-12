@@ -7,6 +7,7 @@
 #   3. Empty/null usage (failure case)
 #   4. XML-style nested tags (<total_tokens>N</total_tokens>)
 #   5. Timeout variant
+#   6. Non-usage string (no <usage> tag — e.g., placeholder like "no-usage-data")
 #
 # Part of Tier 1 plugin QA. Exits 0 if all pass, 1 if any fail.
 
@@ -93,6 +94,28 @@ if grep -q 'status: timeout' "$STATS_FILE" && grep -q 'tokens: null' "$STATS_FIL
   : # pass
 else
   add_finding "SERIOUS" "$CAPTURE_SCRIPT" "" "timeout-variant" "Timeout variant should produce status: timeout with null tokens"
+fi
+
+# --- Test 6: Non-usage string (no <usage> tag) ---
+STATS_FILE="$TMPDIR/test6.yaml"
+STDERR_OUT="$TMPDIR/test6.stderr"
+
+bash "$CAPTURE_SCRIPT" "$STATS_FILE" "work" "test-agent" "6.1" "opus" "test" "none" "test-run" "no-usage-data" 2>"$STDERR_OUT"
+
+if grep -q 'status: failure' "$STATS_FILE"; then
+  : # pass
+else
+  add_finding "SERIOUS" "$CAPTURE_SCRIPT" "" "no-usage-tag-status" "Non-usage string should produce status: failure"
+fi
+
+if grep -q 'format may have changed' "$STDERR_OUT"; then
+  add_finding "SERIOUS" "$CAPTURE_SCRIPT" "" "no-usage-tag-false-warning" "Non-usage string should NOT emit 'format may have changed' warning"
+fi
+
+if grep -q 'no <usage> data in response' "$STDERR_OUT"; then
+  : # pass
+else
+  add_finding "SERIOUS" "$CAPTURE_SCRIPT" "" "no-usage-tag-missing-info" "Non-usage string should emit informational 'no <usage> data' message to stderr"
 fi
 
 emit_output "Capture Stats Format Check"

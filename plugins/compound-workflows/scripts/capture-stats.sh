@@ -63,6 +63,10 @@ STATUS="success"
 # ── Parse <usage> line ───────────────────────────────────────────────────────
 if [[ -z "$USAGE_LINE" || "$USAGE_LINE" == "null" ]]; then
   STATUS="failure"
+elif [[ "$USAGE_LINE" != *"<usage>"* ]]; then
+  # Non-empty but no <usage> tag — e.g., orchestrator placeholder like "no-usage-data"
+  STATUS="failure"
+  echo "Stats capture: no <usage> data in response (normal for some dispatch types)" >&2
 else
   # Health check: verify <usage> wrapper and at least one known field present
   # Accepts all known formats: space-delimited, comma-separated, newline-separated, XML tags
