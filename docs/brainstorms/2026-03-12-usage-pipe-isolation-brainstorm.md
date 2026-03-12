@@ -44,7 +44,7 @@ The fix eliminates the `.usage-pipe` intermediary file entirely. The model extra
 
 | File | Change |
 |------|--------|
-| `scripts/capture-stats.sh` | Remove stdin reading. Add named-field string arg 9 parsing (reuse existing `[>:]` regex). Handle `"null"` arg for absent usage. |
+| `scripts/capture-stats.sh` | Remove stdin reading. Add named-field string arg 9 parsing (reuse existing `[>:]` regex). Handle `"null"` arg for absent usage. **Critical: the 4qc9 guard (`if USAGE_LINE doesn't contain <usage>`) must be fully removed, not preserved — under named-field string input, valid data never contains `<usage>`, so the guard would silently misclassify all valid entries as failures.** |
 | `scripts/plugin-qa/capture-stats-format.sh` | Update QA tests: replace stdin pipe tests with arg 9 tests. |
 | `skills/do-brainstorm/SKILL.md` | Replace Write+cat-pipe pattern with direct named-field string arg call. Remove `.usage-pipe` references. |
 | `skills/do-plan/SKILL.md` | Same replacement — note: do-plan uses inline prose references, not code-fenced bash examples. Replacement technique differs from other skills. |
