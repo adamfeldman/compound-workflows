@@ -108,7 +108,7 @@ Cache the model value: if `CLAUDE_CODE_SUBAGENT_MODEL` is set, that is the defau
 
 ### Stats Capture
 
-If stats_capture ≠ false in compound-workflows.local.md: after each Task/Agent completion, extract the `<usage>...</usage>` line and call `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" plan <agent> <step> <model> <stem> null $RUN_ID "<usage-line>"`. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules. Increment the dispatch counter for each capture call.
+If stats_capture ≠ false in compound-workflows.local.md: after each Task/Agent completion, extract the `<usage>...</usage>` line, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" plan <agent> <step> <model> <stem> null $RUN_ID`. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules. Increment the dispatch counter for each capture call.
 
 **Model resolution per dispatch:** Use `sonnet` for agents with `model: sonnet` in their YAML frontmatter or an explicit `model: sonnet` dispatch parameter. Use the cached model value (env var or `opus` default) for `inherit`-model agents. For red-team-relay dispatches with `model: sonnet`, record `sonnet`.
 
@@ -165,7 +165,7 @@ After writing the file, return ONLY a 2-3 sentence summary.
 ls .workflows/plan-research/<plan-stem>/agents/
 ```
 
-When each background Task completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`repo-research-analyst` step=`"repo-research-analyst"` model=`sonnet`, and agent=`learnings-researcher` step=`"learnings-researcher"` model=`sonnet`. Increment dispatch counter for each.
+When each background Task completion notification arrives, capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` with agent=`repo-research-analyst` step=`"repo-research-analyst"` model=`sonnet`, and agent=`learnings-researcher` step=`"learnings-researcher"` model=`sonnet`. Increment dispatch counter for each.
 
 ### 1.5. Research Decision
 
@@ -201,7 +201,7 @@ After writing the file, return ONLY a 2-3 sentence summary.
 "
 ```
 
-When each background Task completion notification arrives (if these agents were dispatched), capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`best-practices-researcher` step=`"best-practices-researcher"` model=`sonnet`, and agent=`framework-docs-researcher` step=`"framework-docs-researcher"` model=`sonnet`. Increment dispatch counter for each.
+When each background Task completion notification arrives (if these agents were dispatched), capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` with agent=`best-practices-researcher` step=`"best-practices-researcher"` model=`sonnet`, and agent=`framework-docs-researcher` step=`"framework-docs-researcher"` model=`sonnet`. Increment dispatch counter for each.
 
 ### 1.6. Consolidate Research
 
@@ -260,7 +260,7 @@ After writing the file, return ONLY a 2-3 sentence summary.
 "
 ```
 
-When the background Task completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`spec-flow-analyzer` step=`"spec-flow-analyzer"` model=cached (inherit agent). Increment dispatch counter.
+When the background Task completion notification arrives, capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` with agent=`spec-flow-analyzer` step=`"spec-flow-analyzer"` model=cached (inherit agent). Increment dispatch counter.
 
 Read the specflow output file. Incorporate gaps and edge cases into the plan.
 
@@ -340,11 +340,11 @@ Run plan readiness checks and aggregate findings to verify the plan is work-read
 5. If all 5 semantic passes are in skip_checks, skip the semantic agent dispatch entirely. Otherwise, dispatch 1 semantic checks agent (background Task):
    - Agent: `$PLUGIN_ROOT/agents/workflow/plan-checks/semantic-checks.md`
    - Pass: plan file path, output path (`<output-dir>/checks/semantic-checks.md`), mode (`full`), skip_checks, provenance settings
-   - When the background Task completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`semantic-checks` step=`"semantic-checks"` model=cached (inherit agent). Increment dispatch counter.
+   - When the background Task completion notification arrives, capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` with agent=`semantic-checks` step=`"semantic-checks"` model=cached (inherit agent). Increment dispatch counter.
 5. Wait for all checks to complete (3-minute timeout for scripts, 5-10 minutes for semantic agent due to WebSearch latency). After timeout, remove any orphaned .tmp files: `rm -f <output-dir>/checks/*.tmp`. If rate limits are hit, retry with exponential backoff.
 6. Dispatch plan-readiness-reviewer (foreground Task):
    - Pass: plan file path, plan stem, output directory, check output file paths, mode, config
-   - After the foreground Task response, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`plan-readiness-reviewer` step=`"plan-readiness-reviewer"` model=cached (inherit agent). Increment dispatch counter.
+   - After the foreground Task response, capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` with agent=`plan-readiness-reviewer` step=`"plan-readiness-reviewer"` model=cached (inherit agent). Increment dispatch counter.
 7. Show the reviewer's summary to the user: "Plan readiness check: [summary]"
 
 Keep Phase 6.7 focused on dispatch + response handling. The detailed analysis logic lives in the check scripts and agent files.
@@ -352,11 +352,11 @@ Keep Phase 6.7 focused on dispatch + response handling. The detailed analysis lo
 **If issues found:**
 
 1. Dispatch plan-consolidator (foreground). Pass: plan file path, reviewer report path, consolidation report output path.
-   After the foreground Task response, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`plan-consolidator` step=`"plan-consolidator"` model=cached (inherit agent). Increment dispatch counter.
+   After the foreground Task response, capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` with agent=`plan-consolidator` step=`"plan-consolidator"` model=cached (inherit agent). Increment dispatch counter.
 2. Consolidator applies auto-fixes, then presents guardrailed items to user.
 3. After consolidation, re-run checks in `verify-only` mode: re-run all 3 mechanical scripts (type: mechanical), re-dispatch semantic agent with `mode: verify-only` (runs contradictions + underspecification only; skips unresolved-disputes, accretion, external-verification). Dispatch reviewer again.
-   - When the semantic-checks verify background Task completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`semantic-checks` step=`"semantic-checks-verify"` model=cached. Increment dispatch counter.
-   - After the plan-readiness-reviewer verify foreground Task response, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`plan-readiness-reviewer` step=`"plan-readiness-reviewer-verify"` model=cached. Increment dispatch counter.
+   - When the semantic-checks verify background Task completion notification arrives, capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` with agent=`semantic-checks` step=`"semantic-checks-verify"` model=cached. Increment dispatch counter.
+   - After the plan-readiness-reviewer verify foreground Task response, capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` with agent=`plan-readiness-reviewer` step=`"plan-readiness-reviewer-verify"` model=cached. Increment dispatch counter.
 4. If verify finds new issues: present remaining findings to user directly.
    User options: resolve now, defer to Open Questions, or dismiss.
 5. **Track deferred finding severities** for Phase 7 recommendation: when the user defers a finding, note its severity level (CRITICAL, SERIOUS, MINOR). Carry these deferred severity counts forward to Phase 7 alongside the final reviewer summary.
@@ -608,7 +608,7 @@ ls .workflows/plan-research/<plan-stem>/red-team--*.md 2>/dev/null
 
 When all expected red team files exist (up to 3), proceed to Step 6.8.3. If a task-notification arrives, note it but check for the output file rather than processing the notification content.
 
-When each background Agent completion notification arrives, capture stats: extract `<usage>` and call `capture-stats.sh` for each completed provider:
+When each background Agent completion notification arrives, capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` for each completed provider:
 - Gemini: agent=`red-team-relay` step=`"red-team-relay-gemini"` model=`sonnet`
 - OpenAI: agent=`red-team-relay` step=`"red-team-relay-openai"` model=`sonnet`
 - Claude Opus: agent=`general-purpose` step=`"red-team-opus"` model=cached (inherit agent)
@@ -730,7 +730,7 @@ DO NOT return your full analysis in your response. The file IS the output.
 ")
 ```
 
-After the foreground Agent response, capture stats: extract `<usage>` and call `capture-stats.sh` with agent=`general-purpose` step=`"red-team-minor-triage"` model=cached (inherit agent). Increment dispatch counter.
+After the foreground Agent response, capture stats: extract `<usage>`, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash capture-stats.sh ...` with agent=`general-purpose` step=`"red-team-minor-triage"` model=cached (inherit agent). Increment dispatch counter.
 
 **Step 3b: Present three-category triage to user.** Read the categorization file from `.workflows/plan-research/<plan-stem>/minor-triage-redteam.md`. Present to the user (omit any empty category section):
 

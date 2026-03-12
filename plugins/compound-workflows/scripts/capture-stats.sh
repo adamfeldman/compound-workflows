@@ -2,7 +2,7 @@
 # capture-stats.sh — Deterministic atomic append of per-dispatch stats entries
 #
 # Usage:
-#   bash capture-stats.sh <stats-file> <command> <agent> <step> <model> <stem> <bead> <run_id> <usage_line>
+#   echo '<usage>...' | bash capture-stats.sh <stats-file> <command> <agent> <step> <model> <stem> <bead> <run_id>
 #   bash capture-stats.sh --timeout <stats-file> <command> <agent> <step> <model> <stem> <bead> <run_id>
 #
 # Appends a YAML document to <stats-file> via >> (atomic for single writes).
@@ -52,7 +52,7 @@ MODEL="${5:?missing model}"
 STEM="${6:?missing stem}"
 BEAD="${7:?missing bead}"
 RUN_ID="${8:?missing run_id}"
-USAGE_LINE="${9:-}"
+USAGE_LINE="$(cat)"
 
 TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 TOKENS="null"

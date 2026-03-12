@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.4] - 2026-03-12
+
+### Fixed
+
+- **capture-stats.sh: read usage line from stdin** — The `<usage>` line was passed as a positional argument, causing Claude Code's shell redirection heuristic to fire on every stats capture call (angle brackets look like redirects). Now reads from stdin via pipe. Callers use a two-step pattern: Write tool saves usage to `.workflows/.usage-pipe`, then `cat .workflows/.usage-pipe | bash capture-stats.sh <8 args>`. Updated all 5 workflow skill files, stats-capture-schema.md, and QA tests.
+
 ## [3.0.3] - 2026-03-12
 
 ### Fixed

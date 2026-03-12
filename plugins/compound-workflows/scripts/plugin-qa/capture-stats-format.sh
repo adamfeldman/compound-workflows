@@ -28,7 +28,7 @@ STATS_FILE="$TMPDIR/test1.yaml"
 USAGE_COMMA='<usage>total_tokens: 40488, tool_uses: 16, duration_ms: 55379</usage>'
 STDERR_OUT="$TMPDIR/test1.stderr"
 
-bash "$CAPTURE_SCRIPT" "$STATS_FILE" "plan" "test-agent" "1.1" "opus" "test" "none" "test-run" "$USAGE_COMMA" 2>"$STDERR_OUT"
+echo "$USAGE_COMMA" | bash "$CAPTURE_SCRIPT" "$STATS_FILE" "plan" "test-agent" "1.1" "opus" "test" "none" "test-run" 2>"$STDERR_OUT"
 
 if grep -q 'tokens: 40488' "$STATS_FILE" && grep -q 'tools: 16' "$STATS_FILE" && grep -q 'duration_ms: 55379' "$STATS_FILE"; then
   : # pass
@@ -45,7 +45,7 @@ STATS_FILE="$TMPDIR/test2.yaml"
 USAGE_NEWLINE="$(printf '<usage>total_tokens: 12345\ntool_uses: 8\nduration_ms: 30000</usage>')"
 STDERR_OUT="$TMPDIR/test2.stderr"
 
-bash "$CAPTURE_SCRIPT" "$STATS_FILE" "brainstorm" "test-agent" "2.1" "sonnet" "test" "none" "test-run" "$USAGE_NEWLINE" 2>"$STDERR_OUT"
+printf '%s' "$USAGE_NEWLINE" | bash "$CAPTURE_SCRIPT" "$STATS_FILE" "brainstorm" "test-agent" "2.1" "sonnet" "test" "none" "test-run" 2>"$STDERR_OUT"
 
 if grep -q 'tokens: 12345' "$STATS_FILE" && grep -q 'tools: 8' "$STATS_FILE" && grep -q 'duration_ms: 30000' "$STATS_FILE"; then
   : # pass
@@ -60,7 +60,7 @@ fi
 # --- Test 3: Empty/null usage (failure case) ---
 STATS_FILE="$TMPDIR/test3.yaml"
 
-bash "$CAPTURE_SCRIPT" "$STATS_FILE" "work" "test-agent" "3.1" "opus" "test" "none" "test-run" "" 2>/dev/null
+echo "" | bash "$CAPTURE_SCRIPT" "$STATS_FILE" "work" "test-agent" "3.1" "opus" "test" "none" "test-run" 2>/dev/null
 
 if grep -q 'status: failure' "$STATS_FILE"; then
   : # pass
@@ -73,7 +73,7 @@ STATS_FILE="$TMPDIR/test4.yaml"
 USAGE_XML='<usage><total_tokens>8500</total_tokens><tool_uses>4</tool_uses><duration_ms>12000</duration_ms></usage>'
 STDERR_OUT="$TMPDIR/test4.stderr"
 
-bash "$CAPTURE_SCRIPT" "$STATS_FILE" "review" "test-agent" "4.1" "opus" "test" "none" "test-run" "$USAGE_XML" 2>"$STDERR_OUT"
+echo "$USAGE_XML" | bash "$CAPTURE_SCRIPT" "$STATS_FILE" "review" "test-agent" "4.1" "opus" "test" "none" "test-run" 2>"$STDERR_OUT"
 
 if grep -q 'tokens: 8500' "$STATS_FILE" && grep -q 'tools: 4' "$STATS_FILE" && grep -q 'duration_ms: 12000' "$STATS_FILE"; then
   : # pass
@@ -100,7 +100,7 @@ fi
 STATS_FILE="$TMPDIR/test6.yaml"
 STDERR_OUT="$TMPDIR/test6.stderr"
 
-bash "$CAPTURE_SCRIPT" "$STATS_FILE" "work" "test-agent" "6.1" "opus" "test" "none" "test-run" "no-usage-data" 2>"$STDERR_OUT"
+echo "no-usage-data" | bash "$CAPTURE_SCRIPT" "$STATS_FILE" "work" "test-agent" "6.1" "opus" "test" "none" "test-run" 2>"$STDERR_OUT"
 
 if grep -q 'status: failure' "$STATS_FILE"; then
   : # pass
