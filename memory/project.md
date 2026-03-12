@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.1.0 (plugins/compound-workflows/)
+- Plugin: compound-workflows v3.1.1 (plugins/compound-workflows/)
 - 26 agents, 29 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -101,6 +101,8 @@
 - **v3.0.6** — Write tool discipline (bead dj65): 10 violation fixes (2 heredoc, 4 echo-redirect, 4 unspecified-commit) across 7 skill files. New `write-tool-discipline.sh` QA script (Tier 1 count 8→9). `migrate-stats-keys.sh` for script delegation. Tier 1 scan scope expanded to `skills/*/workflows/*.md` in 4 scripts. Truncation-check workflow file type added.
 
 - **v3.1.0** — Session-end capture + compact-prep batch refactor (bead ka3w): two-phase architecture (check→batch→execute), 5 config toggles, inverted multi-select batch prompt, per-step retry/skip/abort, compound state persistence for resume, version actions separated from batch.
+
+- **v3.1.1** — Compact-prep performance fix (bead rdij): direct memory writes (no temp files), immediate ccusage snapshot in check phase. Eliminates ~15min overhead from deferred temp-file pattern.
 
 ## In-Progress Work
 
