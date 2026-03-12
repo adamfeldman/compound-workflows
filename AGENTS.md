@@ -73,7 +73,7 @@ All checks should return zero findings. Any finding must be fixed before committ
 Every change MUST update:
 1. `plugins/compound-workflows/.claude-plugin/plugin.json` — bump version
 2. `.claude-plugin/marketplace.json` — bump version
-3. `plugins/compound-workflows/CHANGELOG.md` — document changes
+3. `plugins/compound-workflows/CHANGELOG.md` — document changes (lead with user benefit, not implementation details)
 4. `plugins/compound-workflows/README.md` — verify component counts
 
 - **MAJOR**: Breaking changes to command interfaces or config schema
