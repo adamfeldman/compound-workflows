@@ -74,9 +74,9 @@ for f in "${scan_files[@]}"; do
     workflows_path="$(echo "$line_text" | grep -oE '\.workflows/[^ "`'"'"')*]*' | head -1 || true)"
     [[ -n "$workflows_path" ]] || continue
 
-    # Exempt: .workflows/.work-in-progress (sentinel, intentionally static)
+    # Exempt: intentionally static scratch files (overwritten each call, not persisted artifacts)
     case "$workflows_path" in
-      .workflows/.work-in-progress*) continue ;;
+      .workflows/.work-in-progress*|.workflows/.usage-pipe*) continue ;;
     esac
 
     # Check if path contains at least one slug token

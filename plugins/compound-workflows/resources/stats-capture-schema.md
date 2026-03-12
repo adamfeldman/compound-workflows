@@ -63,21 +63,21 @@ Expected format:
 
 ### Standard Call (after successful dispatch)
 
-Extract the full `<usage>...</usage>` line from the response/notification, then call:
+Extract the full `<usage>...</usage>` line from the response/notification and save it to `.workflows/.usage-pipe` using the Write tool (this keeps angle brackets out of Bash tool commands, avoiding heuristic prompts). Then pipe it to capture-stats.sh:
 
 ```bash
-bash $PLUGIN_ROOT/scripts/capture-stats.sh \
-  "<stats-file>" "<command>" "<agent>" "<step>" "<model>" "<stem>" "<bead>" "$RUN_ID" \
-  "<usage-line>"
+cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh \
+  "<stats-file>" "<command>" "<agent>" "<step>" "<model>" "<stem>" "<bead>" "$RUN_ID"
 ```
 
-The `<usage-line>` argument is the complete `<usage>...</usage>` tag including delimiters. Example:
+Example:
 
 ```bash
-bash $PLUGIN_ROOT/scripts/capture-stats.sh \
+# 1. Save the <usage> line to .workflows/.usage-pipe via Write tool
+# 2. Pipe to capture-stats.sh:
+cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh \
   ".workflows/stats/2026-03-09-work-quota-optimization.yaml" \
-  "work" "general-purpose" "1" "opus" "quota-optimization" "22l" "a1b2c3d4" \
-  "<usage>total_tokens: 20121, tool_uses: 13, duration_ms: 43364</usage>"
+  "work" "general-purpose" "1" "opus" "quota-optimization" "22l" "a1b2c3d4"
 ```
 
 ### Timeout Call (dispatch timed out)
@@ -93,11 +93,11 @@ No `<usage-line>` argument. The script writes an entry with `status: timeout` an
 
 ### Failure Handling
 
-If `<usage>` is absent from the response (empty string or "null"), pass an empty string or "null":
+If `<usage>` is absent from the response, pipe an empty string via stdin:
 
 ```bash
-bash $PLUGIN_ROOT/scripts/capture-stats.sh \
-  "<stats-file>" "work" "general-purpose" "1" "opus" "quota-optimization" "22l" "$RUN_ID" ""
+echo "" | bash $PLUGIN_ROOT/scripts/capture-stats.sh \
+  "<stats-file>" "work" "general-purpose" "1" "opus" "quota-optimization" "22l" "$RUN_ID"
 ```
 
 The script writes `status: failure` with null token fields. If `<usage>` is present but in an unexpected format, the script attempts best-effort extraction, prints a warning to stderr, and writes whatever it could parse.
