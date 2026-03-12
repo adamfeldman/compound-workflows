@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.1] - 2026-03-12
+
+### Fixed
+- **Slug all `.workflows/` write paths with DATE-RUN_ID** — 22 static `.workflows/` paths in plugin-changes-qa and classify-stats now use `$DATE-$RUN_ID` stems, preventing overwrites on repeat runs. do-work review path also slugged with RUN_ID.
+- **Rename `.workflows/tmp/` to `.workflows/scratch/` in do-work** — prevents model confusion with system `/tmp/` directory
+- **Fix hardcoded `my-feature` in disk-persist-agents template** — replaced with `$FEATURE_OR_TOPIC` placeholder
+
+### Added
+- **`unslugged-paths.sh` Tier 1 QA script** — checks `.workflows/` write paths in skills for variable placeholders, catching static filenames that would overwrite on repeat runs. Tier 1 script count: 6 to 7.
+- **init-values.sh DATE+RUN_ID emission** — extended init-values.sh to emit `DATE` and `RUN_ID` variables for plugin-changes-qa and classify-stats consumers (previously only emitted for workflow skills)
+
 ## [3.0.0] - 2026-03-12
 
 ### Breaking Changes
