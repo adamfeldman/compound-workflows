@@ -1,15 +1,15 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v2.6.1 (plugins/compound-workflows/)
-- 26 agents, 20 skills, 8 commands
-- Commands under `/compound:*`, skills under `/compound-workflows:*`
+- Plugin: compound-workflows v3.0.0 (plugins/compound-workflows/)
+- 26 agents, 28 skills, 8 commands (thin aliases)
+- Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
 - GitHub repo: adamfeldman/compound-workflows (public)
 - 1 external user (as of 2026-03-09)
 
 ## Architecture Decisions
-- **Namespace `/compound:*`** — shorter to type. Exception: `plugin-changes-qa` and `recover` are skills under `/compound-workflows:*` due to per-directory command limit (~8).
+- **Namespace `/do:*`** — workflow skills migrated from commands to skills in v3.0.0. `/compound:*` thin aliases redirect for backwards compat (one version only).
 - **Single work executor** — `/compound:work` IS the subagent architecture. Main context runs out of context and never finishes.
 - **Config split** — `compound-workflows.md` (committed, project) + `compound-workflows.local.md` (gitignored, env). Red team prefs runtime-detected.
 - **`.workflows/` committed in user projects** (research traceability), gitignored in this plugin source repo.
@@ -58,6 +58,8 @@
 - **`${CLAUDE_PLUGIN_ROOT}` is broken in markdown** — [GitHub #9354](https://github.com/anthropics/claude-code/issues/9354), open since Oct 2025, 20 comments, no Anthropic response. Only works in JSON configs (hooks.json, MCP). git-worktree and resolve-pr-parallel skills use it — those are broken in installed contexts.
 - **`do:` namespace works in skill `name:` field** — `name: do:test` in `skills/do-test/SKILL.md` creates `/compound-workflows:do:test`. Short form `/do:test` works in autocomplete. Empirically confirmed 2026-03-11.
 - **Upstream compound-engineering uses skills not commands** — `ce:brainstorm`, `ce:plan`, `ce:work`, `ce:review`, `ce:compound` are all skills. No scripts directory. No path resolution problem.
+- **`$ARGUMENTS` / `#$ARGUMENTS` works in SKILL.md files** — substitution identical to commands. `#$ARGUMENTS` becomes `#<actual args>` — the `#` stays as literal text, not consumed. For clean output in skills, use `$ARGUMENTS` without the `#` prefix. Empirically confirmed 2026-03-12 during v3.0.0 prerequisite gate.
+- **Squash-merge → `git branch -d` always warns "not fully merged"** — squash creates a new commit with different SHA than branch commits. Git can't tell the content was merged (only checks SHA reachability). Use `git branch -D` to force-delete. This is expected behavior, not an error.
 - **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format
@@ -88,12 +90,13 @@
 
 - **v2.6.1** — Permissionless bash generation (bead dndn) + heredoc hard heuristic fix: setup Step 8e injects Bash Generation Rules into project CLAUDE.md on opt-in, 8 avoidance patterns in resources/bash-generation-rules.md, complementary static rule suggestions. Heredoc fix: append-snapshot.sh replaces Read+Write approach, hard vs soft heuristic distinction in Permission Architecture. `<<` is unsuppressible by static rules.
 
+- **v3.0.0** — Commands→skills migration: 8 workflow commands migrated from `commands/compound/` to `skills/do-*/` using `${CLAUDE_SKILL_DIR}` for path resolution. Namespace `compound:` → `do:`. Thin alias redirects for backwards compat. init-values.sh PLUGIN_ROOT validation. QA Check 2b (skill-to-skill validation). 5 existing skills updated to `${CLAUDE_SKILL_DIR}`. 41 files changed. Tier 1+2 QA clean.
+
 ## In-Progress Work
 
-- **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/compound:brainstorm`.
+- **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/do:brainstorm`.
 - **Downgrade analytical agents to Sonnet (bead sze8)** — P1. Blocked by wtn. Candidates: semantic-checks, spec-flow-analyzer, plan-readiness-reviewer, minor-triage. Red-team-opus stays Opus.
-- **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt. Led to path resolution brainstorm — migrating commands→skills with `do:` namespace (v3.0.0).
-- **Commands→skills migration plan ready** — `docs/plans/2026-03-11-feat-plugin-script-path-resolution-plan.md`. Brainstorm complete (red team done, all findings triaged). Plan passed readiness checks (0 actionable findings). 8 phases, ~46 files. Red team on plan skipped (brainstorm was already red-teamed). Key: `do:` namespace, `${CLAUDE_SKILL_DIR}`, thin aliases (Option B template with `#$ARGUMENTS`), all cross-refs in v3.0.0 scope, Check 2b for skill-to-skill validation. Next: `/compound:work`.
+- **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt.
 - **Research agents need web search (bead ixz4)** — P2. Brainstorm/plan research agents don't search GitHub issues or official docs for upstream constraints. Caused miss on CLAUDE_PLUGIN_ROOT #9354.
 - **Red team model selection (bead aig)** — P3. Brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
@@ -101,7 +104,7 @@
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
 
 ## Critical Patterns
-- **Plugin paths must use `find` fallback** — all script/file references in commands/skills need dynamic resolution: try local path, then `find "$HOME/.claude/plugins" ...`. Affects any new command referencing plugin scripts.
+- **Plugin paths use `${CLAUDE_SKILL_DIR}`** — skills use `${CLAUDE_SKILL_DIR}/../../scripts/` for init-values.sh. init-values.sh validates PLUGIN_ROOT via `.claude-plugin/plugin.json` existence check. Commands don't get CLAUDE_SKILL_DIR (they're thin aliases).
 - **version-check.sh context detection** — in source repo: 3-way (source vs installed vs release). In consumer project: 2-way (installed vs release only).
 - **`.beads/PRIME.md`** overrides bd prime to remove conflicting memory instructions
 - **Pre-existing dispatch migration debt** — Tier 2 QA (jak session) found: brainstorm.md still uses Task dispatch for red team (plan.md/deepen-plan.md migrated to Agent dispatch in v2.1.0). Also `repo-research-analyst` Dispatched By column in CLAUDE.md missing "brainstorm". Not blocking but should be cleaned up.
