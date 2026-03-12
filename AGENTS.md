@@ -64,6 +64,8 @@ The PostToolUse hook in `.claude/settings.json` auto-triggers Tier 1 scripts aft
 
 All checks should return zero findings. Any finding must be fixed before committing.
 
+**Both tiers are mandatory.** Do not skip Tier 2 semantic agents — they catch issues that Tier 1 scripts cannot. Run `/compound-workflows:plugin-changes-qa` which executes both tiers, rather than running Tier 1 scripts directly.
+
 ## Versioning
 
 Every change MUST update:
