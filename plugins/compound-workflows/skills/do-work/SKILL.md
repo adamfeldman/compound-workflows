@@ -300,8 +300,6 @@ Task general-purpose (foreground): "[constructed prompt above]" <!-- context-lea
 ### Stats Capture
 If stats_capture ≠ false in compound-workflows.local.md: after each Task completion, extract the `<usage>...</usage>` line from the inline response, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" work general-purpose "<step>" "<model>" "$STEM" "<bead>" "$RUN_ID"`. Use the bead issue number (or sequential loop counter) as `<step>`. Use the bead ID as `<bead>` (null if no bead). See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules.
 
-**Important: run capture-stats.sh from the main repo root, not from the worktree.** The `$STATS_FILE` path is relative to the main repo's `.workflows/stats/` which does not exist in worktrees. If your cwd is a worktree, either `cd` back to the main repo root before calling, or use an absolute path for `$STATS_FILE`.
-
 ### 2.3 Handling Subagent Results
 
 After each subagent returns:

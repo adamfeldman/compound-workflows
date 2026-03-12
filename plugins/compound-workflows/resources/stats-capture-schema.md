@@ -138,15 +138,12 @@ For commands with conditional dispatches (plan.md, review.md, deepen-plan.md), t
 
 ## Worktree Handling
 
-`/compound:work` runs subagents inside git worktrees. The orchestrator (not the subagent) captures stats. Key points:
+`/do:work` runs subagents inside git worktrees. The orchestrator (not the subagent) captures stats. Key points:
 
-- The orchestrator runs in the main conversation context (main repo root), not the worktree.
-- `.workflows/stats/` is relative to the orchestrator's cwd, which is the main repo.
+- STATS_FILE is an absolute path to the main repo's `.workflows/stats/`. Works from any CWD including worktrees.
 - Subagent completion notifications arrive in the main conversation context regardless of where the subagent ran.
 - Stats files are written to the main repo's `.workflows/stats/`, never to the worktree's `.workflows/stats/`.
 - Worktree cleanup destroys the worktree's `.workflows/` but does not affect the main repo's stats.
-
-**The orchestrator must never `cd` into the worktree before calling `capture-stats.sh`.** The script writes relative to its invocation directory.
 
 ## Model Resolution Algorithm
 
