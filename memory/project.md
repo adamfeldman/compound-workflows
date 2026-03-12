@@ -106,7 +106,7 @@
 - **Research agents need web search (bead ixz4)** — P2. Brainstorm/plan research agents don't search GitHub issues or official docs for upstream constraints. Caused miss on CLAUDE_PLUGIN_ROOT #9354.
 - **Red team model selection (bead aig)** — P3. Brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
-- **Config toggles for optional compact-prep steps (bead xzn)** — P2. Version check + daily cost summary both optional.
+- **Session-end capture + compact-prep batch refactor (bead ka3w)** — P3. Brainstorm complete. Absorbed xzn (config toggles). 9 decisions, 3-provider red team. Next: `/do:plan`.
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
 
 ## Critical Patterns
