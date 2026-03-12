@@ -385,7 +385,7 @@ After all issues are closed (or all TodoWrite tasks completed):
 
 3. **Optional: Dispatch reviewer subagent** for complex changes:
    ```
-   mkdir -p .workflows/work-review/
+   mkdir -p .workflows/work-review/<RUN_ID>/
 
    Task code-simplicity-reviewer (run_in_background: true): "You are a code simplicity reviewer. Check for unnecessary complexity, YAGNI violations, and over-engineering.
 
@@ -393,7 +393,7 @@ After all issues are closed (or all TodoWrite tasks completed):
    Run: git diff [base-branch]...HEAD
 
    === OUTPUT INSTRUCTIONS (MANDATORY) ===
-   Write your COMPLETE findings to: .workflows/work-review/code-simplicity.md
+   Write your COMPLETE findings to: .workflows/work-review/<RUN_ID>/code-simplicity.md
    After writing the file, return ONLY a 2-3 sentence summary.
    "
    ```
@@ -408,9 +408,9 @@ After all issues are closed (or all TodoWrite tasks completed):
    ```bash
    git add <files>
    ```
-   Use the **Write tool** to write the commit message to `.workflows/tmp/commit-msg-<RUN_ID>.txt` (use the tracked RUN_ID value). Then run:
+   Use the **Write tool** to write the commit message to `.workflows/scratch/commit-msg-<RUN_ID>.txt` (use the tracked RUN_ID value). Then run:
    ```bash
-   git commit -F .workflows/tmp/commit-msg-<RUN_ID>.txt
+   git commit -F .workflows/scratch/commit-msg-<RUN_ID>.txt
    ```
 
 2. **Clear QA hook sentinel** (re-enable PostToolUse QA enforcement):
@@ -421,9 +421,9 @@ After all issues are closed (or all TodoWrite tasks completed):
    ```bash
    git push -u origin [branch-name]
    ```
-   Use the **Write tool** to write the PR body to `.workflows/tmp/pr-body-<RUN_ID>.txt` (use the tracked RUN_ID value). Include Summary, Testing, and Implementation Notes sections. Then run:
+   Use the **Write tool** to write the PR body to `.workflows/scratch/pr-body-<RUN_ID>.txt` (use the tracked RUN_ID value). Include Summary, Testing, and Implementation Notes sections. Then run:
    ```bash
-   gh pr create --title "[Description]" --body-file .workflows/tmp/pr-body-<RUN_ID>.txt
+   gh pr create --title "[Description]" --body-file .workflows/scratch/pr-body-<RUN_ID>.txt
    ```
 
    > **Post-merge reminder:** After the PR is merged, run `/compound-workflows:version` or `/do:compact-prep` to check for missing GitHub releases. Do not create releases automatically — the user decides when to cut a release.
