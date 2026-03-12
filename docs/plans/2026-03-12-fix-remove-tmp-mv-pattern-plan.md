@@ -1,7 +1,7 @@
 ---
 title: "fix: Remove .tmp→mv atomic write pattern from LLM agents"
 type: fix
-status: active
+status: completed
 date: 2026-03-12
 ---
 

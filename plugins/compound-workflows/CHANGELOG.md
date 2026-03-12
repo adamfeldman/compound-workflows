@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.3] - 2026-03-12
+
+### Fixed
+
+- **Remove .tmp→mv from LLM agents** — semantic-checks.md and classify-stats/SKILL.md no longer instruct agents to write to `.tmp` then `mv`. The Write tool is already atomic; the shell pattern caused unnecessary `mv` and heredoc permission prompts. lib.sh and orchestrator cleanup are unchanged (legitimate shell).
+- **New QA script: no-shell-atomicity.sh** — Tier 1 check detects `.tmp` write instructions in agent/skill `.md` files. Exempts `rm -f` cleanup lines, `.sh` scripts, and `*/references/*`. Prevents recurrence of the cargo-culted shell pattern.
+
 ## [3.0.2] - 2026-03-12
 
 ### Fixed

@@ -50,7 +50,7 @@ You receive these via your dispatch prompt:
 3. Execute each remaining pass in order (see pass definitions below).
 4. Collect all findings across passes.
 5. Apply output size cap (150-200 lines). If findings exceed this, preserve all CRITICAL and SERIOUS findings. Only truncate MINOR findings. Add truncation notice if needed.
-6. Write the output file to `output_path.tmp` first, then move to `output_path` (atomic write).
+6. Write the output file to `output_path`.
 
 **First line of output MUST be `status: success` or `status: error`.**
 
@@ -176,7 +176,7 @@ current_value: <actual current value, if different>
 
 ## Output Template
 
-Write the output to `output_path.tmp`, then move to `output_path`.
+Write the output to `output_path`.
 
 The output MUST follow this exact format:
 

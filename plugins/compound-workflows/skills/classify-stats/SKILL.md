@@ -201,18 +201,7 @@ For each stats file that has entries to classify:
 1. **Read** the full file content
 2. **Parse** the multi-document YAML into individual entries
 3. **Modify** the `complexity` and `output_type` fields on confirmed entries (replace `null` values with the confirmed classification strings)
-4. **Write** the modified content to `<filename>.tmp`
-5. **Move** `<filename>.tmp` to `<filename>` via `mv` (atomic replace — prevents partial-write corruption if interrupted)
-
-```bash
-# For each modified stats file:
-# 1. Write modified content to temp file
-cat > "<stats-file>.tmp" << 'YAML_EOF'
-[modified YAML content here]
-YAML_EOF
-# 2. Atomic replace
-mv "<stats-file>.tmp" "<stats-file>"
-```
+4. **Write** the modified content to `<filename>` using the Write tool
 
 **Important:** The YAML rewrite must preserve all existing fields exactly (tokens, tools, duration_ms, timestamp, status, run_id, etc.). Only `complexity` and `output_type` change from `null` to their classified values. Do not reformat, reorder, or drop any fields.
 
@@ -242,7 +231,7 @@ If any file write failed, report the error and note which entries were not class
 ## Rules
 
 - **Idempotent**: Already-classified entries are never re-classified. Running this skill multiple times is safe.
-- **Non-destructive**: Uses tmp+mv atomic write strategy. Original files are never partially overwritten.
+- **Non-destructive**: Write tool writes are atomic. Original files are never partially overwritten.
 - **User-confirmed**: No classifications are written without explicit user confirmation.
 - **ccusage entries excluded**: Entries with `type: ccusage-snapshot` are always skipped.
 - **Session JSONL correlation deferred**: v1 relies on stats entries + `.workflows/` artifacts for classification context. Session log correlation is deferred to a future version.
