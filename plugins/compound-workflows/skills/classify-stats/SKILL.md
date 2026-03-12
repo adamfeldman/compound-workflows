@@ -57,7 +57,7 @@ This is informational only — classification proceeds on whatever entries exist
 
 ### Step 2.1: Resolve Plugin Root
 
-Run `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh classify-stats`. Read the output and track REPO_ROOT and PLUGIN_ROOT values.
+Run `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh classify-stats`. Read the output and track REPO_ROOT, PLUGIN_ROOT, DATE, and RUN_ID values.
 
 ### Step 2.2: Prepare Classification Input
 
@@ -144,7 +144,7 @@ Entry N:
 - Reasoning: <1 sentence explaining the classification>
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE classification to: .workflows/stats/classify-proposals.md
+Write your COMPLETE classification to: .workflows/stats/classify-proposals-<DATE>-<RUN_ID>.md
 After writing the file, return ONLY a 2-3 sentence summary of how many entries you classified and the distribution across complexity tiers.
 DO NOT return your full classification in your response.
 "
@@ -155,10 +155,10 @@ DO NOT return your full classification in your response.
 After the classifier subagent completes, read the proposals from disk:
 
 ```bash
-ls .workflows/stats/classify-proposals.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+ls .workflows/stats/classify-proposals-<DATE>-<RUN_ID>.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
 ```
 
-Read `.workflows/stats/classify-proposals.md` using the Read tool. Parse the structured classification proposals.
+Read `.workflows/stats/classify-proposals-<DATE>-<RUN_ID>.md` using the Read tool. Parse the structured classification proposals.
 
 ## Phase 3: User Confirmation
 
@@ -219,7 +219,7 @@ mv "<stats-file>.tmp" "<stats-file>"
 ### Step 4.2: Cleanup
 
 ```bash
-rm -f .workflows/stats/classify-proposals.md
+rm -f .workflows/stats/classify-proposals-<DATE>-<RUN_ID>.md
 ```
 
 Remove the temporary proposals file after successful classification.
