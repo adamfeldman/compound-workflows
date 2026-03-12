@@ -16,7 +16,7 @@ Discover and run all bash scripts in the plugin-qa directory. These are fast, de
 
 ### Step 1.1: Resolve Plugin Root
 
-Run `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh plugin-changes-qa`. Read the output and track REPO_ROOT and PLUGIN_ROOT values.
+Run `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh plugin-changes-qa`. Read the output and track REPO_ROOT, PLUGIN_ROOT, DATE, and RUN_ID values.
 
 Verify PLUGIN_ROOT is valid:
 
@@ -54,7 +54,7 @@ Dispatch three LLM agents in parallel for semantic analysis that bash scripts ca
 ### Step 2.1: Create Output Directory
 
 ```bash
-mkdir -p .workflows/plugin-qa/agents/
+mkdir -p .workflows/plugin-qa/<DATE>-<RUN_ID>/agents/
 ```
 
 ### Step 2.2: Launch Agents (Parallel, Disk-Persisted)
@@ -96,7 +96,7 @@ For each violation found, report:
 - Severity (using the guide above)
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE findings to: .workflows/plugin-qa/agents/context-lean-review.md
+Write your COMPLETE findings to: .workflows/plugin-qa/<DATE>-<RUN_ID>/agents/context-lean-review.md
 Structure with: ## Summary, ## Findings (grouped by file), ## Recommendations
 After writing the file, return ONLY a 2-3 sentence summary.
 DO NOT return your full analysis in your response.
@@ -136,7 +136,7 @@ For each mismatch found, report:
 - Severity (using the guide above)
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE findings to: .workflows/plugin-qa/agents/role-description-review.md
+Write your COMPLETE findings to: .workflows/plugin-qa/<DATE>-<RUN_ID>/agents/role-description-review.md
 Structure with: ## Summary, ## Findings (grouped by agent), ## Recommendations
 After writing the file, return ONLY a 2-3 sentence summary.
 DO NOT return your full analysis in your response.
@@ -174,7 +174,7 @@ For each issue found, report:
 - Severity: SERIOUS (missing critical convention), MINOR (style/completeness)
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE findings to: .workflows/plugin-qa/agents/completeness-review.md
+Write your COMPLETE findings to: .workflows/plugin-qa/<DATE>-<RUN_ID>/agents/completeness-review.md
 Structure with: ## Summary, ## Findings (grouped by file), ## Recommendations
 After writing the file, return ONLY a 2-3 sentence summary.
 DO NOT return your full analysis in your response.
@@ -186,7 +186,7 @@ DO NOT return your full analysis in your response.
 **DO NOT call TaskOutput** to retrieve agent results. Monitor completion via file existence:
 
 ```bash
-ls .workflows/plugin-qa/agents/
+ls .workflows/plugin-qa/<DATE>-<RUN_ID>/agents/
 ```
 
 Expected files:
@@ -203,7 +203,7 @@ Poll periodically. When all three files exist (or after 5 minutes for stragglers
 Read all Tier 1 script outputs (from Phase 1) and all Tier 2 agent files (from Phase 2):
 
 ```bash
-ls .workflows/plugin-qa/agents/*.md
+ls .workflows/plugin-qa/<DATE>-<RUN_ID>/agents/*.md
 ```
 
 Read each agent output file using the Read tool.
@@ -237,13 +237,13 @@ If `BD_INSTALLED=false`: output the following warning and skip to Step 3.4:
 **Step B — Fetch open beads:**
 
 ```bash
-mkdir -p .workflows/plugin-qa/
+mkdir -p .workflows/plugin-qa/<DATE>-<RUN_ID>/
 bd search "" --status open --json --limit 100 2>/dev/null
 ```
 
 **Important:** Use `bd search "" --status open --json --limit 100`, NOT `bd list --json` (which does not produce valid JSON).
 
-Write the JSON output to `.workflows/plugin-qa/open-beads.json` (single-fetch pattern — fetched once here, referenced by all subsequent steps in Phase 3.3).
+Write the JSON output to `.workflows/plugin-qa/<DATE>-<RUN_ID>/open-beads.json` (single-fetch pattern — fetched once here, referenced by all subsequent steps in Phase 3.3).
 
 **If the search command fails** (non-zero exit or empty output): output the following warning and skip to Step 3.4:
 
@@ -263,7 +263,7 @@ Match Tier 1 findings against open beads using fast, deterministic string compar
 
 **Input:**
 - Tier 1 findings from Phase 1 (format: `- **[SEVERITY]** \`relative/file/path\` (line N): pattern-name — Description text`)
-- Beads JSON from `.workflows/plugin-qa/open-beads.json` (written in Step 3.3.1)
+- Beads JSON from `.workflows/plugin-qa/<DATE>-<RUN_ID>/open-beads.json` (written in Step 3.3.1)
 
 **For each Tier 1 finding**, extract the `check-name` (the pattern-name after the line number) and `file-path` (the backtick-quoted path). Then search the beads JSON in priority order — stop at the first match:
 
@@ -294,7 +294,7 @@ Match findings that the deterministic text pass could not resolve. This covers a
 Create the output directory (if not already present):
 
 ```bash
-mkdir -p .workflows/plugin-qa/
+mkdir -p .workflows/plugin-qa/<DATE>-<RUN_ID>/
 ```
 
 Dispatch a disk-persist subagent:
@@ -308,7 +308,7 @@ Your task: read the open beads JSON from disk, then classify each QA finding as 
 **Input findings to classify:**
 [Insert the list of unmatched Tier 1 findings + ALL Tier 2 findings here. For each finding, include: source (script name or agent name), file path if available, severity, and the finding description.]
 
-**Beads data:** Read the open beads JSON from `.workflows/plugin-qa/open-beads.json`. This file contains all open beads with their IDs, titles, descriptions, and notes.
+**Beads data:** Read the open beads JSON from `.workflows/plugin-qa/<DATE>-<RUN_ID>/open-beads.json`. This file contains all open beads with their IDs, titles, descriptions, and notes.
 
 **Classification rules:**
 For each finding, search the beads for a match and classify as one of:
@@ -319,7 +319,7 @@ For each finding, search the beads for a match and classify as one of:
 When multiple beads could match, pick the strongest match. Do not assign the same finding to multiple beads.
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE classification to: .workflows/plugin-qa/bead-cross-ref-matches.md
+Write your COMPLETE classification to: .workflows/plugin-qa/<DATE>-<RUN_ID>/bead-cross-ref-matches.md
 
 Use this EXACT structure:
 
@@ -342,12 +342,12 @@ DO NOT return your full classification in your response.
 **Monitor completion via file existence check:**
 
 ```bash
-ls .workflows/plugin-qa/bead-cross-ref-matches.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+ls .workflows/plugin-qa/<DATE>-<RUN_ID>/bead-cross-ref-matches.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
 ```
 
 **Timeout: 2 minutes.** Poll periodically. If the output file does not appear within 2 minutes, skip this pass and present findings without cross-reference data (same degradation path as beads-unavailable in Step 3.3.1). **If Step 3.3.3 times out, also skip Step 3.3.4** — proceed directly to Step 3.4.
 
-When the file exists, read results from `.workflows/plugin-qa/bead-cross-ref-matches.md` using the Read tool. Merge any `matched` results with the deterministic matches from Step 3.3.2 to build the combined matched-findings list for the next step.
+When the file exists, read results from `.workflows/plugin-qa/<DATE>-<RUN_ID>/bead-cross-ref-matches.md` using the Read tool. Merge any `matched` results with the deterministic matches from Step 3.3.2 to build the combined matched-findings list for the next step.
 
 #### Step 3.3.4: Coverage Assessment (Matched Beads)
 
@@ -366,7 +366,7 @@ Your task: for each QA finding that has been matched to a bead, assess whether t
 **Matched finding→bead pairs to assess:**
 [Insert the combined list of matched findings from Step 3.3.2 (deterministic) and Step 3.3.3 (LLM). For each pair, include: the finding description, the matched bead ID, and the bead title.]
 
-**Beads data:** Read the full bead details from `.workflows/plugin-qa/open-beads.json` to access each bead's description and notes.
+**Beads data:** Read the full bead details from `.workflows/plugin-qa/<DATE>-<RUN_ID>/open-beads.json` to access each bead's description and notes.
 
 **Coverage definitions:**
 - **Full coverage** — the bead's description or notes already mention the specific file AND the specific finding pattern. No update needed.
@@ -375,7 +375,7 @@ Your task: for each QA finding that has been matched to a bead, assess whether t
 For partial coverage, draft a concise proposed addition that could be appended to the bead's existing description to cover this specific finding.
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE assessment to: .workflows/plugin-qa/bead-cross-ref-coverage.md
+Write your COMPLETE assessment to: .workflows/plugin-qa/<DATE>-<RUN_ID>/bead-cross-ref-coverage.md
 
 Use this EXACT structure:
 
@@ -395,22 +395,22 @@ DO NOT return your full assessment in your response.
 **Monitor completion via file existence check:**
 
 ```bash
-ls .workflows/plugin-qa/bead-cross-ref-coverage.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+ls .workflows/plugin-qa/<DATE>-<RUN_ID>/bead-cross-ref-coverage.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
 ```
 
 **Timeout: 2 minutes.** Poll periodically. If the output file does not appear within 2 minutes, present matches without coverage data and note the omission in the Step 3.4 summary:
 
 > ⚠️ Coverage assessment timed out. Matches are shown without coverage status.
 
-When the file exists, read results from `.workflows/plugin-qa/bead-cross-ref-coverage.md` using the Read tool.
+When the file exists, read results from `.workflows/plugin-qa/<DATE>-<RUN_ID>/bead-cross-ref-coverage.md` using the Read tool.
 
 #### Step 3.3.5: Present Tracking Status
 
 Present all proposed bead operations as a batch for user confirmation, or skip if everything is already tracked.
 
 **Read subagent results from disk:**
-- `.workflows/plugin-qa/bead-cross-ref-matches.md` (LLM matching results from Step 3.3.3, if it ran)
-- `.workflows/plugin-qa/bead-cross-ref-coverage.md` (coverage assessment from Step 3.3.4, if it ran)
+- `.workflows/plugin-qa/<DATE>-<RUN_ID>/bead-cross-ref-matches.md` (LLM matching results from Step 3.3.3, if it ran)
+- `.workflows/plugin-qa/<DATE>-<RUN_ID>/bead-cross-ref-coverage.md` (coverage assessment from Step 3.3.4, if it ran)
 
 Combine these with the deterministic matching results from Step 3.3.2 to build the complete tracking picture.
 
@@ -450,7 +450,7 @@ Combine these with the deterministic matching results from Step 3.3.2 to build t
 
 **Write the batch to disk** (recovery artifact + context-lean):
 
-Write the composed tracking status presentation to `.workflows/plugin-qa/bead-cross-ref-batch.md`. This file serves two purposes: (1) recovery if context compacts during the confirmation flow, and (2) keeping the full presentation data on disk rather than solely in context.
+Write the composed tracking status presentation to `.workflows/plugin-qa/<DATE>-<RUN_ID>/bead-cross-ref-batch.md`. This file serves two purposes: (1) recovery if context compacts during the confirmation flow, and (2) keeping the full presentation data on disk rather than solely in context.
 
 **Present to user via AskUserQuestion** with three options:
 
@@ -642,6 +642,6 @@ Synthesize all findings into a single summary for the user:
 - **NEVER call TaskOutput.** Poll for file existence instead.
 - **NEVER push to remote.** This is a local analysis command.
 - **Bead creation and updates require explicit user approval via staged batch confirmation.**
-- Agent outputs go to `.workflows/plugin-qa/agents/`. Second runs overwrite prior results (always want latest).
+- Agent outputs go to `.workflows/plugin-qa/<DATE>-<RUN_ID>/agents/`. Each run writes to its own dated subdirectory; old run results are retained.
 - If a Tier 1 script fails with exit 1, report the error and continue with remaining scripts.
 - If a Tier 2 agent times out, note it in the summary and present available results.
