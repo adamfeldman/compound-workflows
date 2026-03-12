@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.0.4 (plugins/compound-workflows/)
+- Plugin: compound-workflows v3.0.5 (plugins/compound-workflows/)
 - 26 agents, 28 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -95,6 +95,8 @@
 - **v2.6.1** — Permissionless bash generation (bead dndn) + heredoc hard heuristic fix: setup Step 8e injects Bash Generation Rules into project CLAUDE.md on opt-in, 8 avoidance patterns in resources/bash-generation-rules.md, complementary static rule suggestions. Heredoc fix: append-snapshot.sh replaces Read+Write approach, hard vs soft heuristic distinction in Permission Architecture. `<<` is unsuppressible by static rules.
 
 - **v3.0.0** — Commands→skills migration: 8 workflow commands migrated from `commands/compound/` to `skills/do-*/` using `${CLAUDE_SKILL_DIR}` for path resolution. Namespace `compound:` → `do:`. Thin alias redirects for backwards compat. init-values.sh PLUGIN_ROOT validation. QA Check 2b (skill-to-skill validation). 5 existing skills updated to `${CLAUDE_SKILL_DIR}`. 41 files changed. Tier 1+2 QA clean.
+
+- **v3.0.5** — Permissive profile expansion (bead u1fd): 11 new rules (git, ls, mkdir, md5, bd, if, for, [[, xargs, tee, WebFetch). Standard add-on gains ls + 4 safe git patterns (log, diff, status, branch). Step 0 verification: $() is hard heuristic, bd:* matches subcommands, cp with flags is hard. 13 planned bd subcommand rules dropped.
 
 ## In-Progress Work
 
