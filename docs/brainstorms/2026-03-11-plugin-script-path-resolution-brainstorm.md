@@ -160,12 +160,33 @@ Red team challenge completed 2026-03-11. Three providers (Gemini, OpenAI, Claude
 **S4: "Empirically confirmed" is weak evidence** (Opus, OpenAI)
 **Valid — adding QA test.** Will add a reproducible test to the plugin-qa suite that verifies `${CLAUDE_SKILL_DIR}` substitution works in installed context.
 
-### MINOR — Pending triage
+### MINOR — Triaged
 
-8 MINOR findings from all three providers. Triage deferred to next session (context compaction needed). Files on disk:
-- `.workflows/brainstorm-research/plugin-script-path-resolution/red-team--gemini.md`
-- `.workflows/brainstorm-research/plugin-script-path-resolution/red-team--openai.md`
-- `.workflows/brainstorm-research/plugin-script-path-resolution/red-team--opus.md`
+8 MINOR findings from all three providers. Red team files: `.workflows/brainstorm-research/plugin-script-path-resolution/red-team--{gemini,openai,opus}.md`
+
+**M1: Namespace rename is aesthetic preference** (Opus 3a)
+Acknowledged. Decision made — user chose `do:` for brevity and natural English. Aesthetic is a valid UX consideration.
+
+**M2: Upstream reference solves a simpler problem** (Opus 1c)
+Acknowledged. Brainstorm already states "Our plugin differs — we have shared scripts." Upstream validates skills-for-workflows but not `${CLAUDE_SKILL_DIR}/../../scripts/`.
+
+**M3: Inlining init values per skill not explored** (Opus 2b)
+No action. init-values.sh computes PLUGIN_ROOT + shared state used by secondary scripts. Inlining would duplicate logic across 13+ skills and drift over time.
+
+**M4: CLAUDE_SESSION_ID as anchor not explored** (Opus 2d)
+No action. Session ID is per-session and has no relationship to file paths. Not viable for path resolution.
+
+**M5: Model may emit literal `${CLAUDE_SKILL_DIR}` in bash tool calls** (Opus 4b)
+**Add to QA.** `${CLAUDE_SKILL_DIR}` is substituted at load time in the skill prompt, so the model sees an absolute path. Empirically the model reproduces the substituted path in Bash tool calls, not the template literal. But this is a behavioral assumption — add a QA test that verifies the model emits an absolute path (not a literal `${CLAUDE_SKILL_DIR}` string) when generating bash from a skill that uses it.
+
+**M6: 8-command-per-directory limit may be soft** (Opus 4c)
+**Clarify.** The limit is a Claude Code UI/loading constraint, not a hard enforcement. Commands beyond 8 may not appear in autocomplete. Either way, not the primary motivation for migration — `${CLAUDE_SKILL_DIR}` availability is.
+
+**M7: Conflicting CLAUDE_PLUGIN_ROOT claims across research docs** (Opus 5b)
+Fixed. Context-research doc corrected to clarify `CLAUDE_PLUGIN_ROOT` is a markdown substitution variable (broken per #9354), not a nonexistent concept. Knowledge Precedence section added to AGENTS.md to prevent research artifacts from overriding reviewed decisions.
+
+**M8: Problem selection may be too narrow** (OpenAI 7)
+No action. Already addressed by C1/C2 resolution — `find` fallback was evaluated and the migration was chosen for broader architectural benefits beyond path resolution.
 
 ## Related
 
