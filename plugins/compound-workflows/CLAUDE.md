@@ -244,9 +244,11 @@ General principles for plugin development workflow and decision-making.
 
 The plugin ships a PreToolUse auto-approve hook (`templates/auto-approve.sh`) and a minimal committed baseline in `.claude/settings.json`. Users may also add static `Bash(X:*)` rules in `.claude/settings.local.json`.
 
-**Key principle: static rules serve all LLM-generated bash, not just plugin commands.** When analyzing which static rules to keep or remove, consider ad-hoc commands the LLM generates for debugging, data analysis, and iteration (e.g., `for id in $(bd search ...); do ...`). The hook audit log is blind to `$()`-containing commands that static rules handle — static rules fire before heuristics, so the hook never sees them. Use session JSONL logs as the true source for `$()` frequency analysis.
+**Key principle: static rules serve all LLM-generated bash, not just plugin commands.** When analyzing which static rules to keep or remove, consider ad-hoc commands the LLM generates for debugging, data analysis, and iteration. The hook audit log is blind to commands that static rules handle — static rules fire before heuristics, so the hook never sees them.
 
-**Evaluation order:** static rules → heuristics → hook → interactive prompt. Static rules suppress **most** heuristics (`$()`, `{"`). However, `<<` (heredoc) is a "hard" heuristic that fires even with a matching static rule — heredocs must be hidden inside script files. If a heuristic fires, the hook cannot override it — only static rules (for soft heuristics) or script encapsulation (for hard heuristics) can.
+**Evaluation order:** static rules → heuristics → hook → interactive prompt. Static rules suppress **some** heuristics (e.g., `{"`, redirects `>`). However, `$()` and `<<` (heredoc) are "hard" heuristics that fire even with a matching static rule — `$()` must be avoided via the Bash Generation Rules, and heredocs must be hidden inside script files. If a hard heuristic fires, nothing can override it except avoiding the pattern entirely. `cp` with flags also has a hard heuristic ("cp command with flags requires manual approval").
+
+> **Verified 2026-03-12 (Claude Code 2.1.74):** `Bash(bd:*)` matches all `bd` subcommands (tested via `bd stats > /dev/null` — redirect bypassed hook, static rule approved). `$()` prompted even with matching static rules for `bd:*`, `bd search:*`, and `git:*`. Prior documentation claiming `$()` was a "soft" heuristic was incorrect.
 
 ### Bash Generation Rules (opt-in via setup)
 
