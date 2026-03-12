@@ -1,7 +1,7 @@
 ---
 title: "fix: expand permissive profile with missing safe rules"
 type: fix
-status: draft
+status: active
 date: 2026-03-12
 ---
 
@@ -9,49 +9,46 @@ date: 2026-03-12
 
 ## Context
 
-Audit of a real user's `settings.local.json` against the permissive profile in `do:setup` revealed 18 missing rules that are safe and commonly needed. The permissive profile should reduce prompts to near-zero for trusted environments, but gaps force users to accumulate ad-hoc rules.
-
-Also discovered: `Bash(bd:*)` does not match `bd <subcommand>` in practice — explicit subcommand rules are required. Root cause unknown (likely Claude Code glob matching behavior). This means bd users need per-subcommand rules.
+Audit of a real user's `settings.local.json` against the permissive profile in `do:setup` revealed gaps that force users to accumulate ad-hoc rules. The permissive profile should reduce prompts to near-zero for trusted environments.
 
 Already completed: removed `rm:*` from permissive (zvux, committed in 3.0.2).
 
+## Step 0 Verification Results
+
+Empirical testing in Claude Code 2.1.74 revealed:
+
+| Test | Result | Meaning |
+|------|--------|---------|
+| `sed --version` | Auto-approved | Static rules work (sed:* not in hook) |
+| `bd stats > /dev/null` | Auto-approved | `bd:*` DOES match `bd <subcommand>` (redirect bypasses hook, static rule approved) |
+| `bd show $(echo u1fd)` | Prompted | $() is a hard heuristic (not suppressible by static rules) |
+| `bd search $(echo ...)` | Prompted | Same — $() hard even with `bd search:*` in rules |
+| `git log $(echo ...)` | Prompted | Same — $() hard even with `git:*` in rules |
+| `cp --version` | Prompted | `cp` has a hard heuristic ("cp with flags requires manual approval") |
+
+**Key findings:**
+1. **`Bash(bd:*)` DOES match `bd <subcommand>`** — the original claim was wrong. The user's earlier prompts were caused by $() being hard, not by pattern mismatch.
+2. **$() is a hard heuristic** — static rules cannot suppress it. This contradicts CLAUDE.md documentation which lists $() as soft. Filed for documentation update.
+3. **`WebFetch(domain:*)` is valid syntax** — already in use in user's settings.local.json.
+4. **13 bd subcommand rules DROPPED** — unnecessary since `bd:*` covers all subcommands.
+
 ## Rules to Add
 
-### General (10)
+### Permissive Profile (11 rules)
 
 | Rule | Rationale |
 |------|-----------|
-| `Bash(git:*)` | Fundamental — used constantly, hook handles for standard but permissive users expect it |
-| `Bash(mkdir:*)` | Basic, safe — model generates bare `mkdir -p` without `bash` prefix. Currently standard-only add-on but belongs in permissive |
+| `Bash(git:*)` | Fundamental — used constantly. Bypasses hook's `is_dangerous_git()` — gets ⚠ warning. |
+| `Bash(mkdir:*)` | Basic, safe — model generates bare `mkdir -p` |
 | `Bash(md5:*)` | Used regularly for hash checks in plugin workflows |
 | `Bash(ls:*)` | Basic, safe — avoids prompts on `ls` with flags |
-| `Bash(bd:*)` | Beads is a core plugin tool — kept even though subcommand rules are also needed |
-| `Bash(if:*)` | Shell control flow — common in model-generated bash, triggers heuristics with `$()` inside |
-| `Bash(for:*)` | Shell control flow — used for iterating over beads results, file lists, etc. |
+| `Bash(bd:*)` | Beads is a core plugin tool — verified to match all subcommands |
+| `Bash(if:*)` | Shell control flow — suppresses redirect/quote heuristics in conditionals |
+| `Bash(for:*)` | Shell control flow — suppresses heuristics in loops |
 | `Bash([[:*)` | Shell control flow — conditional checks |
 | `Bash(xargs:*)` | Pipeline tool — safe, used in data processing |
 | `Bash(tee:*)` | Pipeline tool — safe, used for logging output |
-| `WebFetch(domain:*)` | Research agents and defuddle skill fetch URLs — broad but consistent with permissive trust model |
-
-### Beads Subcommands (13)
-
-`Bash(bd:*)` doesn't cover `bd <subcommand>` in practice. All common subcommands need explicit rules:
-
-| Rule | Used by |
-|------|---------|
-| `Bash(bd show:*)` | All workflows — inspect issues |
-| `Bash(bd list:*)` | All workflows — enumerate issues |
-| `Bash(bd create:*)` | do:work — create issues from plan steps |
-| `Bash(bd update:*)` | do:work — claim issues, update status |
-| `Bash(bd close:*)` | do:work — mark issues complete |
-| `Bash(bd search:*)` | Ad-hoc — find issues by keyword |
-| `Bash(bd ready:*)` | do:work — find unblocked issues |
-| `Bash(bd blocked:*)` | Ad-hoc — check blocked issues |
-| `Bash(bd dep:*)` | do:work — manage dependencies |
-| `Bash(bd worktree:*)` | do:work — create/remove worktrees |
-| `Bash(bd stats:*)` | Ad-hoc — project health |
-| `Bash(bd doctor:*)` | Ad-hoc — diagnostics |
-| `Bash(bd dolt:*)` | Session end — push/pull beads |
+| `WebFetch(domain:*)` | Research agents and defuddle skill fetch URLs — in addition to existing `WebSearch`. Verified syntax. |
 
 ### Not Adding (personal preference, not universal)
 
@@ -63,13 +60,72 @@ Already completed: removed `rm:*` from permissive (zvux, committed in 3.0.2).
 
 ## Implementation
 
-- [ ] **Step 1:** Add 24 rules to permissive profile rule list in `skills/do-setup/SKILL.md` (line ~460)
-- [ ] **Step 2:** Update permissive summary line (line ~435) to mention git, ls, mkdir, md5, bd, shell constructs, WebFetch
-- [ ] **Step 3:** Update CHANGELOG.md under current unreleased version
-- [ ] **Step 4:** Add `ls` and `git` to standard profile add-on (line ~718 area) alongside existing `which`, `echo`, `mkdir`
-- [ ] **Step 5:** Run QA — this touches a skill file
+- [x] **Step 0:** Verify pattern matching behavior (see results above)
+- [ ] **Step 1:** Add 11 rules to permissive profile rule list in `skills/do-setup/SKILL.md` (line ~460)
+- [ ] **Step 2:** Update permissive summary block (line ~435 area):
+  ```
+  ⚠ bash:*    — allows arbitrary script execution (BYPASSES hook guardrails)
+  ⚠ python3:* — allows arbitrary code execution (BYPASSES hook guardrails)
+  ⚠ git:*     — allows all git operations including destructive (BYPASSES hook is_dangerous_git)
+  ⚠ cat:*     — bypasses Read tool path restrictions
+  Plus: gh, grep, find, claude, ccusage, head, tail, sed, cp, timeout, open,
+        ls, mkdir, md5, bd, if, for, [[, xargs, tee, WebFetch
+  ```
+- [ ] **Step 3:** Update CHANGELOG.md. Add new version section:
+  ```
+  - **Expand permissive profile** — Add 11 rules: git, ls, mkdir, md5, bd, shell constructs (if, for, [[, xargs, tee), WebFetch. Add safe git patterns and ls to standard add-on. Existing permissive users: re-run `/do:setup` to pick up new rules.
+  - **Documentation: $() is a hard heuristic** — Step 0 verification discovered that static rules do NOT suppress the $() heuristic in Claude Code 2.1.74, contradicting prior documentation. This means `Bash(X:*)` rules only help for commands without $() — the Bash Generation Rules (avoiding $()) remain the primary mitigation.
+  ```
+- [ ] **Step 4:** Update standard profile add-on (line ~718 area):
+  - Add `ls` (basic, safe — same class as existing `which`, `echo`, `mkdir`)
+  - Add specific safe git patterns: `Bash(git log:*)`, `Bash(git diff:*)`, `Bash(git status:*)`, `Bash(git branch:*)` (NOT broad `Bash(git:*)` — that would bypass hook's `is_dangerous_git()` check)
+- [ ] **Step 5:** Bump version to 3.0.5 in `plugin.json` and `marketplace.json` (PATCH). Current version is 3.0.4.
+- [ ] **Step 6:** Run QA — this touches a skill file
 
 ## Resolved Questions
 
-- **Standard profile add-on gets `ls` and `git` too.** Yes — these are basic and safe. Standard add-on becomes: `which`, `echo`, `mkdir`, `ls`, `git`.
-- **Conditional bd rules deferred.** Setup adds bd rules unconditionally for now. Bead ptxp tracks adding `bd version` detection to conditionally include them.
+- **Standard profile add-on gets `ls` and safe git subcommands.** Yes — `ls` is basic/safe. `git` is scoped to read-only operations (`git log`, `git diff`, `git status`, `git branch`) to avoid bypassing hook guardrails. Standard add-on becomes: `which`, `echo`, `mkdir`, `ls`, `git log`, `git diff`, `git status`, `git branch`.
+- **13 bd subcommand rules dropped.** Step 0 proved `Bash(bd:*)` matches all subcommands. The user's original prompts were from $() being hard, not pattern mismatch. Bead ptxp (conditional bd rules) is still relevant for making the single `bd:*` rule conditional on beads detection.
+- **$() is hard.** Static rules suppress redirects (`>`) but NOT command substitution (`$()`). The Bash Generation Rules remain the primary mitigation for $()-triggered prompts.
+
+## Red Team Resolution
+
+Red team challenge run 2026-03-12 with 3 providers (Gemini, OpenAI, Claude Opus).
+
+### CRITICAL — Resolved
+
+| Finding | Providers | Resolution |
+|---------|-----------|------------|
+| `bd:*` claim unverified + no behavioral validation | All 3 | **Valid — Step 0 completed.** Verification disproved the original claim: `bd:*` DOES match subcommands. 13 rules dropped. |
+| Rules redundant with `Bash(bash:*)` | Opus | **Disagree:** `Bash(bash:*)` matches commands starting with `bash`. LLM generates bare commands (`git status`, `ls -la`) — separate rules needed. |
+| `WebFetch(domain:*)` trust-surface expansion | OpenAI, Opus | **Disagree on trust concern:** permissive already has `bash:*`/`python3:*`. **Valid on syntax:** verified in user's settings. |
+
+### SERIOUS — Resolved
+
+| Finding | Providers | Resolution |
+|---------|-----------|------------|
+| `bd show:*` space-in-prefix untested | Opus | **Moot — 13 subcommand rules dropped.** `bd:*` covers all subcommands. |
+| Shell constructs enable arbitrary execution | All 3 | **Disagree:** permissive already has `bash:*`/`python3:*`. Trust-the-model stance. |
+| Count contradictions (18 vs 24, General 10 vs 11) | Opus, OpenAI | **Fixed.** Now 11 rules (was 24 before dropping bd subcommands). |
+| Hardcoded bd subcommand list is brittle | Gemini, OpenAI | **Moot — 13 subcommand rules dropped.** |
+| N=1 user audit | Opus | **Disagree:** plugin author is primary user; patterns are representative. |
+| Missing version/release steps | OpenAI | **Valid — added Step 5.** |
+
+### MINOR — Resolved
+
+| Finding | Providers | Resolution |
+|---------|-----------|------------|
+| `git` in standard bypasses hook guardrails | Opus | **Valid — Step 4 uses safe patterns** (`git log:*`, `git diff:*`, `git status:*`, `git branch:*`). |
+| No re-run guidance for existing users | Opus | **Valid — folded into Step 3 CHANGELOG.** |
+| `bd:*` redundant alongside subcommand rules | Gemini, OpenAI | **Resolved — subcommand rules dropped.** `bd:*` is the only rule needed. |
+| No cleanup strategy for glob bug fix | Gemini | **Moot — no glob bug exists.** `bd:*` works correctly. |
+
+## Readiness Resolution
+
+6 findings from semantic checks (0 CRITICAL, 3 SERIOUS, 3 MINOR). All auto-fixed. See `.workflows/plan-research/fix-permissive-profile-expansion/readiness/checks/semantic-checks.md`.
+
+## Sources
+
+- Red team files: `.workflows/plan-research/fix-permissive-profile-expansion/red-team--{gemini,openai,opus}.md`
+- Readiness checks: `.workflows/plan-research/fix-permissive-profile-expansion/readiness/checks/`
+- Step 0 verification: Claude Code 2.1.74, empirical testing 2026-03-12
