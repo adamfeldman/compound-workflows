@@ -155,8 +155,9 @@ Check:
 
 ## Step 9: Create Slash Command
 
-```bash
-cat > ~/.claude/commands/{skill-name}.md << 'EOF'
+Use the **Write tool** to create `~/.claude/commands/{skill-name}.md` with the following content (note: `$ARGUMENTS` is a Claude Code variable — include it literally, do not expand):
+
+```markdown
 ---
 description: {Brief description}
 argument-hint: [{argument hint}]
@@ -164,7 +165,6 @@ allowed-tools: Skill({skill-name})
 ---
 
 Invoke the {skill-name} skill for: $ARGUMENTS
-EOF
 ```
 
 ## Step 10: Test

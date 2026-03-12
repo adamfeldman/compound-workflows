@@ -154,11 +154,10 @@ Examples:
 If `compound-workflows.local.md` exists but lacks `stats_capture`, append both stats keys with `true` defaults:
 
 ```bash
-if [ -f compound-workflows.local.md ] && ! grep -q 'stats_capture' compound-workflows.local.md; then
-  echo 'stats_capture: true' >> compound-workflows.local.md
-  echo 'stats_classify: true' >> compound-workflows.local.md
-fi
+bash ${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh
 ```
+
+Read the stdout for `STATS_KEYS_ADDED=true` status.
 
 Stats toggles default to enabled — missing keys are treated as enabled by orchestrator commands (Decision 6: "Missing keys = enabled"). The migration adds keys for explicitness.
 

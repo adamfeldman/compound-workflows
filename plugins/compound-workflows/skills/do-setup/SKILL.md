@@ -317,9 +317,7 @@ Use **AskUserQuestion**: "These directories are in .gitignore but should be comm
 
 **If `compound-workflows.local.md` is not in `.gitignore`**, add it silently — it contains machine-specific config that shouldn't be committed:
 
-```bash
-echo 'compound-workflows.local.md' >> .gitignore
-```
+Read `.gitignore` (if it exists). If `compound-workflows.local.md` is not already listed, use the **Edit tool** to append `compound-workflows.local.md` as a new line.
 
 ## Step 7: Configure Permissions
 
@@ -658,12 +656,10 @@ cat compound-workflows.local.md 2>/dev/null
 If `compound-workflows.local.md` exists but lacks `stats_capture`, append both stats keys with `true` defaults:
 
 ```bash
-if [ -f compound-workflows.local.md ] && ! grep -q 'stats_capture' compound-workflows.local.md; then
-  echo 'stats_capture: true' >> compound-workflows.local.md
-  echo 'stats_classify: true' >> compound-workflows.local.md
-  echo "STATS_KEYS_ADDED=true"
-fi
+bash ${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh
 ```
+
+Read the stdout for `STATS_KEYS_ADDED=true` status.
 
 If an old-format `compound-workflows.local.md` exists (look for `review_agents:` in the local file, or `review_agents: compound-engineering`), inform the user:
 

@@ -116,7 +116,7 @@ If an agent hasn't produced output after 3 minutes, mark it as timed out and pro
 
 Use the agent summaries (which include thread IDs and changed file paths) to commit and resolve:
 
-- Commit changes with a clear message referencing the PR feedback
+- Commit changes with a clear message referencing the PR feedback: use the **Write tool** to write the commit message to `.workflows/scratch/commit-msg-resolve-pr-<PR_NUMBER>.txt`, then run `git commit -F .workflows/scratch/commit-msg-resolve-pr-<PR_NUMBER>.txt`.
 - For each resolved comment, use the thread ID from the agent summary to resolve the thread programmatically:
 
 ```bash

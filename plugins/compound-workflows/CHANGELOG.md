@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.6] - 2026-03-12
+
+### Added
+
+- **write-tool-discipline.sh QA script** — Tier 1 check detects heredoc (`<< 'EOF'`), echo redirect (`echo >> file`), and inline commit flag (`git commit -m`) patterns in LLM-interpreted `.md` files. Supports `write-tool-exempt` and `heuristic-exempt` markers. Tier 1 script count: 8 to 9.
+- **migrate-stats-keys.sh** — Heuristic-safe script for conditional config key migration. Replaces inline `echo >> file` blocks in do-setup and setup skills with script delegation, consistent with append-snapshot.sh precedent.
+
+### Fixed
+
+- **Write tool discipline: 10 violation fixes** — Replace heredoc patterns (2), echo redirect patterns (4), and underspecified commit method patterns (4) across 7 skill files. All commit instructions now specify Write tool + `git commit -F` method. All file append instructions now use Edit/Write tool instead of shell redirects.
+- **Tier 1 QA scan scope expanded** — `context-lean-grep.sh`, `no-shell-atomicity.sh`, `unslugged-paths.sh`, and `truncation-check.sh` now scan `skills/*/workflows/*.md` in addition to existing scope. Closes blind spot where workflow files in `create-agent-skills/workflows/` were invisible to Tier 1 checks.
+
 ## [3.0.5] - 2026-03-12
 
 ### Changed

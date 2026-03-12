@@ -206,21 +206,21 @@ If similar issues found in Step 3:
 
 **Update existing doc:**
 
-```bash
-# Add Related Issues link to similar doc
-echo "- See also: [$FILENAME]($REAL_FILE)" >> [similar-doc.md]
-```
+Use the **Edit tool** to append `- See also: [$FILENAME]($REAL_FILE)` to the target similar doc.
 
 **Update new doc:**
 Already includes cross-reference from Step 6.
 
 **Update patterns if applicable:**
 
-If this represents a common pattern (3+ similar issues):
+If this represents a common pattern (3+ similar issues), add it to `docs/solutions/patterns/common-solutions.md`:
 
-```bash
-# Add to docs/solutions/patterns/common-solutions.md
-cat >> docs/solutions/patterns/common-solutions.md << 'EOF'
+1. If `docs/solutions/patterns/common-solutions.md` exists, use the **Edit tool** to append the following pattern block to the end of the file.
+2. If it does not exist, use the **Write tool** to create it with the following content.
+
+Content to append/write:
+
+```markdown
 
 ## [Pattern Name]
 
@@ -232,7 +232,6 @@ cat >> docs/solutions/patterns/common-solutions.md << 'EOF'
 - [Link to doc 1]
 - [Link to doc 2]
 - [Link to doc 3]
-EOF
 ```
 
 **Critical Pattern Detection (Optional Proactive Suggestion):**

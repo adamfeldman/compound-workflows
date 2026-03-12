@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # name: truncation-check
-# description: Verify command and agent files have YAML frontmatter and are not truncated
+# description: Verify command, skill, workflow, and agent files have YAML frontmatter and are not truncated
 #
 # Usage: ./truncation-check.sh [plugin-root-path]
 
@@ -11,38 +11,42 @@ resolve_plugin_root "${1:-}"
 init_findings
 
 # --- Helper: check a file for frontmatter and minimum length ---
-# Usage: check_file <file> <min_lines> <file_type>
+# Usage: check_file <file> <min_lines> <file_type> [--no-frontmatter]
 check_file() {
   local file="$1"
   local min_lines="$2"
   local file_type="$3"
+  local skip_frontmatter="${4:-}"
 
   if [[ ! -f "$file" ]]; then
     return 0
   fi
 
-  # Check YAML frontmatter: first line must be exactly "---"
-  local first_line
-  first_line="$(head -1 "$file")"
-  if [[ "$first_line" != "---" ]]; then
-    add_finding "SERIOUS" "$file" "1" "missing-frontmatter" \
-      "$file_type file missing YAML frontmatter (first line is not '---')"
-  else
-    # Check for closing frontmatter delimiter
-    # Look for second "---" in first 20 lines (frontmatter should be short)
-    local has_closing=false
-    local line_num=0
-    while IFS= read -r line; do
-      line_num=$((line_num + 1))
-      [[ "$line_num" -eq 1 ]] && continue  # skip opening ---
-      if [[ "$line" = "---" ]]; then
-        has_closing=true
-        break
+  # Check YAML frontmatter (unless --no-frontmatter flag is set)
+  if [[ "$skip_frontmatter" != "--no-frontmatter" ]]; then
+    # First line must be exactly "---"
+    local first_line
+    first_line="$(head -1 "$file")"
+    if [[ "$first_line" != "---" ]]; then
+      add_finding "SERIOUS" "$file" "1" "missing-frontmatter" \
+        "$file_type file missing YAML frontmatter (first line is not '---')"
+    else
+      # Check for closing frontmatter delimiter
+      # Look for second "---" in first 20 lines (frontmatter should be short)
+      local has_closing=false
+      local line_num=0
+      while IFS= read -r line; do
+        line_num=$((line_num + 1))
+        [[ "$line_num" -eq 1 ]] && continue  # skip opening ---
+        if [[ "$line" = "---" ]]; then
+          has_closing=true
+          break
+        fi
+      done < <(head -20 "$file")
+      if [[ "$has_closing" = false ]]; then
+        add_finding "SERIOUS" "$file" "" "unclosed-frontmatter" \
+          "$file_type file has opening '---' but no closing '---' in first 20 lines"
       fi
-    done < <(head -20 "$file")
-    if [[ "$has_closing" = false ]]; then
-      add_finding "SERIOUS" "$file" "" "unclosed-frontmatter" \
-        "$file_type file has opening '---' but no closing '---' in first 20 lines"
     fi
   fi
 
@@ -65,6 +69,12 @@ done
 for f in "$PLUGIN_ROOT"/skills/do-*/SKILL.md; do
   [[ -f "$f" ]] || continue
   check_file "$f" 20 "Skill"
+done
+
+# --- Check workflow files (no frontmatter required, min 30 lines) ---
+for f in "$PLUGIN_ROOT"/skills/*/workflows/*.md; do
+  [[ -f "$f" ]] || continue
+  check_file "$f" 30 "Workflow" "--no-frontmatter"
 done
 
 # --- Check agent files (direct children of category dirs) ---

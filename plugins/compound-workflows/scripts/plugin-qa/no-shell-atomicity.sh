@@ -31,6 +31,11 @@ for f in "$PLUGIN_ROOT"/skills/*/SKILL.md; do
   scan_files+=("$f")
 done
 
+for f in "$PLUGIN_ROOT"/skills/*/workflows/*.md; do
+  [[ -f "$f" ]] || continue
+  scan_files+=("$f")
+done
+
 while IFS= read -r f; do
   [[ -f "$f" ]] || continue
   case "$f" in */references/*) continue ;; esac
