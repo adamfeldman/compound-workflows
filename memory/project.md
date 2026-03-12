@@ -104,9 +104,11 @@
 - **Downgrade analytical agents to Sonnet (bead sze8)** — P1. Blocked by wtn. Candidates: semantic-checks, spec-flow-analyzer, plan-readiness-reviewer, minor-triage. Red-team-opus stays Opus.
 - **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt.
 - **Research agents need web search (bead ixz4)** — P2. Brainstorm/plan research agents don't search GitHub issues or official docs for upstream constraints. Caused miss on CLAUDE_PLUGIN_ROOT #9354.
+- **Write tool discipline (bead dj65)** — P2 bug. Plan ready at `docs/plans/2026-03-12-fix-write-tool-discipline-plan.md`. 10 violation fixes + `write-tool-discipline.sh` QA script + Tier 1 scope expansion to `skills/*/workflows/*.md`. Red-teamed (3 providers, 2 CRITICAL + 7 SERIOUS all resolved). Next: `/do:work`.
 - **Red team model selection (bead aig)** — P3. Brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
-- **Session-end capture + compact-prep batch refactor (bead ka3w)** — P3. Brainstorm complete. Absorbed xzn (config toggles). 9 decisions, 3-provider red team. Next: `/do:plan`.
+- **Session-end capture + compact-prep batch refactor (bead ka3w)** — P3. Plan in progress. Red team triage ~60% done (4 CRITICAL resolved, 2 of 8 SERIOUS resolved). Key decisions from red team: persist batch state to `.workflows/compact-prep/<run-id>.json` for compound resume, version actions separated into dedicated prompt (not batch), push gate covers all network ops including release, version_check defaults off (only for plugin devs). Next: finish SERIOUS/MINOR triage + Phase 7 handoff.
+- **Plugin-wide config toggles (bead 4a1o)** — P3. Created during ka3w plan. Extends ka3w's config toggle pattern to other commands (red team, readiness, etc.).
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
 
 ## Critical Patterns
