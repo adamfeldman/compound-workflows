@@ -111,6 +111,23 @@ Run plan→deepen→work for one feature at a time. Do not run parallel feature 
 
 Plugin files (commands, agents, skills) are prose, not code — git cannot meaningfully merge conflicts in 400-line prompt files. Two branches both modifying `work.md` or `plan.md` means manual rewrite, not a resolvable merge. Plan and deepen-plan immediately before work so the repo doesn't drift between planning and execution.
 
+## Knowledge Precedence
+
+When sources conflict, prefer higher-tier documents. Higher tiers have more review, refinement, and user validation.
+
+| Tier | Source | Why |
+|------|--------|-----|
+| 1 (highest) | **Live code** — scripts, commands, skills, configs | Ground truth. What actually runs. |
+| 2 | **Solutions** — `docs/solutions/` | Post-hoc validated. Documents what worked and why. |
+| 3 | **Plans** — `docs/plans/` | Reviewed, deepened, and approved before execution. |
+| 4 | **Brainstorms** — `docs/brainstorms/` | Red-teamed and user-decided, but pre-implementation. |
+| 5 | **Memory** — `memory/`, `.claude/memory/` | Living notes. May lag behind code or decisions. |
+| 6 (lowest) | **Research artifacts** — `.workflows/brainstorm-research/`, `.workflows/plan-research/` | Working artifacts produced by subagents during brainstorm/plan phases. May contain errors, stale claims, or findings that were later overruled by user decisions in the brainstorm or plan they fed into. |
+
+**When to apply:** Before trusting a claim from a lower-tier source, check whether a higher-tier source addresses the same topic. If a research artifact contradicts a brainstorm, trust the brainstorm — the brainstorm incorporated the research and may have deliberately overruled it.
+
+**Research artifacts are not garbage** — they contain valuable detail, citations, and cross-references that higher-tier docs often summarize away. Read them for depth. Just don't let them override reviewed decisions.
+
 ## Key Conventions
 
 - Commands use `compound:` namespace prefix

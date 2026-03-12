@@ -14,6 +14,7 @@
 - **Config split** — `compound-workflows.md` (committed, project) + `compound-workflows.local.md` (gitignored, env). Red team prefs runtime-detected.
 - **`.workflows/` committed in user projects** (research traceability), gitignored in this plugin source repo.
 - **Deferring is OK** when user explicitly chooses it — "zero untriaged items" not "zero deferred items".
+- **Knowledge Precedence** (AGENTS.md) — 6-tier hierarchy: live code > solutions > plans > brainstorms > memory > research artifacts. Agents trust higher-tier docs when sources conflict. Research artifacts are working subagent output, valuable for depth but not authoritative over reviewed decisions.
 
 ## Critical Discoveries
 - **Nested Task dispatch does NOT work** — subagents cannot spawn further subagents. Use flat dispatch.
@@ -92,7 +93,7 @@
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/compound:brainstorm`.
 - **Downgrade analytical agents to Sonnet (bead sze8)** — P1. Blocked by wtn. Candidates: semantic-checks, spec-flow-analyzer, plan-readiness-reviewer, minor-triage. Red-team-opus stays Opus.
 - **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt. Led to path resolution brainstorm — migrating commands→skills with `do:` namespace (v3.0.0).
-- **Commands→skills migration brainstorm in progress** — `docs/brainstorms/2026-03-11-plugin-script-path-resolution-brainstorm.md`. Red team complete (3 providers). CRITICAL/SERIOUS resolved. MINOR triage pending. Key decisions: commands→skills, `do:` namespace, `${CLAUDE_SKILL_DIR}/../../scripts/` with upward-walk fallback, v3.0.0 major bump.
+- **Commands→skills migration plan ready** — `docs/plans/2026-03-11-feat-plugin-script-path-resolution-plan.md`. Brainstorm complete (red team done, all findings triaged). Plan passed readiness checks (0 actionable findings). 8 phases, ~46 files. Red team on plan skipped (brainstorm was already red-teamed). Key: `do:` namespace, `${CLAUDE_SKILL_DIR}`, thin aliases (Option B template with `#$ARGUMENTS`), all cross-refs in v3.0.0 scope, Check 2b for skill-to-skill validation. Next: `/compound:work`.
 - **Research agents need web search (bead ixz4)** — P2. Brainstorm/plan research agents don't search GitHub issues or official docs for upstream constraints. Caused miss on CLAUDE_PLUGIN_ROOT #9354.
 - **Red team model selection (bead aig)** — P3. Brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
@@ -120,6 +121,7 @@
 - **7k6 created** — P3. Hook to inject current date into session context. MEMORY.md date goes stale on resumed sessions from prior days.
 - h0g unblocked (removed aig dependency)
 - **3k3 absorbed into permission-prompt-optimization** — plan fully triaged: 4 CRITICAL + 7 SERIOUS from red team resolved, re-check clean, security sentinel + architecture strategist + code simplicity reviewers ran. Plan ready for work. Key changes: pipes/`$()`/heredocs/globs added to pre-checks, realpath adopted, profiles collapsed 3→2 (Standard/Permissive), hook shipped as template file, quote-aware tokenization specified.
+- **a4pj created** — P3. Setup should inject Knowledge Precedence into project CLAUDE.md. 30m estimate.
 - **a6t created** — P2. Agent timeout/recovery rules in plan command. Don't skip agents that are actively working.
 - **cn5 created** — P3. Make stats collection off by default.
 - **jak created** — P3. Audit plugin commands for heuristic-triggering patterns ($(), for loops, heredocs).
