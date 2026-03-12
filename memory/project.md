@@ -53,6 +53,10 @@
 - **Multi-word static rule prefixes work** — `Bash(for id:*)` exists in settings.local.json and matches commands starting with `for id`. Confirmed: multi-word matching is supported. `Bash(bash -c:*)` would also work syntactically.
 - **Cache tokens dominate Claude Code cost** — daily: 140M cache read vs 200k I/O tokens. Cache:I/O ratio ~710x. Effective Opus rate per I/O token (cache-inclusive): $493/M. Subagent ratio is lower (fresh context, ~50-100x estimated). Stats `tokens` field only captures I/O, not cache — per-agent cost requires the cache-inclusive rate. See `memory/cost-analysis.md`.
 - **Task→Agent dispatch migration incomplete** — wgl (v2.1.0) only migrated deepen-plan + plan red-team. ~30 Task dispatches remain: brainstorm (8), review (7), plan (5), compound (8), work (2), plugin-changes-qa skill (5). Benefits: model from frontmatter, consistency, Agent tool features (worktree isolation). Not a capability or cost improvement — cleanup only. Tracked in bead 2kj.
+- **`${CLAUDE_SKILL_DIR}` works in plugin skills, NOT in commands** — load-time string substitution, gives absolute path to skill directory. Empirically confirmed 2026-03-11: skill at `skills/do-test/SKILL.md` received `/Users/adamf/.claude/plugins/cache/.../2.6.1/skills/do-test`. Commands get literal `${CLAUDE_SKILL_DIR}` unsubstituted. `${CLAUDE_SESSION_ID}` works in both. Bash injection (`!`command``) works in neither.
+- **`${CLAUDE_PLUGIN_ROOT}` is broken in markdown** — [GitHub #9354](https://github.com/anthropics/claude-code/issues/9354), open since Oct 2025, 20 comments, no Anthropic response. Only works in JSON configs (hooks.json, MCP). git-worktree and resolve-pr-parallel skills use it — those are broken in installed contexts.
+- **`do:` namespace works in skill `name:` field** — `name: do:test` in `skills/do-test/SKILL.md` creates `/compound-workflows:do:test`. Short form `/do:test` works in autocomplete. Empirically confirmed 2026-03-11.
+- **Upstream compound-engineering uses skills not commands** — `ce:brainstorm`, `ce:plan`, `ce:work`, `ce:review`, `ce:compound` are all skills. No scripts directory. No path resolution problem.
 - **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format
@@ -87,7 +91,9 @@
 
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/compound:brainstorm`.
 - **Downgrade analytical agents to Sonnet (bead sze8)** — P1. Blocked by wtn. Candidates: semantic-checks, spec-flow-analyzer, plan-readiness-reviewer, minor-triage. Red-team-opus stays Opus.
-- **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt.
+- **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt. Led to path resolution brainstorm — migrating commands→skills with `do:` namespace (v3.0.0).
+- **Commands→skills migration brainstorm in progress** — `docs/brainstorms/2026-03-11-plugin-script-path-resolution-brainstorm.md`. Red team complete (3 providers). CRITICAL/SERIOUS resolved. MINOR triage pending. Key decisions: commands→skills, `do:` namespace, `${CLAUDE_SKILL_DIR}/../../scripts/` with upward-walk fallback, v3.0.0 major bump.
+- **Research agents need web search (bead ixz4)** — P2. Brainstorm/plan research agents don't search GitHub issues or official docs for upstream constraints. Caused miss on CLAUDE_PLUGIN_ROOT #9354.
 - **Red team model selection (bead aig)** — P3. Brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 - **Config toggles for optional compact-prep steps (bead xzn)** — P2. Version check + daily cost summary both optional.
