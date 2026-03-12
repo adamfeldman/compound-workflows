@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.1] - 2026-03-12
+
+### Fixed
+
+- **Faster compact-prep** — direct memory writes (no temp files), immediate ccusage snapshot. Eliminates ~15 minutes of overhead from the deferred temp-file pattern.
+
 ## [3.1.0] - 2026-03-12
 
 ### Features

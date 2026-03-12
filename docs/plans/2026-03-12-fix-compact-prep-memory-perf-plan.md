@@ -1,7 +1,7 @@
 ---
 title: "fix: Compact-prep performance — direct memory writes + immediate ccusage"
 type: fix
-status: active
+status: completed
 date: 2026-03-12
 bead: ka3w
 origin: docs/plans/2026-03-12-feat-session-end-capture-batch-refactor-plan.md
