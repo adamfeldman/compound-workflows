@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.2] - 2026-03-12
+
+### Fixed
+
+- **Stats capture works from worktrees** — STATS_FILE is now an absolute path via `compute_repo_root()`, eliminating the need to `cd` back to main repo root before capturing stats. Removes prose workarounds in do-work and stats-capture-schema.
+
 ## [3.1.1] - 2026-03-12
 
 ### Fixed
