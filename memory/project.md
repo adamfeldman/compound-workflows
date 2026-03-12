@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.0.6 (plugins/compound-workflows/)
+- Plugin: compound-workflows v3.1.0 (plugins/compound-workflows/)
 - 26 agents, 28 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -100,18 +100,19 @@
 
 - **v3.0.6** — Write tool discipline (bead dj65): 10 violation fixes (2 heredoc, 4 echo-redirect, 4 unspecified-commit) across 7 skill files. New `write-tool-discipline.sh` QA script (Tier 1 count 8→9). `migrate-stats-keys.sh` for script delegation. Tier 1 scan scope expanded to `skills/*/workflows/*.md` in 4 scripts. Truncation-check workflow file type added.
 
+- **v3.1.0** — Session-end capture + compact-prep batch refactor (bead ka3w): two-phase architecture (check→batch→execute), 5 config toggles, inverted multi-select batch prompt, per-step retry/skip/abort, compound state persistence for resume, version actions separated from batch.
+
 ## In-Progress Work
 
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/do:brainstorm`.
 - **Downgrade analytical agents to Sonnet (bead sze8)** — P1. Blocked by wtn. Candidates: semantic-checks, spec-flow-analyzer, plan-readiness-reviewer, minor-triage. Red-team-opus stays Opus.
 - **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt.
 - **Research agents need web search (bead ixz4)** — P2. Brainstorm/plan research agents don't search GitHub issues or official docs for upstream constraints. Caused miss on CLAUDE_PLUGIN_ROOT #9354.
-- **Write tool discipline (bead dj65)** — DONE v3.0.6.
 - **Red team model selection (bead aig)** — P3. Brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
-- **Session-end capture + compact-prep batch refactor (bead ka3w)** — P3. Plan in progress. Red team triage ~60% done (4 CRITICAL resolved, 2 of 8 SERIOUS resolved). Key decisions from red team: persist batch state to `.workflows/compact-prep/<run-id>.json` for compound resume, version actions separated into dedicated prompt (not batch), push gate covers all network ops including release, version_check defaults off (only for plugin devs). Next: finish SERIOUS/MINOR triage + Phase 7 handoff.
 - **Plugin-wide config toggles (bead 4a1o)** — P3. Created during ka3w plan. Extends ka3w's config toggle pattern to other commands (red team, readiness, etc.).
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
+- **Stats capture fails in worktrees (bead j6ui)** — P2 bug. init-values.sh emits relative STATS_FILE path; breaks in worktrees. Fix: prepend compute_repo_root(). 10m.
 
 ## Critical Patterns
 - **Plugin paths use `${CLAUDE_SKILL_DIR}`** — skills use `${CLAUDE_SKILL_DIR}/../../scripts/` for init-values.sh. init-values.sh validates PLUGIN_ROOT via `.claude-plugin/plugin.json` existence check. Commands don't get CLAUDE_SKILL_DIR (they're thin aliases).
@@ -143,4 +144,5 @@
 - **4v2 created** — P2. Plan command should ensure all implementation details are specified (underspecifications block autonomous work execution).
 - **yod created** — P1. Add precision-preservation principle to consolidation agent prompts (plan-consolidator, synthesis). Subagents don't read memory.
 - **go4 created** — P2. Document permission threat model / risk envelope. Reverse-engineer from implemented practice (settings.json, setup profiles, hook design, heuristic-exempt decisions).
+- **j6ui created** — P2 bug. Stats capture fails in worktrees — STATS_FILE path is relative. 10m fix.
 - voo(done), 22l(done), 0ob(done), dud(done), 1q3(done), 4gq(done), n2q(done), 3co(done), d2l(done), awx(done)
