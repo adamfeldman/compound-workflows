@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.5] - 2026-03-12
+
+### Changed
+
+- **Expand permissive profile** — Add 11 rules: git, ls, mkdir, md5, bd, shell constructs (if, for, [[, xargs, tee), WebFetch. Add safe git patterns and ls to standard add-on. Existing permissive users: re-run `/do:setup` to pick up new rules.
+- **Documentation: $() is a hard heuristic** — Step 0 verification discovered that static rules do NOT suppress the $() heuristic in Claude Code 2.1.74, contradicting prior documentation. This means `Bash(X:*)` rules only help for commands without $() — the Bash Generation Rules (avoiding $()) remain the primary mitigation.
+
 ## [3.0.4] - 2026-03-12
 
 ### Fixed
