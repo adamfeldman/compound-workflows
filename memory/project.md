@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.0.5 (plugins/compound-workflows/)
+- Plugin: compound-workflows v3.0.6 (plugins/compound-workflows/)
 - 26 agents, 28 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -98,13 +98,15 @@
 
 - **v3.0.5** — Permissive profile expansion (bead u1fd): 11 new rules (git, ls, mkdir, md5, bd, if, for, [[, xargs, tee, WebFetch). Standard add-on gains ls + 4 safe git patterns (log, diff, status, branch). Step 0 verification: $() is hard heuristic, bd:* matches subcommands, cp with flags is hard. 13 planned bd subcommand rules dropped.
 
+- **v3.0.6** — Write tool discipline (bead dj65): 10 violation fixes (2 heredoc, 4 echo-redirect, 4 unspecified-commit) across 7 skill files. New `write-tool-discipline.sh` QA script (Tier 1 count 8→9). `migrate-stats-keys.sh` for script delegation. Tier 1 scan scope expanded to `skills/*/workflows/*.md` in 4 scripts. Truncation-check workflow file type added.
+
 ## In-Progress Work
 
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/do:brainstorm`.
 - **Downgrade analytical agents to Sonnet (bead sze8)** — P1. Blocked by wtn. Candidates: semantic-checks, spec-flow-analyzer, plan-readiness-reviewer, minor-triage. Red-team-opus stays Opus.
 - **Setup bash rules assumes CLAUDE.md (bead jgb8)** — P2 bug. Step 8e injects into CLAUDE.md but projects using AGENTS.md need detection or user prompt.
 - **Research agents need web search (bead ixz4)** — P2. Brainstorm/plan research agents don't search GitHub issues or official docs for upstream constraints. Caused miss on CLAUDE_PLUGIN_ROOT #9354.
-- **Write tool discipline (bead dj65)** — P2 bug. Plan ready at `docs/plans/2026-03-12-fix-write-tool-discipline-plan.md`. 10 violation fixes + `write-tool-discipline.sh` QA script + Tier 1 scope expansion to `skills/*/workflows/*.md`. Red-teamed (3 providers, 2 CRITICAL + 7 SERIOUS all resolved). Next: `/do:work`.
+- **Write tool discipline (bead dj65)** — DONE v3.0.6.
 - **Red team model selection (bead aig)** — P3. Brainstorm complete. Next: `/compound:plan`.
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 - **Session-end capture + compact-prep batch refactor (bead ka3w)** — P3. Plan in progress. Red team triage ~60% done (4 CRITICAL resolved, 2 of 8 SERIOUS resolved). Key decisions from red team: persist batch state to `.workflows/compact-prep/<run-id>.json` for compound resume, version actions separated into dedicated prompt (not batch), push gate covers all network ops including release, version_check defaults off (only for plugin devs). Next: finish SERIOUS/MINOR triage + Phase 7 handoff.
