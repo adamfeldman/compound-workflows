@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.3] - 2026-03-12
+
+### Fixed
+
+- **Bash generation rules: polling pattern + importance** — added avoidance pattern for compound polling commands (`ls dir 2>/dev/null; echo "---"; date`), a dedicated "Polling Agent Output" section with good/bad examples, and an explicit consequence statement ("every violation causes a permission prompt that blocks the user"). Addresses LLM non-compliance with existing rules during research agent polling loops.
+- **Bash generation rules: row 5 commit pattern** — replaced broken "Write tool creates file" recommendation with `git commit -F /dev/stdin << 'EOF'` which actually works (Write tool rejects new files).
+
 ## [3.1.2] - 2026-03-12
 
 ### Fixed
