@@ -96,7 +96,13 @@ Only release when files inside `plugins/compound-workflows/` change. Changes to 
 8. Push: `git push origin main --tags`
 9. Release: `gh release create v<version> --title "v<version>" --notes "<changelog entry>"`
 
-After release, update locally via CLI (`claude plugin update compound-workflows@compound-workflows-marketplace`) or the interactive `/plugin` menu inside Claude Code.
+After release, update the local install. `claude plugin update` is slow to recognize new releases, so pull the marketplace clone manually first as a workaround:
+
+1. `git -C ~/.claude/plugins/marketplaces/compound-workflows-marketplace pull origin main`
+2. `claude plugin update compound-workflows@compound-workflows-marketplace`
+3. Restart the session (loaded skills are cached at session start)
+
+Do NOT skip step 1. Do NOT use `claude plugin remove` + `claude plugin install` as a workaround.
 
 ## Routing
 
