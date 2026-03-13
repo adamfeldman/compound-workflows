@@ -97,6 +97,273 @@ CORRECTION_PATTERNS = re.compile(
 # Usage tag patterns - two formats
 # Format 1: <usage>total_tokens: N\ntool_uses: N\nduration_ms: N</usage>
 # Format 2: <usage><total_tokens>N</total_tokens><tool_uses>N</tool_uses><duration_ms>N</duration_ms></usage>
+# --- Stats YAML directory ---
+# Stats YAML files live in .workflows/stats/ — either in the current repo root
+# or in the main worktree (worktrees have separate .workflows/ directories).
+def find_stats_yaml_dir():
+    """Locate the .workflows/stats/ directory.
+
+    Tries the current repo root first, then the main worktree.
+    Returns the directory path, or None if not found.
+    """
+    repo_root = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+    local_stats = os.path.join(repo_root, ".workflows", "stats")
+    if os.path.isdir(local_stats):
+        return local_stats
+
+    # Try main worktree via git
+    try:
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            capture_output=True, text=True, timeout=5,
+            cwd=repo_root,
+        )
+        for line in result.stdout.splitlines():
+            if line.startswith("worktree "):
+                main_root = line[len("worktree "):]
+                main_stats = os.path.join(main_root, ".workflows", "stats")
+                if os.path.isdir(main_stats):
+                    return main_stats
+    except Exception:
+        pass
+    return None
+
+
+def parse_simple_yaml_docs(filepath):
+    """Parse a multi-document YAML file with flat key-value pairs.
+
+    Each document is separated by '---'. Values are auto-typed:
+    integers, floats, null/true/false, or strings (with optional quotes stripped).
+    Returns a list of dicts, one per document.
+    """
+    docs = []
+    current = {}
+    with open(filepath, "r") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if line == "---":
+                if current:
+                    docs.append(current)
+                    current = {}
+                continue
+            if not line or line.startswith("#"):
+                continue
+            # Split on first ': ' (YAML key-value)
+            colon_idx = line.find(": ")
+            if colon_idx == -1:
+                # Handle 'key:' with empty value
+                if line.endswith(":"):
+                    current[line[:-1].strip()] = None
+                continue
+            key = line[:colon_idx].strip()
+            val_str = line[colon_idx + 2:].strip()
+            # Strip surrounding quotes
+            if len(val_str) >= 2 and val_str[0] == val_str[-1] and val_str[0] in ('"', "'"):
+                val_str = val_str[1:-1]
+                current[key] = val_str
+                continue
+            # Auto-type
+            if val_str == "null":
+                current[key] = None
+            elif val_str == "true":
+                current[key] = True
+            elif val_str == "false":
+                current[key] = False
+            else:
+                # Try integer
+                try:
+                    current[key] = int(val_str)
+                    continue
+                except ValueError:
+                    pass
+                # Try float
+                try:
+                    current[key] = float(val_str)
+                    continue
+                except ValueError:
+                    pass
+                current[key] = val_str
+    # Last document (no trailing ---)
+    if current:
+        docs.append(current)
+    return docs
+
+
+def load_stats_yaml_entries():
+    """Load all agent dispatch entries from .workflows/stats/*.yaml files.
+
+    Skips ccusage-snapshot documents (identified by type: ccusage-snapshot).
+    Returns a list of dicts with fields: command, bead, stem, agent, step,
+    model, run_id, tokens, tools, duration_ms, timestamp, status,
+    complexity, output_type, source_file.
+    """
+    stats_dir = find_stats_yaml_dir()
+    if not stats_dir:
+        print("  WARNING: Could not find .workflows/stats/ directory", file=sys.stderr)
+        return []
+
+    yaml_files = sorted(glob.glob(os.path.join(stats_dir, "*.yaml")))
+    print(f"  Found {len(yaml_files)} stats YAML files in {stats_dir}", file=sys.stderr)
+
+    entries = []
+    skipped_ccusage = 0
+    parse_errors = 0
+
+    for filepath in yaml_files:
+        basename = os.path.basename(filepath)
+        try:
+            docs = parse_simple_yaml_docs(filepath)
+        except Exception as e:
+            print(f"    WARNING: Could not parse {basename}: {e}", file=sys.stderr)
+            parse_errors += 1
+            continue
+
+        for doc in docs:
+            # Skip ccusage-snapshot documents
+            if doc.get("type") == "ccusage-snapshot":
+                skipped_ccusage += 1
+                continue
+
+            # Require at least command and duration_ms for a valid agent dispatch
+            if "command" not in doc or "duration_ms" not in doc:
+                continue
+
+            doc["source_file"] = basename
+            entries.append(doc)
+
+    print(f"  Loaded {len(entries)} agent dispatch entries "
+          f"(skipped {skipped_ccusage} ccusage snapshots, {parse_errors} parse errors)",
+          file=sys.stderr)
+    return entries
+
+
+def compute_stats_step_timing(stats_entries, closed_bead_estimates):
+    """Compute per-command and per-step duration statistics from stats YAML entries.
+
+    Groups by command (workflow type), then by step within each command.
+    Computes median, P90, mean duration for each grouping.
+    Also matches against bead estimates for estimate-vs-actual comparison.
+
+    Args:
+        stats_entries: list of dicts from load_stats_yaml_entries()
+        closed_bead_estimates: dict of bead_id -> {title, estimated_minutes}
+
+    Returns:
+        dict with:
+        - by_command: {command: {n, durations_ms stats, steps: {step: stats}}}
+        - by_agent: {agent: {n, duration stats}}
+        - estimate_vs_actual: list of {bead, estimated_minutes, actual_total_ms, step_count}
+        - records: list of stats_step_timing record dicts for raw output
+    """
+    from collections import defaultdict
+
+    # Group by command
+    by_command = defaultdict(list)
+    by_agent = defaultdict(list)
+    by_command_step = defaultdict(lambda: defaultdict(list))
+    by_bead = defaultdict(list)
+
+    for entry in stats_entries:
+        cmd = entry.get("command", "unknown")
+        step = entry.get("step", "unknown")
+        agent = entry.get("agent", "unknown")
+        duration_ms = entry.get("duration_ms") or 0
+        bead = entry.get("bead")
+        tokens = entry.get("tokens") or 0
+
+        if duration_ms > 0:
+            by_command[cmd].append(duration_ms)
+            by_agent[agent].append(duration_ms)
+            by_command_step[cmd][step].append(duration_ms)
+
+        if bead and duration_ms > 0:
+            bead_str = str(bead)
+            by_bead[bead_str].append({
+                "duration_ms": duration_ms,
+                "tokens": tokens,
+                "command": cmd,
+                "step": step,
+            })
+
+    # Compute per-command stats
+    command_stats = {}
+    for cmd, durations in sorted(by_command.items()):
+        dur_minutes = [d / 60000.0 for d in durations]
+        cmd_stat = compute_stats(dur_minutes)
+
+        # Per-step breakdown within this command
+        step_stats = {}
+        for step, step_durations in sorted(by_command_step[cmd].items()):
+            step_minutes = [d / 60000.0 for d in step_durations]
+            step_stats[step] = compute_stats(step_minutes)
+
+        command_stats[cmd] = {
+            **cmd_stat,
+            "total_duration_ms": sum(durations),
+            "total_duration_min": round(sum(durations) / 60000.0, 2),
+            "steps": step_stats,
+        }
+
+    # Compute per-agent stats
+    agent_stats = {}
+    for agent, durations in sorted(by_agent.items(), key=lambda x: len(x[1]), reverse=True):
+        dur_minutes = [d / 60000.0 for d in durations]
+        agent_stats[agent] = compute_stats(dur_minutes)
+
+    # Estimate vs actual from bead data
+    estimate_vs_actual = []
+    for bead_id, dispatches in sorted(by_bead.items()):
+        total_ms = sum(d["duration_ms"] for d in dispatches)
+        total_tokens = sum(d["tokens"] for d in dispatches)
+        # Look up estimate
+        est_data = closed_bead_estimates.get(bead_id)
+        if est_data:
+            estimated_min = est_data["estimated_minutes"]
+            actual_min = total_ms / 60000.0
+            ratio = actual_min / estimated_min if estimated_min > 0 else None
+            estimate_vs_actual.append({
+                "bead": bead_id,
+                "title": est_data["title"],
+                "estimated_minutes": estimated_min,
+                "actual_dispatch_minutes": round(actual_min, 2),
+                "actual_dispatch_ms": total_ms,
+                "dispatch_count": len(dispatches),
+                "total_tokens": total_tokens,
+                "ratio": round(ratio, 2) if ratio is not None else None,
+                "commands": list(set(d["command"] for d in dispatches)),
+            })
+
+    # Build records for raw output
+    records = []
+    for cmd, stat in command_stats.items():
+        record = {
+            "record_type": "stats_step_timing",
+            "command": cmd,
+            "n": stat["n"],
+            "median_minutes": stat.get("median"),
+            "mean_minutes": stat.get("mean"),
+            "p90_minutes": stat.get("p90"),
+            "min_minutes": stat.get("min"),
+            "max_minutes": stat.get("max"),
+            "total_duration_min": stat.get("total_duration_min"),
+        }
+        records.append(record)
+
+    for entry in estimate_vs_actual:
+        records.append({
+            "record_type": "stats_estimate_vs_actual",
+            **entry,
+        })
+
+    return {
+        "by_command": command_stats,
+        "by_agent": agent_stats,
+        "estimate_vs_actual": estimate_vs_actual,
+        "records": records,
+        "total_entries": len(stats_entries),
+    }
+
+
 USAGE_KV_RE = re.compile(
     r"<usage>\s*total_tokens:\s*(\d+)\s*\n\s*tool_uses:\s*(\d+)\s*\n\s*duration_ms:\s*(\d+)\s*</usage>",
     re.DOTALL,
@@ -105,6 +372,44 @@ USAGE_XML_RE = re.compile(
     r"<usage>\s*<total_tokens>(\d+)</total_tokens>\s*<tool_uses>(\d+)</tool_uses>\s*<duration_ms>(\d+)</duration_ms>\s*</usage>",
     re.DOTALL,
 )
+
+# --- Model pricing (per million tokens) ---
+# Source: Anthropic pricing page, March 2026
+# Format: {model_prefix: (input, cache_creation, cache_read, output)}
+MODEL_PRICING = {
+    "claude-opus-4":   (15.00, 3.75, 1.875, 75.00),
+    "claude-sonnet-4": (3.00, 3.75, 0.30, 15.00),
+    "claude-haiku-3":  (0.25, 0.30, 0.03, 1.25),
+}
+
+def get_model_pricing(model_name):
+    """Return (input, cache_creation, cache_read, output) rates per million tokens.
+
+    Matches model_name against known prefixes (e.g. 'claude-opus-4-6' -> 'claude-opus-4').
+    Returns (0,0,0,0) for unknown/<synthetic> models.
+    """
+    if not model_name or model_name.startswith("<"):
+        return (0.0, 0.0, 0.0, 0.0)
+    for prefix, rates in MODEL_PRICING.items():
+        if model_name.startswith(prefix):
+            return rates
+    return (0.0, 0.0, 0.0, 0.0)
+
+
+def compute_request_cost(usage, model_name):
+    """Compute dollar cost for a single API request given usage dict and model name.
+
+    usage must have: input_tokens, cache_creation_input_tokens,
+                     cache_read_input_tokens, output_tokens
+    Returns cost in USD (float).
+    """
+    rates = get_model_pricing(model_name)
+    input_cost = usage.get("input_tokens", 0) * rates[0] / 1_000_000
+    cache_create_cost = usage.get("cache_creation_input_tokens", 0) * rates[1] / 1_000_000
+    cache_read_cost = usage.get("cache_read_input_tokens", 0) * rates[2] / 1_000_000
+    output_cost = usage.get("output_tokens", 0) * rates[3] / 1_000_000
+    return input_cost + cache_create_cost + cache_read_cost + output_cost
+
 
 # Configuration file patterns for "configuration" segment classification
 CONFIG_PATTERNS = re.compile(
@@ -606,12 +911,14 @@ def load_known_bead_ids():
 
 
 def load_closed_bead_estimates():
-    """Load estimated_minutes for closed beads from the database."""
+    """Load estimated_minutes and metadata for closed beads from the database."""
     try:
         result = subprocess.run(
             [
                 "bd", "sql",
-                "SELECT id, title, estimated_minutes, status FROM issues WHERE status = 'closed' AND estimated_minutes IS NOT NULL"
+                "SELECT id, title, estimated_minutes, issue_type, priority, "
+                "JSON_EXTRACT(metadata, '$.impact_score') AS score "
+                "FROM issues WHERE status = 'closed' AND estimated_minutes IS NOT NULL"
             ],
             capture_output=True,
             text=True,
@@ -626,7 +933,7 @@ def load_closed_bead_estimates():
                 continue
             # Parse pipe-separated output
             parts = [p.strip() for p in line.split("|")]
-            if len(parts) < 4:
+            if len(parts) < 6:
                 continue
             full_id = parts[0].strip()
             if not full_id.startswith(prefix):
@@ -637,14 +944,138 @@ def load_closed_bead_estimates():
                 est_min = int(parts[2].strip())
             except (ValueError, IndexError):
                 continue
+            issue_type = parts[3].strip() if parts[3].strip() != "<nil>" else None
+            try:
+                priority = int(parts[4].strip())
+            except (ValueError, IndexError):
+                priority = None
+            score_str = parts[5].strip()
+            try:
+                impact_score = int(score_str) if score_str and score_str != "<nil>" else None
+            except ValueError:
+                impact_score = None
             beads[short_id] = {
                 "title": title,
                 "estimated_minutes": est_min,
+                "issue_type": issue_type,
+                "priority": priority,
+                "impact_score": impact_score,
             }
         return beads
     except Exception as e:
         print(f"  WARNING: Could not load bead estimates: {e}", file=sys.stderr)
         return {}
+
+
+def classify_estimate_bucket(est_min):
+    """Classify an estimate into a size bucket."""
+    if est_min < 15:
+        return "<15min"
+    elif est_min <= 60:
+        return "15-60min"
+    elif est_min <= 120:
+        return "60-120min"
+    else:
+        return ">120min"
+
+
+def compute_estimation_segments(closed_bead_estimates, bead_attribution_windowed):
+    """Segment estimation accuracy by type, priority, session count, and estimate size.
+
+    Args:
+        closed_bead_estimates: dict bead_id -> {title, estimated_minutes, issue_type, priority, impact_score}
+        bead_attribution_windowed: dict bead_id -> {sessions, total_active_minutes, ...}
+
+    Returns:
+        dict with segment data and summary statistics
+    """
+    # Build per-bead records with actual vs estimated
+    bead_records = []
+    for bid, est_data in closed_bead_estimates.items():
+        if bid not in bead_attribution_windowed:
+            continue
+        bw = bead_attribution_windowed[bid]
+        estimated = est_data["estimated_minutes"]
+        if estimated <= 0:
+            continue
+        actual = bw["total_active_minutes"]
+        ratio = actual / estimated
+        session_count = len(bw["sessions"])
+
+        bead_records.append({
+            "bead_id": bid,
+            "title": est_data["title"],
+            "issue_type": est_data.get("issue_type") or "unknown",
+            "priority": est_data.get("priority"),
+            "impact_score": est_data.get("impact_score"),
+            "estimated_minutes": estimated,
+            "actual_minutes": round(actual, 1),
+            "ratio": round(ratio, 2),
+            "session_count": session_count,
+            "multi_session": session_count > 1,
+            "estimate_bucket": classify_estimate_bucket(estimated),
+        })
+
+    if not bead_records:
+        return {"segments": {}, "records": [], "bead_count": 0}
+
+    # Helper: compute segment stats from a list of ratios
+    def segment_stats(ratios):
+        if not ratios:
+            return {"n": 0}
+        return {
+            "n": len(ratios),
+            "median_ratio": round(statistics.median(ratios), 2),
+            "mean_ratio": round(statistics.mean(ratios), 2),
+            "min_ratio": round(min(ratios), 2),
+            "max_ratio": round(max(ratios), 2),
+            "under_estimated": sum(1 for r in ratios if r > 1.0),
+            "over_estimated": sum(1 for r in ratios if r < 1.0),
+            "exact": sum(1 for r in ratios if r == 1.0),
+        }
+
+    segments = {}
+
+    # Segment by issue_type
+    by_type = defaultdict(list)
+    for rec in bead_records:
+        by_type[rec["issue_type"]].append(rec["ratio"])
+    segments["by_type"] = {t: segment_stats(ratios) for t, ratios in sorted(by_type.items())}
+
+    # Segment by priority
+    by_priority = defaultdict(list)
+    for rec in bead_records:
+        p = rec["priority"]
+        label = f"P{p}" if p is not None else "unknown"
+        by_priority[label].append(rec["ratio"])
+    segments["by_priority"] = {p: segment_stats(ratios) for p, ratios in sorted(by_priority.items())}
+
+    # Segment by single-session vs multi-session
+    by_session_type = defaultdict(list)
+    for rec in bead_records:
+        label = "multi-session" if rec["multi_session"] else "single-session"
+        by_session_type[label].append(rec["ratio"])
+    segments["by_session_type"] = {s: segment_stats(ratios) for s, ratios in sorted(by_session_type.items())}
+
+    # Segment by estimate size bucket
+    by_bucket = defaultdict(list)
+    for rec in bead_records:
+        by_bucket[rec["estimate_bucket"]].append(rec["ratio"])
+    # Sort buckets in logical order
+    bucket_order = ["<15min", "15-60min", "60-120min", ">120min"]
+    segments["by_estimate_bucket"] = {
+        b: segment_stats(by_bucket[b]) for b in bucket_order if b in by_bucket
+    }
+
+    # Overall stats
+    all_ratios = [rec["ratio"] for rec in bead_records]
+    segments["overall"] = segment_stats(all_ratios)
+
+    return {
+        "segments": segments,
+        "records": bead_records,
+        "bead_count": len(bead_records),
+    }
 
 
 def detect_concurrent_sessions(session_ranges):
@@ -837,6 +1268,129 @@ def scan_compact_summary_timestamps(filepath):
     return timestamps
 
 
+# Productive tool calls for reorientation measurement — excludes
+# orientation tools (Read, Grep, Glob) and non-productive (Bash for reading).
+PRODUCTIVE_TOOLS = {"Edit", "Write", "Agent", "Task"}
+
+
+def extract_compaction_costs(filepath, session_id):
+    """Extract cost and reorientation data for each compaction event in a session.
+
+    For each isCompactSummary entry:
+    1. Find the assistant entry immediately preceding it and read its message.usage
+       to compute the compaction request's token cost.
+    2. Find the first productive tool call (Edit/Write/Agent/Task) after the
+       compaction and measure the reorientation gap.
+
+    Returns:
+        list of dicts with: session, timestamp, token_cost, reorientation_minutes,
+        model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+    """
+    results = []
+
+    # Two-pass approach: first pass collects all entries with timestamps
+    entries = []
+    with open(filepath, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            entries.append(entry)
+
+    # Walk through entries to find compaction events
+    last_assistant_usage = None  # (timestamp, cost, model, usage_dict)
+    for i, entry in enumerate(entries):
+        entry_type = entry.get("type")
+        ts_str = entry.get("timestamp")
+        ts = parse_timestamp(ts_str)
+
+        # Track last assistant entry with usage
+        if entry_type == "assistant":
+            message = entry.get("message", {})
+            usage = message.get("usage")
+            model = message.get("model", "")
+            if usage and ts:
+                cost = compute_request_cost(usage, model)
+                last_assistant_usage = {
+                    "timestamp": ts,
+                    "cost": cost,
+                    "model": model,
+                    "input_tokens": usage.get("input_tokens", 0),
+                    "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0),
+                    "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0),
+                    "output_tokens": usage.get("output_tokens", 0),
+                }
+
+        # Found a compaction event
+        if entry.get("isCompactSummary") and ts:
+            compaction_ts = ts
+
+            # Get the preceding assistant's cost
+            token_cost = 0.0
+            model_name = ""
+            input_tok = 0
+            output_tok = 0
+            cache_create_tok = 0
+            cache_read_tok = 0
+            if last_assistant_usage:
+                token_cost = last_assistant_usage["cost"]
+                model_name = last_assistant_usage["model"]
+                input_tok = last_assistant_usage["input_tokens"]
+                output_tok = last_assistant_usage["output_tokens"]
+                cache_create_tok = last_assistant_usage["cache_creation_input_tokens"]
+                cache_read_tok = last_assistant_usage["cache_read_input_tokens"]
+
+            # Find first productive tool call after compaction
+            reorientation_minutes = None
+            for j in range(i + 1, len(entries)):
+                future_entry = entries[j]
+                if future_entry.get("type") != "assistant":
+                    continue
+                future_msg = future_entry.get("message", {})
+                future_content = future_msg.get("content", [])
+                if not isinstance(future_content, list):
+                    continue
+                future_ts_str = future_entry.get("timestamp")
+                future_ts = parse_timestamp(future_ts_str)
+                if not future_ts:
+                    continue
+
+                # Check tool calls in this assistant message
+                found_productive = False
+                for block in future_content:
+                    if not isinstance(block, dict):
+                        continue
+                    if block.get("type") != "tool_use":
+                        continue
+                    tool_name = block.get("name", "")
+                    if tool_name in PRODUCTIVE_TOOLS:
+                        found_productive = True
+                        break
+
+                if found_productive:
+                    gap = (future_ts - compaction_ts).total_seconds() / 60.0
+                    reorientation_minutes = round(gap, 2)
+                    break
+
+            results.append({
+                "session": session_id,
+                "timestamp": compaction_ts.isoformat(),
+                "token_cost": round(token_cost, 4),
+                "reorientation_minutes": reorientation_minutes,
+                "model": model_name,
+                "input_tokens": input_tok,
+                "output_tokens": output_tok,
+                "cache_creation_tokens": cache_create_tok,
+                "cache_read_tokens": cache_read_tok,
+            })
+
+    return results
+
+
 def process_session(filepath):
     """Process a single JSONL session file.
 
@@ -887,6 +1441,12 @@ def process_session(filepath):
     # Git commits
     git_commit_count = 0
 
+    # Per-request cost tracking
+    # Each entry: (timestamp, model, cost, input_tokens, cache_creation_tokens, cache_read_tokens, output_tokens)
+    request_costs = []
+    session_cost_by_model = defaultdict(float)  # model_prefix -> total cost
+    session_total_cost = 0.0
+
     # Process line by line for memory efficiency
     with open(filepath, "r") as f:
         for line_num, line in enumerate(f, 1):
@@ -913,6 +1473,31 @@ def process_session(filepath):
             # --- Skip non-message types for tool extraction ---
             if entry_type == "assistant":
                 message = entry.get("message", {})
+
+                # --- Per-request cost extraction ---
+                usage = message.get("usage")
+                model = message.get("model", "")
+                if usage:
+                    cost = compute_request_cost(usage, model)
+                    session_total_cost += cost
+                    # Map to model prefix for grouping
+                    model_prefix = ""
+                    for prefix in MODEL_PRICING:
+                        if model.startswith(prefix):
+                            model_prefix = prefix
+                            break
+                    if model_prefix:
+                        session_cost_by_model[model_prefix] += cost
+                    request_costs.append({
+                        "timestamp": ts,
+                        "model": model,
+                        "cost": cost,
+                        "input_tokens": usage.get("input_tokens", 0),
+                        "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0),
+                        "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0),
+                        "output_tokens": usage.get("output_tokens", 0),
+                    })
+
                 content = message.get("content", [])
                 if not isinstance(content, list):
                     continue
@@ -1081,6 +1666,8 @@ def process_session(filepath):
         "skill_invocation_count": len(skill_invocations),
         "agent_dispatch_count": len(agent_dispatches),
         "agent_completion_count": len(agent_completions),
+        "session_cost_usd": round(session_total_cost, 6),
+        "cost_by_model": {k: round(v, 6) for k, v in session_cost_by_model.items()},
     }
 
     # --- Compute phase observations ---
@@ -1134,6 +1721,14 @@ def process_session(filepath):
                 if phase_start <= evt_ts <= phase_end:
                     phase_tools[evt_name] += 1
 
+        # Compute per-phase cost
+        phase_cost = 0.0
+        if phase_start and phase_end:
+            for rc in request_costs:
+                rc_ts = rc["timestamp"]
+                if rc_ts and phase_start <= rc_ts <= phase_end:
+                    phase_cost += rc["cost"]
+
         # Compute active/idle for this phase
         phase_active_idle = compute_active_idle(
             sorted_ts, phase_start, phase_end
@@ -1185,6 +1780,7 @@ def process_session(filepath):
             "idle_gap_count": phase_active_idle["idle_gap_count"],
             "entry_count": phase_active_idle["entry_count"],
             "tool_counts": dict(phase_tools),
+            "phase_cost_usd": round(phase_cost, 6),
         }
 
         # Add compact-prep-specific fields
@@ -1225,6 +1821,7 @@ def process_session(filepath):
         "bash_commands_with_ts": bash_commands_with_ts,
         "user_msg_timestamps": user_msg_timestamps,
         "compact_summary_timestamps": compact_summary_ts,
+        "request_costs": request_costs,
         "first_ts": first_ts,
         "last_ts": last_ts,
         "errors": errors,
@@ -1627,6 +2224,378 @@ def categorize_askuser(question_text):
     return "other"
 
 
+def build_phase_windows(skill_invocations, last_ts, compact_summary_timestamps=None):
+    """Build phase windows from skill invocations for AUQ-to-workflow matching.
+
+    Returns a list of (phase_name, start_ts, end_ts) tuples.
+    Reuses the same boundary logic as the main phase processing:
+    - compact-prep uses isCompactSummary as end marker when available
+    - Other phases end at the next skill invocation or session end
+    """
+    windows = []
+    compact_summary_ts = compact_summary_timestamps or []
+    for i, inv in enumerate(skill_invocations):
+        phase_start = inv["timestamp"]
+        if not phase_start:
+            continue
+
+        # Default: phase ends at next skill invocation or end of session
+        if i + 1 < len(skill_invocations):
+            phase_end = skill_invocations[i + 1]["timestamp"]
+        else:
+            phase_end = last_ts
+
+        # compact-prep boundary correction
+        if inv["phase"] == "compact-prep" and compact_summary_ts:
+            for cs_ts in compact_summary_ts:
+                if cs_ts > phase_start:
+                    if phase_end is None or cs_ts <= phase_end:
+                        phase_end = cs_ts
+                    break
+
+        if phase_start and phase_end:
+            windows.append((inv["phase"], phase_start, phase_end))
+
+    return windows
+
+
+def assign_askuser_to_workflow(event_ts, phase_windows):
+    """Determine which workflow phase an AskUserQuestion event falls within.
+
+    Args:
+        event_ts: datetime timestamp of the AUQ event
+        phase_windows: list of (phase_name, start_ts, end_ts) tuples
+
+    Returns:
+        phase name string, or "non-workflow" if outside all windows
+    """
+    if not event_ts:
+        return "non-workflow"
+    for phase_name, start_ts, end_ts in phase_windows:
+        if start_ts <= event_ts <= end_ts:
+            return phase_name
+    return "non-workflow"
+
+
+def compute_permission_prompt_estimate(jsonl_files, all_askuser_events):
+    """Estimate cost of OS-level permission prompts.
+
+    There is no JSONL signal for OS-level permission prompts. This function
+    uses a proxy: count Bash tool calls in permissionMode="default" sessions
+    that match known heuristic-triggering patterns ($(), <<, {").
+
+    The estimate multiplies the triggering-pattern count by the median user
+    response time for confirmation AskUserQuestion events as an upper bound.
+
+    Args:
+        jsonl_files: list of JSONL file paths
+        all_askuser_events: list of AskUserQuestion event dicts (with category, wait_minutes)
+
+    Returns:
+        dict with estimation data for the summary
+    """
+    # Heuristic-triggering patterns in Bash commands
+    # These are the patterns documented in AGENTS.md Bash Generation Rules
+    PERMISSION_PATTERNS = [
+        re.compile(r'\$\('),       # $() command substitution
+        re.compile(r'<<'),          # heredoc
+        re.compile(r'\{"'),         # JSON-like brace-quote ({"key": ...)
+    ]
+
+    # Compute median confirmation wait time from AskUserQuestion data
+    confirmation_waits = [
+        evt["wait_minutes"]
+        for evt in all_askuser_events
+        if evt.get("category") == "confirmation" and evt.get("wait_minutes") is not None
+    ]
+    median_confirmation_wait = round(statistics.median(confirmation_waits), 2) if confirmation_waits else 5.0
+
+    # Per-session analysis
+    sessions_default_mode = 0
+    sessions_accept_edits = 0
+    sessions_no_mode = 0
+    total_triggering_commands = 0
+    pattern_counts = defaultdict(int)  # pattern_name -> count
+    triggering_by_session = []  # (session_id, count)
+
+    for filepath in jsonl_files:
+        session_id = os.path.basename(filepath).replace(".jsonl", "")
+
+        # Determine permission mode for this session
+        # permissionMode can vary within a session; collect unique modes per user entry
+        session_modes = set()
+        bash_commands_in_default = []  # (timestamp_approx, command) for entries under default mode
+
+        # We need to track the "current" permissionMode as it appears on user entries,
+        # then count bash commands from assistant entries that follow default-mode user entries.
+        # Strategy: scan sequentially, track last-seen permissionMode, and count
+        # bash calls from assistant entries when mode is "default".
+        current_mode = None
+
+        with open(filepath, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                entry_type = entry.get("type")
+
+                if entry_type == "user":
+                    pm = entry.get("permissionMode")
+                    if pm:
+                        current_mode = pm
+                        session_modes.add(pm)
+
+                elif entry_type == "assistant" and current_mode == "default":
+                    # Count bash commands that match triggering patterns
+                    message = entry.get("message", {})
+                    content = message.get("content", [])
+                    if not isinstance(content, list):
+                        continue
+                    for block in content:
+                        if not isinstance(block, dict):
+                            continue
+                        if block.get("type") != "tool_use":
+                            continue
+                        if block.get("name") != "Bash":
+                            continue
+                        cmd = block.get("input", {}).get("command", "")
+                        if not cmd:
+                            continue
+                        for pat in PERMISSION_PATTERNS:
+                            if pat.search(cmd):
+                                bash_commands_in_default.append(cmd)
+                                # Track which pattern matched (use first match)
+                                if re.search(r'\$\(', cmd):
+                                    pattern_counts["$()"] += 1
+                                elif re.search(r'<<', cmd):
+                                    pattern_counts["<<"] += 1
+                                elif re.search(r'\{"', cmd):
+                                    pattern_counts['{"'] += 1
+                                break  # Only count each command once
+
+        # Classify session by mode
+        if "default" in session_modes:
+            sessions_default_mode += 1
+        if "acceptEdits" in session_modes:
+            sessions_accept_edits += 1
+        if not session_modes:
+            sessions_no_mode += 1
+
+        if bash_commands_in_default:
+            triggering_by_session.append((session_id, len(bash_commands_in_default)))
+            total_triggering_commands += len(bash_commands_in_default)
+
+    # Compute estimate
+    estimated_total_minutes = round(total_triggering_commands * median_confirmation_wait, 1)
+    estimated_total_hours = round(estimated_total_minutes / 60.0, 2)
+
+    return {
+        "record_type": "permission_prompt_estimate",
+        "sessions_with_default_mode": sessions_default_mode,
+        "sessions_with_accept_edits": sessions_accept_edits,
+        "sessions_no_mode_field": sessions_no_mode,
+        "total_triggering_bash_commands": total_triggering_commands,
+        "pattern_counts": dict(pattern_counts),
+        "median_confirmation_wait_min": median_confirmation_wait,
+        "estimated_total_minutes": estimated_total_minutes,
+        "estimated_total_hours": estimated_total_hours,
+        "sessions_with_triggers": len(triggering_by_session),
+        "methodology": (
+            "Upper-bound estimate. Not every pattern-matching Bash call triggers "
+            "a permission prompt (static rules suppress some heuristics). Not every "
+            "prompt takes as long as a confirmation AskUserQuestion (permission prompts "
+            "are simpler yes/no). True cost is likely 30-50% of this estimate."
+        ),
+    }
+
+
+def compute_qa_retry_sequences(all_session_results):
+    """Detect qa->work->qa retry sequences within sessions.
+
+    A QA retry sequence is: a Skill invocation with phase "qa", followed by
+    one or more non-qa phases (typically "work" to fix issues), followed by
+    another "qa" phase. Each additional qa invocation after the first in such
+    a chain counts as a retry.
+
+    Uses phase observations (which have active_minutes) to measure time cost
+    per QA invocation and the phases between retries.
+
+    Args:
+        all_session_results: list of process_session() result dicts
+
+    Returns:
+        dict with:
+            records: list of qa_retry record dicts
+            summary: aggregated statistics
+    """
+    records = []
+
+    for result in all_session_results:
+        session_id = result["session"]["session_id"]
+        skill_invocations = result["skill_invocations"]
+        phase_observations = result["phases"]
+
+        if not skill_invocations:
+            continue
+
+        # Build a lookup from (phase, start_timestamp) -> phase_obs for active_minutes
+        phase_obs_lookup = {}
+        for pobs in phase_observations:
+            key = (pobs.get("phase"), pobs.get("start_timestamp"))
+            phase_obs_lookup[key] = pobs
+
+        # Walk through skill invocations and find qa->non-qa->qa sequences.
+        # A "sequence" starts at the first qa invocation and ends when we
+        # encounter another qa invocation after intervening non-qa phases.
+        # Multiple retries can chain: qa->work->qa->work->qa = 2 retries.
+
+        # Collect indices of qa invocations
+        qa_indices = [
+            i for i, inv in enumerate(skill_invocations)
+            if inv.get("phase") == "qa"
+        ]
+
+        if len(qa_indices) < 2:
+            continue
+
+        # For each pair of consecutive qa invocations, check if there are
+        # non-qa phases between them
+        sequence_start_idx = qa_indices[0]
+        retry_count = 0
+        phases_between_all = []  # all non-qa phases in this retry chain
+        qa_active_minutes_list = []  # active minutes for each qa invocation
+
+        # Get active_minutes for the first qa invocation
+        first_qa_inv = skill_invocations[sequence_start_idx]
+        first_qa_key = (first_qa_inv["phase"], first_qa_inv.get("ts_str"))
+        first_qa_obs = phase_obs_lookup.get(first_qa_key)
+        if first_qa_obs:
+            qa_active_minutes_list.append(
+                first_qa_obs.get("active_minutes", 0)
+            )
+
+        for qi in range(1, len(qa_indices)):
+            prev_qa_idx = qa_indices[qi - 1]
+            curr_qa_idx = qa_indices[qi]
+
+            # Collect non-qa phases between prev_qa and curr_qa
+            between_phases = []
+            for mid_idx in range(prev_qa_idx + 1, curr_qa_idx):
+                mid_inv = skill_invocations[mid_idx]
+                mid_phase = mid_inv.get("phase")
+                if mid_phase and mid_phase != "qa":
+                    between_phases.append(mid_phase)
+
+            if between_phases:
+                # This is a retry: qa was followed by non-qa work, then qa again
+                retry_count += 1
+                phases_between_all.extend(between_phases)
+
+                # Get active_minutes for this qa retry
+                curr_qa_inv = skill_invocations[curr_qa_idx]
+                curr_qa_key = (curr_qa_inv["phase"], curr_qa_inv.get("ts_str"))
+                curr_qa_obs = phase_obs_lookup.get(curr_qa_key)
+                if curr_qa_obs:
+                    qa_active_minutes_list.append(
+                        curr_qa_obs.get("active_minutes", 0)
+                    )
+            else:
+                # Consecutive qa invocations with no non-qa phases between
+                # (e.g., qa followed immediately by qa) — still count the qa time
+                # but this isn't a "retry" in the fix-then-recheck sense
+                curr_qa_inv = skill_invocations[curr_qa_idx]
+                curr_qa_key = (curr_qa_inv["phase"], curr_qa_inv.get("ts_str"))
+                curr_qa_obs = phase_obs_lookup.get(curr_qa_key)
+                if curr_qa_obs:
+                    qa_active_minutes_list.append(
+                        curr_qa_obs.get("active_minutes", 0)
+                    )
+
+                # If there were prior retries, this is still part of the chain
+                if retry_count > 0:
+                    retry_count += 1
+
+        if retry_count > 0:
+            # Compute total active minutes for the fix phases between retries
+            fix_active_minutes = 0.0
+            for pobs in phase_observations:
+                if pobs.get("phase") != "qa" and pobs.get("phase") in set(phases_between_all):
+                    # Check if this phase observation falls between first qa and last qa
+                    first_qa_ts = skill_invocations[qa_indices[0]].get("timestamp")
+                    last_qa_ts = skill_invocations[qa_indices[-1]].get("timestamp")
+                    pobs_start = parse_timestamp(pobs.get("start_timestamp"))
+                    if (pobs_start and first_qa_ts and last_qa_ts
+                            and first_qa_ts <= pobs_start <= last_qa_ts):
+                        fix_active_minutes += pobs.get("active_minutes", 0)
+
+            total_qa_active = round(sum(qa_active_minutes_list), 2)
+            total_active = round(total_qa_active + fix_active_minutes, 2)
+
+            record = {
+                "session": session_id,
+                "retry_count": retry_count,
+                "qa_invocation_count": len(qa_indices),
+                "total_active_minutes": total_active,
+                "qa_active_minutes": total_qa_active,
+                "fix_active_minutes": round(fix_active_minutes, 2),
+                "phases_between": phases_between_all,
+            }
+            records.append(record)
+
+    # Count total sessions that had any QA invocation (even without retries)
+    sessions_with_any_qa = 0
+    for result in all_session_results:
+        skill_invocations = result["skill_invocations"]
+        if any(inv.get("phase") == "qa" for inv in skill_invocations):
+            sessions_with_any_qa += 1
+
+    # Compute summary statistics
+    summary = {
+        "session_count": len(records),
+        "sessions_with_any_qa": sessions_with_any_qa,
+        "total_retry_count": sum(r["retry_count"] for r in records),
+        "total_qa_active_minutes": round(
+            sum(r["qa_active_minutes"] for r in records), 2
+        ),
+        "total_fix_active_minutes": round(
+            sum(r["fix_active_minutes"] for r in records), 2
+        ),
+        "total_active_minutes": round(
+            sum(r["total_active_minutes"] for r in records), 2
+        ),
+    }
+
+    if records:
+        retry_counts = [r["retry_count"] for r in records]
+        summary["median_retries_per_session"] = round(
+            statistics.median(retry_counts), 1
+        )
+        summary["max_retries_per_session"] = max(retry_counts)
+
+        qa_times = [r["qa_active_minutes"] for r in records]
+        summary["median_qa_active_per_session"] = round(
+            statistics.median(qa_times), 2
+        )
+        summary["mean_qa_active_per_session"] = round(
+            statistics.mean(qa_times), 2
+        )
+
+        # Phases between retries distribution
+        phase_counter = Counter(
+            p for r in records for p in r["phases_between"]
+        )
+        summary["phases_between_distribution"] = dict(
+            phase_counter.most_common()
+        )
+
+    return {"records": records, "summary": summary}
+
+
 def compute_orchestration_analysis(segments, tool_events, bash_commands_with_ts):
     """For orchestration/orch-coding segments, compute bd overhead vs productive split.
 
@@ -1729,6 +2698,43 @@ def read_total_cost_from_file():
     return total_cost if total_cost > 0 else None
 
 
+def load_bead_closures_by_date():
+    """Load bead closure counts grouped by date from the database."""
+    try:
+        result = subprocess.run(
+            [
+                "bd", "sql",
+                "SELECT DATE(closed_at) as date, COUNT(*) as count "
+                "FROM issues WHERE status='closed' AND closed_at IS NOT NULL "
+                "GROUP BY DATE(closed_at) ORDER BY date"
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        closures = {}  # date_str -> count
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("-") or line.startswith("date"):
+                continue
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) < 2:
+                continue
+            date_str = parts[0].strip()
+            # Extract just the date portion (YYYY-MM-DD) from full timestamp
+            if " " in date_str:
+                date_str = date_str.split(" ")[0]
+            try:
+                count = int(parts[1].strip())
+                closures[date_str] = count
+            except (ValueError, IndexError):
+                continue
+        return closures
+    except Exception as e:
+        print(f"  WARNING: Could not load bead closures by date: {e}", file=sys.stderr)
+        return {}
+
+
 def count_closed_beads():
     """Count closed beads from the database."""
     try:
@@ -1819,6 +2825,15 @@ def main():
     # S2: AskUserQuestion events across all sessions
     all_askuser_events = []
 
+    # P5-S1: Project cost aggregation
+    project_cost_total = 0.0
+    project_cost_by_model = defaultdict(float)
+    project_cost_by_phase = defaultdict(float)
+    project_token_totals = defaultdict(int)  # token type -> total
+
+    # P5-S5: Compaction cost records
+    all_compaction_costs = []
+
     with open(RAW_OUTPUT, "w") as raw_out:
         for i, filepath in enumerate(jsonl_files):
             basename = os.path.basename(filepath)
@@ -1854,6 +2869,17 @@ def main():
 
             # S2: Extract AskUserQuestion events
             askuser_events = extract_askuser_events(filepath)
+            # P5-S3: Tag each event with session_id and workflow phase
+            session_phase_windows = build_phase_windows(
+                result["skill_invocations"],
+                result["last_ts"],
+                result.get("compact_summary_timestamps"),
+            )
+            for evt in askuser_events:
+                evt["session_id"] = session["session_id"]
+                evt["workflow"] = assign_askuser_to_workflow(
+                    evt["timestamp"], session_phase_windows
+                )
             all_askuser_events.extend(askuser_events)
 
             # Track session ranges for concurrent detection
@@ -1863,6 +2889,27 @@ def main():
                     result["first_ts"],
                     result["last_ts"],
                 ))
+
+            # P5-S1: Aggregate cost data
+            project_cost_total += session.get("session_cost_usd", 0)
+            for model_prefix, mcost in session.get("cost_by_model", {}).items():
+                project_cost_by_model[model_prefix] += mcost
+            for phase_obs in phases:
+                phase_name = phase_obs.get("phase", "non-workflow")
+                project_cost_by_phase[phase_name] += phase_obs.get("phase_cost_usd", 0)
+            # Sum tokens for overall token accounting
+            for rc in result.get("request_costs", []):
+                project_token_totals["input_tokens"] += rc["input_tokens"]
+                project_token_totals["cache_creation_input_tokens"] += rc["cache_creation_input_tokens"]
+                project_token_totals["cache_read_input_tokens"] += rc["cache_read_input_tokens"]
+                project_token_totals["output_tokens"] += rc["output_tokens"]
+
+            # P5-S5: Extract compaction costs for sessions with compaction
+            if session.get("compaction_count", 0) > 0:
+                session_compaction_costs = extract_compaction_costs(
+                    filepath, session["session_id"]
+                )
+                all_compaction_costs.extend(session_compaction_costs)
 
             # Compute segments
             segments = compute_segments(result)
@@ -2012,6 +3059,44 @@ def main():
             }
             raw_out.write(json.dumps(record) + "\n")
 
+        # --- P5-S1: Project cost record ---
+        print("Computing project cost from JSONL...", file=sys.stderr)
+        # Non-workflow cost = total - sum of all phase costs
+        phase_cost_sum = sum(project_cost_by_phase.values())
+        non_workflow_cost = project_cost_total - phase_cost_sum
+        if abs(non_workflow_cost) > 0.000001:
+            project_cost_by_phase["non-workflow"] += non_workflow_cost
+
+        project_cost_record = {
+            "record_type": "project_cost",
+            "total_cost_usd": round(project_cost_total, 2),
+            "cost_by_model": {k: round(v, 2) for k, v in sorted(
+                project_cost_by_model.items(), key=lambda x: x[1], reverse=True
+            )},
+            "cost_by_phase": {k: round(v, 2) for k, v in sorted(
+                project_cost_by_phase.items(), key=lambda x: x[1], reverse=True
+            )},
+            "token_totals": dict(project_token_totals),
+            "request_count": sum(
+                s.get("entry_count", 0) for s in all_sessions
+            ),
+        }
+        raw_out.write(json.dumps(project_cost_record) + "\n")
+        print(f"  Project cost: ${project_cost_total:.2f}", file=sys.stderr)
+        for mp, mc in sorted(project_cost_by_model.items(), key=lambda x: x[1], reverse=True):
+            print(f"    {mp}: ${mc:.2f}", file=sys.stderr)
+
+        # --- P5-S2: Stats YAML mining ---
+        print("Mining stats YAML files...", file=sys.stderr)
+        stats_entries = load_stats_yaml_entries()
+        stats_timing_data = compute_stats_step_timing(stats_entries, closed_bead_estimates)
+        for rec in stats_timing_data["records"]:
+            raw_out.write(json.dumps(rec) + "\n")
+        print(f"  Stats: {stats_timing_data['total_entries']} entries, "
+              f"{len(stats_timing_data['by_command'])} commands, "
+              f"{len(stats_timing_data['estimate_vs_actual'])} bead estimate matches",
+              file=sys.stderr)
+
         # --- S2: Deduplicated active time ---
         print("Computing deduplicated active time...", file=sys.stderr)
         dedup_data = compute_dedup_active_minutes(all_session_results)
@@ -2109,6 +3194,199 @@ def main():
         }
         raw_out.write(json.dumps(askuser_record) + "\n")
 
+        # --- P5-S3: AskUserQuestion per-workflow breakdown ---
+        print("Breaking down AskUserQuestion events by workflow...",
+              file=sys.stderr)
+        # All events by workflow
+        all_by_workflow = defaultdict(lambda: {"count": 0, "total_wait_minutes": 0.0})
+        # Confirmation events by workflow
+        confirm_by_workflow = defaultdict(lambda: {"count": 0, "total_wait_minutes": 0.0})
+        # All categories by workflow (nested: workflow -> category -> count)
+        cats_by_workflow = defaultdict(lambda: defaultdict(int))
+
+        for evt in all_askuser_events:
+            wf = evt.get("workflow", "non-workflow")
+            cat = evt["category"]
+
+            all_by_workflow[wf]["count"] += 1
+            if evt["wait_minutes"] is not None:
+                all_by_workflow[wf]["total_wait_minutes"] += evt["wait_minutes"]
+
+            cats_by_workflow[wf][cat] += 1
+
+            if cat == "confirmation":
+                confirm_by_workflow[wf]["count"] += 1
+                if evt["wait_minutes"] is not None:
+                    confirm_by_workflow[wf]["total_wait_minutes"] += evt["wait_minutes"]
+
+        # Build the record
+        askuser_per_workflow_record = {
+            "record_type": "askuser_per_workflow",
+            "total_events": len(all_askuser_events),
+            "total_confirmation_events": sum(
+                d["count"] for d in confirm_by_workflow.values()
+            ),
+            "all_by_workflow": {
+                wf: {
+                    "count": data["count"],
+                    "total_wait_minutes": round(data["total_wait_minutes"], 2),
+                    "avg_wait_minutes": round(
+                        data["total_wait_minutes"] / data["count"], 2
+                    ) if data["count"] > 0 else 0,
+                }
+                for wf, data in all_by_workflow.items()
+            },
+            "confirmation_by_workflow": {
+                wf: {
+                    "count": data["count"],
+                    "total_wait_minutes": round(data["total_wait_minutes"], 2),
+                    "avg_wait_minutes": round(
+                        data["total_wait_minutes"] / data["count"], 2
+                    ) if data["count"] > 0 else 0,
+                }
+                for wf, data in confirm_by_workflow.items()
+            },
+            "categories_by_workflow": {
+                wf: dict(cats)
+                for wf, cats in cats_by_workflow.items()
+            },
+        }
+        raw_out.write(json.dumps(askuser_per_workflow_record) + "\n")
+
+        # --- P5-S4: Estimation accuracy segmentation ---
+        print("Computing estimation accuracy segments...", file=sys.stderr)
+        estimation_segment_data = compute_estimation_segments(
+            closed_bead_estimates, bead_attribution_windowed
+        )
+        if estimation_segment_data["bead_count"] > 0:
+            est_seg_record = {
+                "record_type": "estimation_segments",
+                "bead_count": estimation_segment_data["bead_count"],
+                "segments": estimation_segment_data["segments"],
+            }
+            raw_out.write(json.dumps(est_seg_record) + "\n")
+            # Also emit per-bead detail records
+            for rec in estimation_segment_data["records"]:
+                detail_record = {"record_type": "estimation_segment_detail", **rec}
+                raw_out.write(json.dumps(detail_record) + "\n")
+            print(f"  Segmented {estimation_segment_data['bead_count']} beads across "
+                  f"{len(estimation_segment_data['segments'])} dimensions",
+                  file=sys.stderr)
+        else:
+            estimation_segment_data = None
+            print("  No beads with both estimates and windowed attribution", file=sys.stderr)
+
+        # --- P5-S5: Compaction cost ---
+        print(f"Computing compaction costs ({len(all_compaction_costs)} events)...",
+              file=sys.stderr)
+        for cc in all_compaction_costs:
+            record = {"record_type": "compaction_cost", **cc}
+            raw_out.write(json.dumps(record) + "\n")
+
+        # Aggregate compaction cost stats
+        compaction_cost_data = None
+        if all_compaction_costs:
+            costs = [cc["token_cost"] for cc in all_compaction_costs]
+            reorient_times = [
+                cc["reorientation_minutes"]
+                for cc in all_compaction_costs
+                if cc["reorientation_minutes"] is not None
+            ]
+            compaction_cost_data = {
+                "event_count": len(all_compaction_costs),
+                "total_cost_usd": round(sum(costs), 4),
+                "median_cost_usd": round(statistics.median(costs), 4) if costs else 0,
+                "mean_cost_usd": round(statistics.mean(costs), 4) if costs else 0,
+                "max_cost_usd": round(max(costs), 4) if costs else 0,
+                "min_cost_usd": round(min(costs), 4) if costs else 0,
+                "reorientation_event_count": len(reorient_times),
+                "median_reorientation_minutes": round(
+                    statistics.median(reorient_times), 2
+                ) if reorient_times else None,
+                "mean_reorientation_minutes": round(
+                    statistics.mean(reorient_times), 2
+                ) if reorient_times else None,
+                "max_reorientation_minutes": round(
+                    max(reorient_times), 2
+                ) if reorient_times else None,
+                "total_reorientation_minutes": round(
+                    sum(reorient_times), 2
+                ) if reorient_times else None,
+                "sessions_with_compaction": len(set(
+                    cc["session"] for cc in all_compaction_costs
+                )),
+            }
+            summary_record = {
+                "record_type": "compaction_cost_summary",
+                **compaction_cost_data,
+            }
+            raw_out.write(json.dumps(summary_record) + "\n")
+            print(f"  Compaction: {len(all_compaction_costs)} events, "
+                  f"total cost ${sum(costs):.2f}, "
+                  f"median reorientation {compaction_cost_data.get('median_reorientation_minutes', 'N/A')} min",
+                  file=sys.stderr)
+        else:
+            print("  No compaction events found", file=sys.stderr)
+
+        # --- P5-S6: Velocity trend ---
+        print("Computing velocity trend...", file=sys.stderr)
+        bead_closures_by_date = load_bead_closures_by_date()
+
+        # Bucket active time by date from session data
+        active_minutes_by_date = defaultdict(float)
+        for result in all_session_results:
+            if result["first_ts"]:
+                date_str = result["first_ts"].date().isoformat()
+                session_active = result["session"]["active_minutes"]
+                active_minutes_by_date[date_str] += session_active
+
+        # Collect all dates from both sources
+        all_trend_dates = sorted(set(
+            list(bead_closures_by_date.keys()) +
+            list(active_minutes_by_date.keys())
+        ))
+
+        velocity_trend_records = []
+        for date_str in all_trend_dates:
+            beads_closed = bead_closures_by_date.get(date_str, 0)
+            active_min = round(active_minutes_by_date.get(date_str, 0), 1)
+            active_hrs = round(active_min / 60.0, 2)
+            beads_per_hour = round(beads_closed / active_hrs, 2) if active_hrs > 0 else None
+            rec = {
+                "record_type": "velocity_trend",
+                "date": date_str,
+                "beads_closed": beads_closed,
+                "active_minutes": active_min,
+                "active_hours": active_hrs,
+                "beads_per_hour": beads_per_hour,
+            }
+            velocity_trend_records.append(rec)
+            raw_out.write(json.dumps(rec) + "\n")
+
+        # Compute overall velocity summary
+        total_beads_closed = sum(r["beads_closed"] for r in velocity_trend_records)
+        total_active_hrs = sum(r["active_hours"] for r in velocity_trend_records)
+        beads_per_day_values = [r["beads_closed"] for r in velocity_trend_records if r["beads_closed"] > 0]
+        active_hrs_per_day_values = [r["active_hours"] for r in velocity_trend_records if r["active_hours"] > 0]
+
+        velocity_trend_summary = {
+            "record_type": "velocity_trend_summary",
+            "date_count": len(all_trend_dates),
+            "total_beads_closed": total_beads_closed,
+            "total_active_hours": round(total_active_hrs, 2),
+            "overall_beads_per_hour": round(total_beads_closed / total_active_hrs, 2) if total_active_hrs > 0 else None,
+            "median_beads_per_day": round(statistics.median(beads_per_day_values), 1) if beads_per_day_values else None,
+            "mean_beads_per_day": round(statistics.mean(beads_per_day_values), 1) if beads_per_day_values else None,
+            "median_active_hours_per_day": round(statistics.median(active_hrs_per_day_values), 2) if active_hrs_per_day_values else None,
+            "mean_active_hours_per_day": round(statistics.mean(active_hrs_per_day_values), 2) if active_hrs_per_day_values else None,
+            "records": velocity_trend_records,
+        }
+        raw_out.write(json.dumps(velocity_trend_summary) + "\n")
+        print(f"  Velocity: {len(all_trend_dates)} dates, "
+              f"{total_beads_closed} beads closed, "
+              f"{round(total_active_hrs, 1)} active hours",
+              file=sys.stderr)
+
         # --- S2: Orchestration analysis ---
         print("Computing orchestration analysis...", file=sys.stderr)
         orch_analysis = compute_orchestration_analysis(
@@ -2116,6 +3394,35 @@ def main():
         )
         orch_record = {"record_type": "orchestration_analysis", **orch_analysis}
         raw_out.write(json.dumps(orch_record) + "\n")
+
+        # --- P5-S7: Permission prompt estimate ---
+        print("Estimating permission prompt overhead...", file=sys.stderr)
+        permission_prompt_data = compute_permission_prompt_estimate(
+            jsonl_files, all_askuser_events
+        )
+        raw_out.write(json.dumps(permission_prompt_data) + "\n")
+        print(f"  Permission prompts: {permission_prompt_data['total_triggering_bash_commands']} "
+              f"triggering commands in {permission_prompt_data['sessions_with_triggers']} sessions, "
+              f"est {permission_prompt_data['estimated_total_hours']} hours upper bound",
+              file=sys.stderr)
+
+        # --- P5-S8: QA retry cost ---
+        print("Detecting QA retry sequences...", file=sys.stderr)
+        qa_retry_data = compute_qa_retry_sequences(all_session_results)
+        for rec in qa_retry_data["records"]:
+            qa_rec = {"record_type": "qa_retry", **rec}
+            raw_out.write(json.dumps(qa_rec) + "\n")
+        if qa_retry_data["summary"]:
+            qa_summary_rec = {
+                "record_type": "qa_retry_summary",
+                **qa_retry_data["summary"],
+            }
+            raw_out.write(json.dumps(qa_summary_rec) + "\n")
+        print(f"  QA retries: {qa_retry_data['summary']['session_count']} sessions with retries "
+              f"(of {qa_retry_data['summary']['sessions_with_any_qa']} with any QA), "
+              f"{qa_retry_data['summary']['total_retry_count']} total retries, "
+              f"{qa_retry_data['summary']['total_active_minutes']} active min",
+              file=sys.stderr)
 
         # --- S2: Headline metrics ---
         print("Computing headline metrics...", file=sys.stderr)
@@ -2160,7 +3467,9 @@ def main():
 
         dedup_active_hours = round(dedup_data["dedup_active_minutes"] / 60.0, 2)
         merged_wall_hours = round(dedup_data["merged_wall_clock_minutes"] / 60.0, 2)
-        cost_per_active_hour = round(total_cost / dedup_active_hours, 2) if total_cost and dedup_active_hours > 0 else None
+        # Use JSONL-computed cost if available, fall back to cost-analysis.md
+        effective_cost = round(project_cost_total, 2) if project_cost_total > 0 else total_cost
+        cost_per_active_hour = round(effective_cost / dedup_active_hours, 2) if effective_cost and dedup_active_hours > 0 else None
         overhead_ratio = round(total_bd_minutes / dedup_data["dedup_active_minutes"], 4) if dedup_data["dedup_active_minutes"] > 0 else None
         beads_per_day = round(closed_bead_count / active_days, 1) if closed_bead_count and active_days > 0 else None
         active_min_per_bead = round(dedup_data["dedup_active_minutes"] / closed_bead_count, 1) if closed_bead_count and closed_bead_count > 0 else None
@@ -2181,7 +3490,8 @@ def main():
             "dedup_active_minutes": dedup_data["dedup_active_minutes"],
             "dedup_active_hours": dedup_active_hours,
             "merged_wall_clock_hours": merged_wall_hours,
-            "total_cost_usd": total_cost,
+            "total_cost_usd_ccusage": total_cost,
+            "total_cost_usd_jsonl": round(project_cost_total, 2) if project_cost_total > 0 else None,
             "cost_per_active_hour": cost_per_active_hour,
             "overhead_ratio": overhead_ratio,
             "automation_ratio": round(automation_ratio, 4),
@@ -2212,7 +3522,11 @@ def main():
         bead_attribution_old, bead_attribution_windowed,
         closed_bead_estimates, concurrent_overlaps, phase_token_totals,
         dedup_data, proportional_records, askuser_record,
-        orch_analysis, headline_record,
+        orch_analysis, headline_record, project_cost_record,
+        stats_timing_data, askuser_per_workflow_record,
+        estimation_segment_data, compaction_cost_data,
+        all_compaction_costs, velocity_trend_summary,
+        permission_prompt_data, qa_retry_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -2222,7 +3536,13 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      bead_attribution_windowed, closed_bead_estimates,
                      concurrent_overlaps, phase_token_totals,
                      dedup_data, proportional_records, askuser_record,
-                     orch_analysis, headline_record):
+                     orch_analysis, headline_record, project_cost_record=None,
+                     stats_timing_data=None, askuser_per_workflow=None,
+                     estimation_segment_data=None, compaction_cost_data=None,
+                     compaction_cost_details=None,
+                     velocity_trend_data=None,
+                     permission_prompt_data=None,
+                     qa_retry_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -3177,12 +4497,14 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
     lines.append("|--------|-------|")
     lines.append(f"| Deduplicated active hours | {hl.get('dedup_active_hours', '-')} |")
     lines.append(f"| True wall-clock hours (merged intervals) | {hl.get('merged_wall_clock_hours', '-')} |")
-    if hl.get("total_cost_usd"):
-        lines.append(f"| Total cost (from cost-analysis.md) | ${hl['total_cost_usd']:.2f} |")
-        if hl.get("cost_per_active_hour"):
-            lines.append(f"| Cost per active hour | ${hl['cost_per_active_hour']:.2f} |")
-    else:
+    if hl.get("total_cost_usd_jsonl"):
+        lines.append(f"| Total cost (JSONL-computed) | ${hl['total_cost_usd_jsonl']:.2f} |")
+    if hl.get("total_cost_usd_ccusage"):
+        lines.append(f"| Total cost (ccusage, for comparison) | ${hl['total_cost_usd_ccusage']:.2f} |")
+    if not hl.get("total_cost_usd_jsonl") and not hl.get("total_cost_usd_ccusage"):
         lines.append("| Total cost | (not available) |")
+    if hl.get("cost_per_active_hour"):
+        lines.append(f"| Cost per active hour | ${hl['cost_per_active_hour']:.2f} |")
     if hl.get("overhead_ratio") is not None:
         lines.append(f"| Overhead ratio (bd min / active min) | {round(hl['overhead_ratio'] * 100, 2)}% |")
     lines.append(f"| Automation ratio (Agent+Task / total tools) | {round(hl.get('automation_ratio', 0) * 100, 2)}% |")
@@ -3328,6 +4650,698 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append("")
     else:
         lines.append("*No orchestration segments found.*")
+        lines.append("")
+
+    # =========================================
+    # 19. PROJECT COST (P5-S1)
+    # =========================================
+    lines.append("## 19. Project Cost")
+    lines.append("")
+    lines.append(
+        "Per-request cost computed from JSONL `message.usage` fields with "
+        "model-specific rates. Covers all assistant responses across all sessions."
+    )
+    lines.append("")
+
+    if project_cost_record and project_cost_record.get("total_cost_usd", 0) > 0:
+        pc = project_cost_record
+        ccusage_cost = headline_record.get("total_cost_usd_ccusage")
+
+        lines.append("### Total")
+        lines.append("")
+        lines.append(f"**JSONL-computed cost: ${pc['total_cost_usd']:.2f}**")
+        lines.append("")
+        if ccusage_cost:
+            delta = pc["total_cost_usd"] - ccusage_cost
+            pct = (delta / ccusage_cost * 100) if ccusage_cost else 0
+            lines.append(
+                f"ccusage total (for comparison): ${ccusage_cost:.2f} "
+                f"(delta: ${delta:+.2f}, {pct:+.1f}%)"
+            )
+            lines.append("")
+
+        # Token totals
+        tt = pc.get("token_totals", {})
+        lines.append("### Token Totals")
+        lines.append("")
+        lines.append("| Token Type | Count | Cost Contribution |")
+        lines.append("|-----------|-------|-------------------|")
+        # Compute contribution per token type across all models (approximate using weighted average)
+        # For a simpler approach, just show counts
+        lines.append(f"| Input | {tt.get('input_tokens', 0):,} | — |")
+        lines.append(f"| Cache creation | {tt.get('cache_creation_input_tokens', 0):,} | — |")
+        lines.append(f"| Cache read | {tt.get('cache_read_input_tokens', 0):,} | — |")
+        lines.append(f"| Output | {tt.get('output_tokens', 0):,} | — |")
+        lines.append("")
+
+        # Per-model breakdown
+        lines.append("### Cost by Model")
+        lines.append("")
+        lines.append("| Model | Cost | % of Total |")
+        lines.append("|-------|------|-----------|")
+        for model, cost in pc.get("cost_by_model", {}).items():
+            pct = (cost / pc["total_cost_usd"] * 100) if pc["total_cost_usd"] > 0 else 0
+            lines.append(f"| {model} | ${cost:.2f} | {pct:.1f}% |")
+        lines.append("")
+
+        # Per-phase breakdown
+        lines.append("### Cost by Phase")
+        lines.append("")
+        lines.append("| Phase | Cost | % of Total |")
+        lines.append("|-------|------|-----------|")
+        for phase, cost in pc.get("cost_by_phase", {}).items():
+            pct = (cost / pc["total_cost_usd"] * 100) if pc["total_cost_usd"] > 0 else 0
+            lines.append(f"| {phase} | ${cost:.2f} | {pct:.1f}% |")
+        lines.append("")
+
+        # Per-session cost stats
+        session_costs = [s.get("session_cost_usd", 0) for s in sessions if s.get("session_cost_usd", 0) > 0]
+        if session_costs:
+            sc_stats = compute_stats(session_costs)
+            lines.append("### Per-Session Cost Distribution")
+            lines.append("")
+            lines.append("| Metric | Value |")
+            lines.append("|--------|-------|")
+            lines.append(f"| Sessions with cost > $0 | {sc_stats['n']} |")
+            lines.append(f"| Min | ${sc_stats['min']:.2f} |")
+            lines.append(f"| Median | ${sc_stats['median']:.2f} |")
+            lines.append(f"| Mean | ${sc_stats['mean']:.2f} |")
+            lines.append(f"| Max | ${sc_stats['max']:.2f} |")
+            if "p90" in sc_stats:
+                lines.append(f"| P90 | ${sc_stats['p90']:.2f} |")
+            lines.append("")
+    else:
+        lines.append("*No cost data available from JSONL.*")
+        lines.append("")
+
+    # =========================================
+    # 20. STEP TIMING FROM STATS YAML (P5-S2)
+    # =========================================
+    lines.append("## 20. Step Timing from Stats YAML")
+    lines.append("")
+    lines.append(
+        "Per-agent-dispatch duration data mined from `.workflows/stats/*.yaml`. "
+        "Each entry represents one subagent dispatch with wall-clock duration. "
+        "Durations shown in minutes."
+    )
+    lines.append("")
+
+    if stats_timing_data and stats_timing_data.get("total_entries", 0) > 0:
+        st = stats_timing_data
+        lines.append(f"**Total dispatch entries:** {st['total_entries']}")
+        lines.append("")
+
+        # Per-command duration table
+        lines.append("### Duration by Workflow Command")
+        lines.append("")
+        lines.append("| Command | N | Median | Mean | P90 | Min | Max | Total Min |")
+        lines.append("|---------|---|--------|------|-----|-----|-----|-----------|")
+        for cmd, stat in sorted(st["by_command"].items(), key=lambda x: x[1].get("total_duration_min", 0), reverse=True):
+            p90 = stat.get("p90", "-")
+            lines.append(
+                f"| {cmd} | {stat['n']} | {stat.get('median', '-')} | "
+                f"{stat.get('mean', '-')} | {p90} | "
+                f"{stat.get('min', '-')} | {stat.get('max', '-')} | "
+                f"{stat.get('total_duration_min', '-')} |"
+            )
+        lines.append("")
+
+        # Per-agent duration table
+        lines.append("### Duration by Agent Type")
+        lines.append("")
+        lines.append("| Agent | N | Median | Mean | P90 | Min | Max |")
+        lines.append("|-------|---|--------|------|-----|-----|-----|")
+        for agent, stat in sorted(st["by_agent"].items(), key=lambda x: x[1]["n"], reverse=True):
+            if stat["n"] < 2:
+                continue  # Skip single-occurrence agents for clarity
+            p90 = stat.get("p90", "-")
+            lines.append(
+                f"| {agent} | {stat['n']} | {stat.get('median', '-')} | "
+                f"{stat.get('mean', '-')} | {p90} | "
+                f"{stat.get('min', '-')} | {stat.get('max', '-')} |"
+            )
+        lines.append("")
+
+        # Estimate vs actual from stats
+        if st["estimate_vs_actual"]:
+            lines.append("### Estimate vs Actual (Stats Dispatch Time)")
+            lines.append("")
+            lines.append(
+                "Compares bead estimated_minutes with total subagent dispatch duration. "
+                "Note: dispatch time is agent wall-clock only — excludes orchestrator "
+                "time, user wait, and inter-step gaps."
+            )
+            lines.append("")
+            lines.append("| Bead | Est Min | Actual Dispatch Min | Ratio | Dispatches | Commands |")
+            lines.append("|------|---------|---------------------|-------|------------|----------|")
+            for eva in sorted(st["estimate_vs_actual"], key=lambda x: x.get("ratio") or 0, reverse=True):
+                ratio_str = f"{eva['ratio']}x" if eva.get("ratio") is not None else "-"
+                cmds = ", ".join(eva.get("commands", []))
+                lines.append(
+                    f"| {eva['bead']} | {eva['estimated_minutes']} | "
+                    f"{eva['actual_dispatch_minutes']} | {ratio_str} | "
+                    f"{eva['dispatch_count']} | {cmds} |"
+                )
+            lines.append("")
+
+            # Summary stats for ratios
+            ratios = [e["ratio"] for e in st["estimate_vs_actual"] if e.get("ratio") is not None]
+            if ratios:
+                ratio_stats = compute_stats(ratios)
+                lines.append(
+                    f"**Dispatch-to-estimate ratio:** "
+                    f"median {ratio_stats.get('median', '-')}x, "
+                    f"mean {ratio_stats.get('mean', '-')}x "
+                    f"(N={ratio_stats['n']})"
+                )
+                lines.append("")
+                lines.append(
+                    "*Ratios < 1.0 mean dispatch time was less than estimated "
+                    "(expected, since estimates cover full workflow including "
+                    "orchestration and user interaction).*"
+                )
+                lines.append("")
+    else:
+        lines.append("*No stats YAML data available.*")
+        lines.append("")
+
+    # =========================================
+    # 21. ASKUSERQUESTION PER WORKFLOW (P5-S3)
+    # =========================================
+    lines.append("## 21. AskUserQuestion by Workflow")
+    lines.append("")
+    lines.append(
+        "AskUserQuestion events attributed to workflow phases by matching "
+        "event timestamps against phase windows. Events outside any phase "
+        "window are classified as non-workflow."
+    )
+    lines.append("")
+
+    if askuser_per_workflow and askuser_per_workflow.get("total_events", 0) > 0:
+        pw = askuser_per_workflow
+        lines.append(f"**Total events:** {pw['total_events']}")
+        lines.append(
+            f"**Total confirmation events:** {pw['total_confirmation_events']}"
+        )
+        lines.append("")
+
+        # All events by workflow table
+        lines.append("### All AskUserQuestion Events by Workflow")
+        lines.append("")
+        lines.append("| Workflow | Count | % of Total | Total Wait Min | Avg Wait Min |")
+        lines.append("|----------|-------|-----------|----------------|--------------|")
+
+        all_wf = pw.get("all_by_workflow", {})
+        for wf in sorted(all_wf.keys(), key=lambda k: all_wf[k]["count"], reverse=True):
+            data = all_wf[wf]
+            pct = round(data["count"] / pw["total_events"] * 100, 1) if pw["total_events"] > 0 else 0
+            lines.append(
+                f"| {wf} | {data['count']} | {pct}% | "
+                f"{data['total_wait_minutes']} | {data['avg_wait_minutes']} |"
+            )
+        lines.append("")
+
+        # Confirmation events by workflow table
+        lines.append("### Confirmation Prompts by Workflow")
+        lines.append("")
+        total_confirm = pw["total_confirmation_events"]
+        lines.append("| Workflow | Count | % of Confirmations | Total Wait Min | Avg Wait Min |")
+        lines.append("|----------|-------|-------------------|----------------|--------------|")
+
+        conf_wf = pw.get("confirmation_by_workflow", {})
+        for wf in sorted(conf_wf.keys(), key=lambda k: conf_wf[k]["count"], reverse=True):
+            data = conf_wf[wf]
+            pct = round(data["count"] / total_confirm * 100, 1) if total_confirm > 0 else 0
+            lines.append(
+                f"| {wf} | {data['count']} | {pct}% | "
+                f"{data['total_wait_minutes']} | {data['avg_wait_minutes']} |"
+            )
+        lines.append("")
+
+        # Category breakdown per workflow (detailed)
+        lines.append("### Category Breakdown per Workflow")
+        lines.append("")
+        cats_wf = pw.get("categories_by_workflow", {})
+        # Collect all unique categories
+        all_cats = sorted(set(
+            cat for wf_cats in cats_wf.values() for cat in wf_cats.keys()
+        ))
+        if all_cats:
+            header = "| Workflow | " + " | ".join(all_cats) + " | Total |"
+            sep = "|----------|" + "|".join(["------"] * len(all_cats)) + "|-------|"
+            lines.append(header)
+            lines.append(sep)
+
+            for wf in sorted(cats_wf.keys(), key=lambda k: sum(cats_wf[k].values()), reverse=True):
+                wf_cats = cats_wf[wf]
+                total = sum(wf_cats.values())
+                cells = [str(wf_cats.get(cat, 0)) for cat in all_cats]
+                lines.append(f"| {wf} | " + " | ".join(cells) + f" | {total} |")
+            lines.append("")
+    else:
+        lines.append("*No AskUserQuestion per-workflow data available.*")
+        lines.append("")
+
+    # =========================================
+    # 22. ESTIMATION ACCURACY SEGMENTATION (P5-S4)
+    # =========================================
+    lines.append("## 22. Estimation Accuracy by Segment")
+    lines.append("")
+    lines.append(
+        "Estimation accuracy (actual/estimated ratio) segmented by bead type, "
+        "priority, session count, and estimate size. Ratio < 1 means faster than "
+        "estimated; > 1 means slower."
+    )
+    lines.append("")
+
+    if estimation_segment_data and estimation_segment_data.get("bead_count", 0) > 0:
+        segs = estimation_segment_data["segments"]
+        overall = segs.get("overall", {})
+        lines.append(
+            f"**Beads analyzed:** {estimation_segment_data['bead_count']} "
+            f"(overall median ratio: {overall.get('median_ratio', '-')}x, "
+            f"mean: {overall.get('mean_ratio', '-')}x)"
+        )
+        lines.append("")
+
+        # Helper to render a segment table
+        def render_segment_table(title, seg_dict, label_header="Segment"):
+            lines.append(f"### {title}")
+            lines.append("")
+            lines.append(
+                f"| {label_header} | N | Median | Mean | Min | Max | Under-est | Over-est |"
+            )
+            lines.append(
+                "|---------|---|--------|------|-----|-----|-----------|----------|"
+            )
+            for label, stats in seg_dict.items():
+                if stats["n"] == 0:
+                    continue
+                lines.append(
+                    f"| {label} | {stats['n']} | "
+                    f"{stats['median_ratio']}x | {stats['mean_ratio']}x | "
+                    f"{stats['min_ratio']}x | {stats['max_ratio']}x | "
+                    f"{stats['under_estimated']} | {stats['over_estimated']} |"
+                )
+            lines.append("")
+
+        render_segment_table("By Issue Type", segs.get("by_type", {}), "Type")
+        render_segment_table("By Priority", segs.get("by_priority", {}), "Priority")
+        render_segment_table(
+            "By Session Count", segs.get("by_session_type", {}), "Sessions"
+        )
+        render_segment_table(
+            "By Estimate Size", segs.get("by_estimate_bucket", {}), "Bucket"
+        )
+
+        # Per-bead detail table (sorted by ratio descending)
+        lines.append("### Per-Bead Detail")
+        lines.append("")
+        lines.append(
+            "| Bead | Type | Pri | Est | Actual | Ratio | Sessions | Bucket |"
+        )
+        lines.append(
+            "|------|------|-----|-----|--------|-------|----------|--------|"
+        )
+        detail_records = sorted(
+            estimation_segment_data["records"],
+            key=lambda x: x["ratio"],
+            reverse=True,
+        )
+        for rec in detail_records:
+            title = rec["title"][:35] + "..." if len(rec["title"]) > 35 else rec["title"]
+            title = title.replace("|", "\\|")
+            pri = f"P{rec['priority']}" if rec["priority"] is not None else "-"
+            lines.append(
+                f"| {rec['bead_id']} | {rec['issue_type']} | {pri} | "
+                f"{rec['estimated_minutes']} | {rec['actual_minutes']} | "
+                f"{rec['ratio']}x | {rec['session_count']} | "
+                f"{rec['estimate_bucket']} |"
+            )
+        lines.append("")
+    else:
+        lines.append("*No estimation segment data available.*")
+        lines.append("")
+
+    # =========================================
+    # 23. COMPACTION COST (P5-S5)
+    # =========================================
+    lines.append("## 23. Compaction Cost")
+    lines.append("")
+    lines.append(
+        "Cost per compaction event (token cost of the compaction request) "
+        "and reorientation time (gap from compaction to first productive "
+        "tool call — Edit/Write/Agent/Task, excluding Read/Grep/Glob)."
+    )
+    lines.append("")
+
+    if compaction_cost_data and compaction_cost_data.get("event_count", 0) > 0:
+        cd = compaction_cost_data
+        lines.append(f"**Compaction events:** {cd['event_count']} "
+                      f"across {cd['sessions_with_compaction']} sessions")
+        lines.append("")
+
+        # Cost summary table
+        lines.append("### Token Cost per Compaction")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(f"| Total | ${cd['total_cost_usd']:.2f} |")
+        lines.append(f"| Median | ${cd['median_cost_usd']:.4f} |")
+        lines.append(f"| Mean | ${cd['mean_cost_usd']:.4f} |")
+        lines.append(f"| Min | ${cd['min_cost_usd']:.4f} |")
+        lines.append(f"| Max | ${cd['max_cost_usd']:.4f} |")
+        lines.append("")
+
+        # Reorientation time table
+        if cd.get("reorientation_event_count", 0) > 0:
+            lines.append("### Reorientation Time")
+            lines.append("")
+            lines.append(
+                "Time from compaction to first productive tool call "
+                "(Edit/Write/Agent/Task)."
+            )
+            lines.append("")
+            lines.append("| Metric | Value |")
+            lines.append("|--------|-------|")
+            lines.append(
+                f"| Events with productive follow-up | "
+                f"{cd['reorientation_event_count']}/{cd['event_count']} |"
+            )
+            lines.append(
+                f"| Median | {cd['median_reorientation_minutes']} min |"
+            )
+            lines.append(
+                f"| Mean | {cd['mean_reorientation_minutes']} min |"
+            )
+            lines.append(
+                f"| Max | {cd['max_reorientation_minutes']} min |"
+            )
+            lines.append(
+                f"| Total | {cd['total_reorientation_minutes']} min |"
+            )
+            lines.append("")
+        else:
+            lines.append(
+                "*No productive tool calls found after compaction events.*"
+            )
+            lines.append("")
+
+        # Per-event detail table
+        if compaction_cost_details:
+            lines.append("### Per-Event Detail")
+            lines.append("")
+            lines.append(
+                "| Session | Timestamp | Cost | Reorientation | Model |"
+            )
+            lines.append(
+                "|---------|-----------|------|---------------|-------|"
+            )
+            for cc in sorted(compaction_cost_details, key=lambda x: x["timestamp"]):
+                session_short = cc["session"][-8:] if len(cc["session"]) > 8 else cc["session"]
+                ts_short = cc["timestamp"][:19] if len(cc["timestamp"]) > 19 else cc["timestamp"]
+                reorient = (
+                    f"{cc['reorientation_minutes']} min"
+                    if cc["reorientation_minutes"] is not None
+                    else "N/A"
+                )
+                model_short = cc["model"].split("-")[-1] if cc["model"] else "-"
+                lines.append(
+                    f"| ...{session_short} | {ts_short} | "
+                    f"${cc['token_cost']:.4f} | {reorient} | {model_short} |"
+                )
+            lines.append("")
+    else:
+        lines.append("*No compaction events found.*")
+        lines.append("")
+
+    # =========================================
+    # 24. VELOCITY TREND (P5-S6)
+    # =========================================
+    lines.append("## 24. Velocity Trend by Date")
+    lines.append("")
+    lines.append(
+        "Daily velocity: bead closures and active hours per date. "
+        "Active time is computed from session timestamps (sum of session "
+        "active minutes bucketed by session start date). Bead closures "
+        "come from the beads database `closed_at` field. Note: beads/hour "
+        "can be skewed on individual dates because long sessions bucket "
+        "to their start date while bead closures bucket to their close date."
+    )
+    lines.append("")
+
+    if velocity_trend_data and velocity_trend_data.get("date_count", 0) > 0:
+        vt = velocity_trend_data
+        lines.append(
+            f"**Date range:** {vt['date_count']} dates, "
+            f"{vt['total_beads_closed']} beads closed, "
+            f"{vt['total_active_hours']} active hours"
+        )
+        lines.append("")
+
+        # Summary stats
+        lines.append("### Velocity Summary")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(
+            f"| Overall beads/hour | "
+            f"{vt['overall_beads_per_hour']} |"
+        )
+        if vt.get("median_beads_per_day") is not None:
+            lines.append(
+                f"| Median beads/day | {vt['median_beads_per_day']} |"
+            )
+        if vt.get("mean_beads_per_day") is not None:
+            lines.append(
+                f"| Mean beads/day | {vt['mean_beads_per_day']} |"
+            )
+        if vt.get("median_active_hours_per_day") is not None:
+            lines.append(
+                f"| Median active hours/day | "
+                f"{vt['median_active_hours_per_day']} |"
+            )
+        if vt.get("mean_active_hours_per_day") is not None:
+            lines.append(
+                f"| Mean active hours/day | "
+                f"{vt['mean_active_hours_per_day']} |"
+            )
+        lines.append("")
+
+        # Daily trend table
+        lines.append("### Daily Trend")
+        lines.append("")
+        lines.append(
+            "| Date | Beads Closed | Active Hours | Beads/Hour |"
+        )
+        lines.append(
+            "|------|-------------|-------------|------------|"
+        )
+        for rec in vt.get("records", []):
+            bph = (
+                f"{rec['beads_per_hour']}"
+                if rec.get("beads_per_hour") is not None
+                else "-"
+            )
+            lines.append(
+                f"| {rec['date']} | {rec['beads_closed']} | "
+                f"{rec['active_hours']} | {bph} |"
+            )
+        lines.append("")
+    else:
+        lines.append("*No velocity trend data available.*")
+        lines.append("")
+
+    # --- Section 25: Permission Prompt Estimate ---
+    lines.append("## 25. Permission Prompt Estimate")
+    lines.append("")
+    lines.append(
+        "**Methodology caveat:** There is no JSONL signal for OS-level permission "
+        "prompts. This section uses a proxy: count Bash tool calls in "
+        '`permissionMode="default"` sessions that match known heuristic-triggering '
+        "patterns (`$()`, `<<`, `{\"`) from the AGENTS.md Bash Generation Rules. "
+        "The estimate multiplies the triggering-pattern count by the median user "
+        "response time for confirmation AskUserQuestion events as an upper bound. "
+        "True cost is likely 30-50% of this estimate because: (a) not every "
+        "pattern-matching Bash call triggers a permission prompt (static rules "
+        "suppress some heuristics), and (b) permission prompts are simpler yes/no "
+        "confirmations that resolve faster than full AskUserQuestion interactions."
+    )
+    lines.append("")
+
+    if permission_prompt_data:
+        ppd = permission_prompt_data
+        total_sessions = (
+            ppd.get("sessions_with_default_mode", 0)
+            + ppd.get("sessions_with_accept_edits", 0)
+            + ppd.get("sessions_no_mode_field", 0)
+        )
+        lines.append("### Session Permission Modes")
+        lines.append("")
+        lines.append("| Mode | Sessions |")
+        lines.append("|------|----------|")
+        lines.append(
+            f"| `default` | {ppd.get('sessions_with_default_mode', 0)} |"
+        )
+        lines.append(
+            f"| `acceptEdits` | {ppd.get('sessions_with_accept_edits', 0)} |"
+        )
+        lines.append(
+            f"| No mode field | {ppd.get('sessions_no_mode_field', 0)} |"
+        )
+        lines.append(f"| **Total** | **{total_sessions}** |")
+        lines.append("")
+
+        lines.append("### Triggering Patterns")
+        lines.append("")
+        lines.append(
+            f"**Total triggering Bash commands:** "
+            f"{ppd.get('total_triggering_bash_commands', 0)} "
+            f"across {ppd.get('sessions_with_triggers', 0)} sessions"
+        )
+        lines.append("")
+
+        pattern_counts = ppd.get("pattern_counts", {})
+        if pattern_counts:
+            lines.append("| Pattern | Count |")
+            lines.append("|---------|-------|")
+            for pattern_name, count in sorted(
+                pattern_counts.items(), key=lambda x: -x[1]
+            ):
+                lines.append(f"| `{pattern_name}` | {count} |")
+            lines.append("")
+
+        lines.append("### Cost Estimate")
+        lines.append("")
+        lines.append(
+            f"| Metric | Value |"
+        )
+        lines.append("|--------|-------|")
+        lines.append(
+            f"| Median confirmation wait (proxy) | "
+            f"{ppd.get('median_confirmation_wait_min', 'N/A')} min |"
+        )
+        lines.append(
+            f"| Estimated total wait (upper bound) | "
+            f"{ppd.get('estimated_total_minutes', 'N/A')} min "
+            f"({ppd.get('estimated_total_hours', 'N/A')} hours) |"
+        )
+        # Compute likely range (30-50% of upper bound)
+        est_min = ppd.get("estimated_total_minutes", 0)
+        if est_min and est_min > 0:
+            low_min = round(est_min * 0.3, 1)
+            high_min = round(est_min * 0.5, 1)
+            low_hrs = round(low_min / 60.0, 2)
+            high_hrs = round(high_min / 60.0, 2)
+            lines.append(
+                f"| Likely range (30-50% of upper bound) | "
+                f"{low_min}-{high_min} min "
+                f"({low_hrs}-{high_hrs} hours) |"
+            )
+        lines.append("")
+    else:
+        lines.append("*No permission prompt data available.*")
+        lines.append("")
+
+    # --- Section 26: QA Retry Cost ---
+    lines.append("## 26. QA Retry Cost")
+    lines.append("")
+    lines.append(
+        "QA retry sequences occur when a QA invocation (plugin-changes-qa) fails, "
+        "requiring fix phases (typically work) followed by another QA run. Each "
+        "additional QA invocation after the first in such a chain counts as a retry."
+    )
+    lines.append("")
+
+    if qa_retry_data and qa_retry_data.get("records"):
+        qrs = qa_retry_data["summary"]
+        lines.append("### Summary")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(
+            f"| Sessions with QA retries | {qrs.get('session_count', 0)} |"
+        )
+        lines.append(
+            f"| Total retry count | {qrs.get('total_retry_count', 0)} |"
+        )
+        lines.append(
+            f"| Total active minutes (QA + fix) | "
+            f"{qrs.get('total_active_minutes', 0)} |"
+        )
+        lines.append(
+            f"| QA invocation active minutes | "
+            f"{qrs.get('total_qa_active_minutes', 0)} |"
+        )
+        lines.append(
+            f"| Fix phase active minutes | "
+            f"{qrs.get('total_fix_active_minutes', 0)} |"
+        )
+        lines.append(
+            f"| Median retries per session | "
+            f"{qrs.get('median_retries_per_session', 'N/A')} |"
+        )
+        lines.append(
+            f"| Max retries in one session | "
+            f"{qrs.get('max_retries_per_session', 'N/A')} |"
+        )
+        lines.append(
+            f"| Median QA active per session | "
+            f"{qrs.get('median_qa_active_per_session', 'N/A')} min |"
+        )
+        lines.append(
+            f"| Mean QA active per session | "
+            f"{qrs.get('mean_qa_active_per_session', 'N/A')} min |"
+        )
+        lines.append("")
+
+        # Phases between distribution
+        phase_dist = qrs.get("phases_between_distribution", {})
+        if phase_dist:
+            lines.append("### Fix Phases Between QA Retries")
+            lines.append("")
+            lines.append("| Phase | Count |")
+            lines.append("|-------|-------|")
+            for phase_name, count in sorted(
+                phase_dist.items(), key=lambda x: -x[1]
+            ):
+                lines.append(f"| {phase_name} | {count} |")
+            lines.append("")
+
+        # Per-session detail
+        lines.append("### Per-Session Detail")
+        lines.append("")
+        lines.append(
+            "| Session | Retries | QA Min | Fix Min | Total Min | "
+            "Phases Between |"
+        )
+        lines.append(
+            "|---------|---------|--------|---------|-----------|"
+            "----------------|"
+        )
+        for rec in qa_retry_data["records"]:
+            phases_str = ", ".join(rec.get("phases_between", []))
+            lines.append(
+                f"| {rec['session'][:12]}... | {rec['retry_count']} | "
+                f"{rec.get('qa_active_minutes', 0)} | "
+                f"{rec.get('fix_active_minutes', 0)} | "
+                f"{rec.get('total_active_minutes', 0)} | "
+                f"{phases_str} |"
+            )
+        lines.append("")
+    else:
+        sessions_with_qa = (
+            qa_retry_data["summary"].get("sessions_with_any_qa", 0)
+            if qa_retry_data and qa_retry_data.get("summary")
+            else 0
+        )
+        lines.append(
+            f"*No QA retry sequences detected.* "
+            f"{sessions_with_qa} session(s) had QA skill invocations, "
+            "but none contained qa->fix->qa retry chains. This means "
+            "either QA passed on first attempt or fixes were done "
+            "outside the skill-tracked workflow."
+        )
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
