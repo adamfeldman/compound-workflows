@@ -172,7 +172,7 @@ Run `/compound-workflows:classify-stats` to add complexity labels to collected d
 
 ## Attribution
 
-Includes agents and skills forked from [Every's compound engineering plugin](https://github.com/EveryInc/compound-engineering-plugin) (MIT). The brainstorm-plan-work-review-compound cycle, agent-based review architecture, and knowledge compounding philosophy originate from that project. See `NOTICE` and `FORK-MANIFEST.yaml` for provenance.
+Includes agents and skills forked from [Every's compound engineering plugin](https://github.com/EveryInc/compound-engineering-plugin) (MIT). The brainstorm-plan-work-review-compound cycle, agent-based review architecture, and knowledge compounding philosophy originate from that project. See [`NOTICE`](plugins/compound-workflows/NOTICE) and [`FORK-MANIFEST.yaml`](plugins/compound-workflows/FORK-MANIFEST.yaml) for provenance.
 
 ## License
 
