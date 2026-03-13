@@ -4,6 +4,41 @@ This repo contains the **compound-workflows** Claude Code plugin. Workflow skill
 
 The plugin's purpose is to capture best-practice patterns and make them shareable, while remaining configurable to individual user preferences.
 
+## Interaction Rules
+
+**Present proposals and STOP. Do not execute until the user explicitly says to proceed.**
+
+Asking "Want me to apply?" or "Ready to dispatch?" is NOT receiving confirmation. Only explicit user responses like "yes", "do it", "go", "apply it" count as permission. Instructions about *how* to do something ("keep the bead updated", "don't close the bead") are not permission to *start* — they are constraints for when work begins. When in doubt, wait.
+
+## Routing
+
+Do not use plan mode, ad-hoc research agents, or inline answers for tasks that have a workflow skill. Route through skills instead:
+
+- **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/do:brainstorm` — do not answer exploratory questions directly
+- **Building a known feature or task**: `/do:plan` to design, then `/do:work` to execute — do not implement without a plan
+- **Plan needs deeper research**: `/do:deepen-plan` before executing
+- **Reviewing code changes**: `/do:review` — do not review inline
+- **Solved a non-obvious problem**: `/do:compound` to capture institutional knowledge
+- **Before `/compact`**: `/do:compact-prep` to preserve session context
+- **Abandoning a session** ("done for today", "wrapping up for the day", "closing out", "ending the session"): `/do:abandon` — do not just close the terminal
+- **Recovering a dead/exhausted session**: `/compound-workflows:recover`
+
+> **v3.0.0 transition:** During the transition period, `/compound:*` aliases redirect to `/do:*`. Aliases will be removed in a future version. Update muscle memory, docs, and memory files to use `/do:*`.
+
+### Session-End Detection
+
+When you detect session-end language ("done for today", "wrapping up for the day", "closing out",
+"ending the session", "abandoning"), add an inline text suggestion:
+
+> Tip: run `/do:abandon` to capture session knowledge before closing.
+
+**This is a suggestion, not a gate.** Do not ask, do not block, do not repeat if the user continues working.
+
+**Suppression rules:**
+- Suppress after the user dismisses it or ignores it twice in the same session (track in conversation context)
+- Ambiguous phrases ("I'm done", "that's all") excluded from triggers — they fire on task completion, creating cry-wolf pattern
+- If the user says "stop suggesting /abandon", stop immediately for the remainder of the session
+
 ## Project Structure
 
 ```
@@ -106,35 +141,6 @@ After release, update the local install. `claude plugin update` is slow to recog
 
 Do NOT skip step 1. Do NOT use `claude plugin remove` + `claude plugin install` as a workaround.
 
-## Routing
-
-Do not use plan mode, ad-hoc research agents, or inline answers for tasks that have a workflow skill. Route through skills instead:
-
-- **Exploring an idea** ("should we...", "what if...", "is there an opportunity to..."): `/do:brainstorm` — do not answer exploratory questions directly
-- **Building a known feature or task**: `/do:plan` to design, then `/do:work` to execute — do not implement without a plan
-- **Plan needs deeper research**: `/do:deepen-plan` before executing
-- **Reviewing code changes**: `/do:review` — do not review inline
-- **Solved a non-obvious problem**: `/do:compound` to capture institutional knowledge
-- **Before `/compact`**: `/do:compact-prep` to preserve session context
-- **Abandoning a session** ("done for today", "wrapping up for the day", "closing out", "ending the session"): `/do:abandon` — do not just close the terminal
-- **Recovering a dead/exhausted session**: `/compound-workflows:recover`
-
-> **v3.0.0 transition:** During the transition period, `/compound:*` aliases redirect to `/do:*`. Aliases will be removed in a future version. Update muscle memory, docs, and memory files to use `/do:*`.
-
-### Session-End Detection
-
-When you detect session-end language ("done for today", "wrapping up for the day", "closing out",
-"ending the session", "abandoning"), add an inline text suggestion:
-
-> Tip: run `/do:abandon` to capture session knowledge before closing.
-
-**This is a suggestion, not a gate.** Do not ask, do not block, do not repeat if the user continues working.
-
-**Suppression rules:**
-- Suppress after the user dismisses it or ignores it twice in the same session (track in conversation context)
-- Ambiguous phrases ("I'm done", "that's all") excluded from triggers — they fire on task completion, creating cry-wolf pattern
-- If the user says "stop suggesting /abandon", stop immediately for the remainder of the session
-
 ## Sequential Feature Execution
 
 Run plan→deepen→work for one feature at a time. Do not run parallel feature tracks that touch plugin files.
@@ -158,10 +164,6 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
 
 **Research artifacts are not garbage** — they contain valuable detail, citations, and cross-references that higher-tier docs often summarize away. Read them for depth. Just don't let them override reviewed decisions.
 
-## Interaction Rules
-
-- Always present proposals and wait for explicit confirmation before executing. Do not treat analysis as permission to act.
-
 ## Key Conventions
 
 - Workflow skills use `do:` namespace prefix; `compound:` aliases redirect for backwards compat
@@ -171,9 +173,10 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
 - Config is split: `compound-workflows.md` (committed) + `compound-workflows.local.md` (gitignored)
 - Git remote: `origin` at `github.com/adamfeldman/compound-workflows.git`
 - Only commit files you changed in the current session. If untracked or modified files from prior sessions are present, offer to commit them separately (they may have been left behind) — the goal is a clean working tree at session end
+- **Group commits by logical change, not by file or session** — changes that share a single "why" belong together. Different motivations get separate commits, even if they touch the same file. When in doubt, split. Don't split mechanically — two changes that only make sense together should stay in one commit.
 - **Suggest squash before push** — when multiple commits on the same topic accumulate during a session, suggest squashing to the user before pushing. Never auto-squash. Wait for the user to say the change is done before committing — don't commit mid-iteration while still refining.
 - Do not use auto memory (`~/.claude/projects/.../memory/`) — use repo-level memory instead: `memory/` (committed, project knowledge) + `.claude/memory/` (gitignored, private preferences)
-- **Always add `--estimate` when creating beads** — estimate total remaining workflow time in minutes (not just the next step). See `memory/estimation-heuristics.md` for per-phase timing data.
+- **Always add `--estimate` when creating beads** — estimate total remaining workflow time in minutes (not just the next step). See `.claude/memory/estimation-heuristics.md` for per-phase timing data.
 - **Show estimates when listing beads** — when the user asks to see open beads, include the estimate alongside each bead for context (e.g., `nn3 P1 90m — Evaluate red team step in plan`).
 - **Tag beads with impact via `--metadata`** — score impact on three dimensions and store a precomputed score for sorting. Each dimension uses: `none` (0), `minor` (1), `major` (3). Dimensions: cost = token/quota savings, quality = output quality lift, friction = manual work eliminated. Sum → `impact_score` (0–9). Priority captures urgency; impact captures value when shipped. Sort by priority first, impact_score as tiebreaker. Example: `bd update <id> --metadata '{"impact": {"cost": "major", "quality": "none", "friction": "minor"}, "impact_score": 4}'`. Update impact_score whenever a dimension changes.
 - **`bd show` does not display `estimated_minutes`** — the field exists in the database but `bd show` omits it from output. To retrieve estimates, use `bd sql "SELECT SUBSTR(id, -4) AS short, priority, estimated_minutes, JSON_EXTRACT(metadata, '$.impact_score') AS score, title FROM issues WHERE status = 'open' ORDER BY priority"`.
@@ -240,7 +243,7 @@ Critical preferences that must survive compaction. Source of truth: `.claude/mem
 
 ### Interaction
 
-- **Wait for confirmation** — present proposals and STOP. Do not execute until user says to proceed.
+- **Wait for confirmation** — see Interaction Rules at top of file. "Want me to apply?" is not receiving permission.
 - **Don't jump to fixing** — when discussing a bead, update the bead with findings but don't edit code until asked.
 
 ### Workflow
