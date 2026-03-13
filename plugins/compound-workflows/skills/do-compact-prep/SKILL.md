@@ -43,15 +43,9 @@ bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh compact-prep
 
 Read the output and track these values for use throughout: PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE. If init-values.sh fails or any critical value is empty, warn the user and stop.
 
-### Generate Run ID and Directory
+### Generate Run ID
 
-Generate a short run ID (e.g., 8 hex chars) and create the run directory:
-
-```bash
-mkdir -p .workflows/compact-prep/<run-id>/
-```
-
-This directory scopes all temp files for this run. No cleanup of prior runs needed — each gets its own directory. The directory is retained after completion for analytics value.
+Generate a short run ID (e.g., 8 hex chars) for scoping state files if needed later (see Step 3).
 
 ---
 
@@ -302,10 +296,11 @@ Re-run `git status` to get a **fresh file set** — do NOT use stale Check C res
 **Skip if:** user selected "Skip compound" OR compound was not worthy.
 
 Before pausing:
-1. Use the **Write tool** to write batch state to `.workflows/compact-prep/<run-id>.json` with: `{ "run_id": "<run-id>", "abandon_mode": <bool>, "approved_actions": [...], "skipped_actions": [...], "current_step": 3, "completed_steps": [<list>], "config": { <5 config keys> }, "timestamp": "<timestamp>" }`
-2. Tell the user: "Running /do:compound now. Resume compact-prep after compound completes."
-3. Pause — the user runs `/do:compound` separately.
-4. On resume: read state file from `.workflows/compact-prep/<run-id>.json`, continue at Step 4.
+1. Create the run directory: `mkdir -p .workflows/compact-prep/<run-id>/`
+2. Use the **Write tool** to write batch state to `.workflows/compact-prep/<run-id>.json` with: `{ "run_id": "<run-id>", "abandon_mode": <bool>, "approved_actions": [...], "skipped_actions": [...], "current_step": 3, "completed_steps": [<list>], "config": { <5 config keys> }, "timestamp": "<timestamp>" }`
+3. Tell the user: "Running /do:compound now. Resume compact-prep after compound completes."
+4. Pause — the user runs `/do:compound` separately.
+5. On resume: read state file from `.workflows/compact-prep/<run-id>.json`, continue at Step 4.
 
 ### Step 4: Commit Compound Docs
 

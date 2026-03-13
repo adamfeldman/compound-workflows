@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.5] - 2026-03-12
+
+### Changed
+
+- **Compact-prep run directory deferred to Step 3** — `mkdir` only runs when compound pause-and-resume actually needs it, instead of unconditionally at init.
+
 ## [3.1.4] - 2026-03-12
 
 ### Fixed
