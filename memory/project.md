@@ -2,7 +2,7 @@
 
 ## Overview
 - Plugin: compound-workflows v3.1.6 (plugins/compound-workflows/)
-- 26 agents, 29 skills, 8 commands (thin aliases)
+- 27 agents, 29 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
 - GitHub repo: adamfeldman/compound-workflows (public)
@@ -115,6 +115,16 @@
 
 - **v3.1.6** — Compact-prep commit message scoping (bead je54): commit message files write to `.workflows/compact-prep/<run-id>/` instead of shared `.workflows/scratch/`. Removed `.workflows/scratch/*` blanket exemption from unslugged-paths.sh QA.
 
+## Session Analysis Infrastructure (2026-03-13)
+- Script: `.workflows/session-analysis/extract-timings.py` — parses all JSONL session logs
+- Raw data: `.workflows/session-analysis/raw-observations.jsonl` (1321 records: 87 sessions, 121 phases, 709 agents, 148 segments, 389 windowed attributions, 74 concurrent pairs)
+- Summary: `.workflows/session-analysis/summary.md`
+- Estimation heuristics: `.claude/memory/estimation-heuristics.md` (moved from `memory/`, now private)
+- **Headline findings:** 65.5 hrs deduplicated active time building plugin, 368.5 hrs true wall-clock (merged concurrent sessions), ~20% overhead (bd commands), estimates validated at 1.09x median ratio
+- 8 bead labels in use: docs, github, observability, permissions, qa, robustness, setup, workflow
+- AGENTS.md has Memory Hot Cache section with critical preferences that survive compaction
+- AGENTS.md Interaction Rules and Routing moved to top for higher attention weight
+
 ## In-Progress Work
 
 - **Work-step-executor: Sonnet subagents (bead xu2)** — P1. ~80% of work steps are mechanical after well-deepened plans. voo done — dataset now available. Next: `/do:brainstorm`.
@@ -126,6 +136,8 @@
 - **Plugin-wide config toggles (bead 4a1o)** — P3. Created during ka3w plan. Extends ka3w's config toggle pattern to other commands (red team, readiness, etc.).
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
 - **Fix usage-pipe race + work-in-progress scoping (bead 8one)** — P2 bug. Plan complete (`docs/plans/2026-03-12-fix-usage-pipe-isolation-plan.md`). Next: `/do:work`. Two shared static files have race conditions under concurrent sessions. Fix: eliminate .usage-pipe (named-field string arg 9), scope .work-in-progress per-session (.work-in-progress.d/$RUN_ID directory). 13+ files in one atomic commit.
+- **Mine session logs for empirical timing data (bead 3zr)** — P2. Phase 3 complete: windowed bead attribution (92% reduction), concurrent session detection (74 pairs), token-per-phase aggregation, mixed category reclassification (70.6%→32.4%). Phase 4 scoped: bake corrected boundaries into script, overhead analysis, headline metrics, AskUserQuestion categorization.
+- **New beads this session:** n711 (shellcheck QA, P2), 4i61 (GitHub Issues integration, P3), ahoj (cross-repo memory, P3), g1vy (GitHub repo setup, P3), 3e9r (bake hot cache into plugin, P2)
 
 ## Critical Patterns
 - **Plugin paths use `${CLAUDE_SKILL_DIR}`** — skills use `${CLAUDE_SKILL_DIR}/../../scripts/` for init-values.sh. init-values.sh validates PLUGIN_ROOT via `.claude-plugin/plugin.json` existence check. Commands don't get CLAUDE_SKILL_DIR (they're thin aliases).
