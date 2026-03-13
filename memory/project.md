@@ -140,7 +140,10 @@
 - **Mine session logs for empirical timing data (bead 3zr)** — P2. Phase 4 complete: phase boundary correction, subcategory refinement, proportional allocation, active time deduplication, AskUserQuestion categorization, headline metrics. Phase 5 planned (9 items). Closed.
 - **Reduce confirmation prompts (bead 1hu4)** — P2. 238 confirmation prompts, 20.8 hrs wait. Depends on phase 5 data. Related: 42s.
 - **Live estimation display in workflows (bead t7sd)** — P3. Deferred from 3zr phase 5 — requires plugin skill changes.
-- **New beads this session:** n711 (shellcheck QA, P2), 4i61 (GitHub Issues integration, P3), ahoj (cross-repo memory, P3), g1vy (GitHub repo setup, P3), 3e9r (bake hot cache into plugin, P2)
+- **Git index isolation (bead s7qj)** — P2 bug. Brainstorm complete (`docs/brainstorms/2026-03-13-git-index-isolation-brainstorm.md`). 3 rounds of red team drove 3 pivots: lock-based wrapper → `git commit --only` → `GIT_INDEX_FILE`. Red team v3 expanded scope to include working-tree isolation (not just index). Next: analyze session logs for simultaneous file writes (not just overlapping session windows) to decide whether worktrees are needed, then `/do:plan`.
+- **Brainstorm should dispatch web search (bead 4je7)** — P1. Brainstorm skill Phase 1.1 only does internal research (repo + context). No web search happens until deepen-plan, which is too late. Lesson from s7qj brainstorm.
+- **Brainstorm should front-load interactive work (bead xcaj)** — P3. Test things empirically during brainstorm instead of deferring to planning. Cleanup: remove `.claude/memory/feedback_brainstorm-frontload-interactive.md` once built into skill.
+- **New beads this session (prior):** n711 (shellcheck QA, P2), 4i61 (GitHub Issues integration, P3), ahoj (cross-repo memory, P3), g1vy (GitHub repo setup, P3), 3e9r (bake hot cache into plugin, P2)
 
 ## Critical Patterns
 - **Plugin paths use `${CLAUDE_SKILL_DIR}`** — skills use `${CLAUDE_SKILL_DIR}/../../scripts/` for init-values.sh. init-values.sh validates PLUGIN_ROOT via `.claude-plugin/plugin.json` existence check. Commands don't get CLAUDE_SKILL_DIR (they're thin aliases).
