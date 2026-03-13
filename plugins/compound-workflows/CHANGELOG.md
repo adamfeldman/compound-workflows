@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.6] - 2026-03-12
+
+### Fixed
+
+- **Compact-prep commit messages scoped per run** — commit message files now write to `.workflows/compact-prep/<run-id>/` instead of shared `.workflows/scratch/` path, eliminating race condition under concurrent sessions. Removed `.workflows/scratch/*` blanket exemption from `unslugged-paths.sh` QA script so future static paths are caught.
+
 ## [3.1.5] - 2026-03-12
 
 ### Changed

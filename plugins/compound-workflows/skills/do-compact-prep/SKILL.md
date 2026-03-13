@@ -287,8 +287,14 @@ Tell the user what was updated (1-2 sentences per update, not a wall of text).
 
 Re-run `git status` to get a **fresh file set** — do NOT use stale Check C results. Memory files were written in Step 1 and must be included in this commit.
 
-- If **auto-commit** (`compact_auto_commit: true`): suggest a commit message and execute without prompting. Use the **Write tool** to write the message to `.workflows/scratch/commit-msg-compact-prep.txt`, then run `git add` for modified/new files and `git commit -F .workflows/scratch/commit-msg-compact-prep.txt`.
-- If **manual**: ask the user for a message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/scratch/commit-msg-compact-prep.txt`, then run `git add` for modified/new files and `git commit -F .workflows/scratch/commit-msg-compact-prep.txt`.
+Ensure the run directory exists for commit message files:
+
+```bash
+mkdir -p .workflows/compact-prep/<run-id>/
+```
+
+- If **auto-commit** (`compact_auto_commit: true`): suggest a commit message and execute without prompting. Use the **Write tool** to write the message to `.workflows/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and `git commit -F .workflows/compact-prep/<run-id>/commit-msg.txt`.
+- If **manual**: ask the user for a message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and `git commit -F .workflows/compact-prep/<run-id>/commit-msg.txt`.
 - If no uncommitted changes exist at this point: no-op, proceed silently.
 
 ### Step 3: Run Compound
@@ -296,10 +302,9 @@ Re-run `git status` to get a **fresh file set** — do NOT use stale Check C res
 **Skip if:** user selected "Skip compound" OR compound was not worthy.
 
 Before pausing:
-1. Create the run directory: `mkdir -p .workflows/compact-prep/<run-id>/`
-2. Use the **Write tool** to write batch state to `.workflows/compact-prep/<run-id>.json` with: `{ "run_id": "<run-id>", "abandon_mode": <bool>, "approved_actions": [...], "skipped_actions": [...], "current_step": 3, "completed_steps": [<list>], "config": { <5 config keys> }, "timestamp": "<timestamp>" }`
-3. Tell the user: "Running /do:compound now. Resume compact-prep after compound completes."
-4. Pause — the user runs `/do:compound` separately.
+1. Use the **Write tool** to write batch state to `.workflows/compact-prep/<run-id>.json` with: `{ "run_id": "<run-id>", "abandon_mode": <bool>, "approved_actions": [...], "skipped_actions": [...], "current_step": 3, "completed_steps": [<list>], "config": { <5 config keys> }, "timestamp": "<timestamp>" }`
+2. Tell the user: "Running /do:compound now. Resume compact-prep after compound completes."
+3. Pause — the user runs `/do:compound` separately.
 5. On resume: read state file from `.workflows/compact-prep/<run-id>.json`, continue at Step 4.
 
 ### Step 4: Commit Compound Docs
@@ -309,7 +314,7 @@ Before pausing:
 Check `git status` for new files from compound.
 
 - If **no new files** (compound ran but produced nothing): no-op, proceed silently. Do NOT trigger retry/skip/abort.
-- If **new files** and auto-commit: commit automatically with a suggested message (e.g., "docs: compound solution -- [topic]"). Use the **Write tool** to write the message to `.workflows/scratch/commit-msg-compact-prep-compound.txt`, then run `git add` for the new files and `git commit -F .workflows/scratch/commit-msg-compact-prep-compound.txt`.
+- If **new files** and auto-commit: commit automatically with a suggested message (e.g., "docs: compound solution -- [topic]"). Use the **Write tool** to write the message to `.workflows/compact-prep/<run-id>/commit-msg-compound.txt`, then run `git add` for the new files and `git commit -F .workflows/compact-prep/<run-id>/commit-msg-compound.txt`.
 - If **new files** and manual: commit with a suggested or user-provided message using the same Write-then-commit-F pattern.
 
 ### Step 5: Version Actions
