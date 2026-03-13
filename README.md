@@ -2,6 +2,10 @@
 
 Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Longer sessions without context exhaustion, session recovery when things go wrong, task tracking that survives compaction, multi-model red team ([PAL](https://github.com/BeehiveInnovations/pal-mcp-server) + Claude), fewer plan iterations, and memory that persists across sessions.
 
+<p align="center">
+  <img src="assets/workflow-cycle.svg" alt="The compound workflow cycle: brainstorm → plan → work → review → compound" width="600">
+</p>
+
 - [What is Compound Engineering?](#what-is-compound-engineering)
 - [Why Fork?](#why-fork)
 - [What's Different](#whats-different)
@@ -20,10 +24,6 @@ Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engi
 **Compound workflows** generalize this idea beyond software engineering to all knowledge work — an opinionated way to use Claude Code for research, planning, decision-making, and implementation. The cycle remains the same: brainstorm → plan → work → review → compound.
 
 The plugin captures best-practice patterns and makes them shareable, while remaining configurable to individual user preferences.
-
-<p align="center">
-  <img src="assets/workflow-cycle.svg" alt="The compound workflow cycle: brainstorm → plan → work → review → compound" width="600">
-</p>
 
 ## Why Fork?
 
