@@ -81,7 +81,7 @@ for f in "${scan_files[@]}"; do
 
     # Exempt: intentionally static scratch files (overwritten each call, not persisted artifacts)
     case "$workflows_path" in
-      .workflows/.work-in-progress.d/*|.workflows/scratch/*) continue ;;
+      .workflows/.work-in-progress.d/*) continue ;;
     esac
 
     # Check if path contains at least one slug token
