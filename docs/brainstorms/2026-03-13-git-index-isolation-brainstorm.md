@@ -256,11 +256,19 @@ Yes, and quite well. Assessed for this use case:
 
 ### Merge Strategy
 
-Worktree sessions merge at session end via `git merge --no-ff` so the merge commit is atomic. If it conflicts, Claude resolves before committing. Sequential, not parallel merges.
+Worktree sessions merge at session end via `git merge --no-ff` so the merge commit is atomic. If it conflicts, Claude resolves before committing.
 
-**Why sequential:** If two sessions end simultaneously, their merges could race. The second merge might have new conflicts introduced by the first merge. Git's ref locking prevents corruption (one merge succeeds, the other gets a lock error), but the second session would need to pull the first's changes and re-merge. Sequential merges avoid this: each session merges one at a time, resolving conflicts against the latest main.
+**Empirically tested: concurrent merges are safe.** Two sessions merging into main simultaneously → git's `index.lock` causes one to fail hard (`fatal: Unable to create index.lock: File exists`). The other succeeds cleanly. No data loss, no partial state, no corruption. The failing session retries and either gets a clean merge (disjoint files) or a standard conflict (overlapping files). Tested with both overlapping and disjoint file scenarios.
+
+**No external lock needed.** Git's own ref/index locking prevents corruption. The merge step uses a retry loop:
+1. Attempt `git merge --no-ff <worktree-branch>`
+2. If fails with `index.lock` → wait 1-2s, retry (up to 3 attempts)
+3. If merge has conflicts → Claude resolves (or asks user if non-trivial — see open question C2)
+4. If succeeds → done
 
 **Why `--no-ff`:** Creates a merge commit even for fast-forward-able branches. This preserves the worktree branch's identity in the history (visible as a topic branch) and makes the merge atomic (single commit point to revert if needed).
+
+**Merge direction:** From main worktree, merge worktree branch into main. Explicit sequence: `ExitWorktree(keep)` → back in main → `git merge --no-ff worktree-<name>` → resolve → cleanup.
 
 ### Session UX: How to Enter/Exit Worktrees
 
@@ -365,6 +373,26 @@ Triaged against v4 (worktree-per-session) direction:
 
 - **Model 1 (always-worktree)** — Every session gets a worktree. No detection race, solo-session merges are fast-forward (zero overhead). Simpler than concurrent-only detection.
 - **`bd worktree` integration** — **Resolved.** `bd` auto-discovers the beads DB from `EnterWorktree`-created worktrees without explicit redirect. Tested empirically. No `bd worktree create` needed.
+- **Merge serialization** — **Resolved.** No external lock needed. Git's own `index.lock` prevents corruption — concurrent merges fail hard (one succeeds, one gets `fatal: index.lock exists`). Retry loop (wait 1-2s, up to 3 attempts) handles the race. Tested empirically with both overlapping and disjoint files.
+- **Merge direction** — **Resolved.** ExitWorktree(keep) → from main → `git merge --no-ff worktree-<name>`.
+
+### Red Team v4 — Resolution Status
+
+| Finding | Confidence | Status |
+|---------|-----------|--------|
+| C1 Merge serialization | **Resolved** | No lock needed — git's index.lock handles it. Retry loop. Tested empirically. |
+| C2 Conflict resolution fallback | **Defer to plan** | Where's the boundary between auto-resolve and ask-user? |
+| C3 Orphaned worktrees GC | **Defer to plan** | Implementation detail — needs design for threshold/detection. |
+| C4 Stale base mitigation | **Defer to plan** | Depends on session length patterns. |
+| C5 Uncommitted state at merge | **Resolved** | Invariant: commit all changes in worktree before ExitWorktree. Merge sequence: commit → exit → merge → resolve → cleanup. |
+| S1 Merge direction | **Resolved** | Explicit: exit worktree → from main → `git merge --no-ff worktree-branch`. |
+| S2 Post-compact CWD | **Defer to plan** | SessionStart hook checks if CWD is inside `.claude/worktrees/`. |
+| S3 Push strategy | **Defer to plan** | When does push happen relative to merge? |
+| S4 Dirty main at start | **Defer to plan** | Warn, block, or ignore uncommitted changes at session start? |
+| S5 Nested worktree path | **Resolved** | Accept — `.claude/` is gitignored, native tool behavior. |
+| S6 Branch naming | **Resolved** | Accept — EnterWorktree generates random names, git errors on collision. |
+| S7 Bidirectional cache | **Resolved** | Accept — inherent to isolation, already analyzed as low impact. |
+| S8 Tooling assumptions | **Defer to plan** | Test matrix item. |
 
 ### Open Questions for Plan Phase
 
@@ -373,3 +401,7 @@ Triaged against v4 (worktree-per-session) direction:
 3. **Merge timing** — Merge at compact-prep/abandon, or also at push time? What if the user pushes mid-session?
 4. **GIT_INDEX_FILE as defense-in-depth** — Keep the wrapper for non-worktree contexts, or simplify to worktrees-only?
 5. **Test matrix** — Empirical verification needed: EnterWorktree + concurrent Edit/Write + merge resolution + ExitWorktree cache refresh. Plan should include this.
+6. **Conflict resolution boundary (C2)** — When should Claude auto-resolve vs ask the user? Proposal: auto for additive markdown, ask for code or divergent rewrites.
+7. **Orphaned worktree GC (C3)** — Threshold, detection mechanism, auto vs warn.
+8. **Push timing (S3)** — Push after merge? At session end? User-initiated only?
+9. **Dirty main handling (S4)** — Warn, block, or ignore uncommitted changes at session start?
