@@ -37,14 +37,13 @@ Run a quick repo scan and broad context search in parallel:
 
 ```bash
 mkdir -p .workflows/brainstorm-research/<topic-stem>
-mkdir -p .workflows/stats
-[[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
-bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh brainstorm <topic-stem>
-CACHED_MODEL="${CLAUDE_CODE_SUBAGENT_MODEL:-opus}"
-echo "CACHED_MODEL=$CACHED_MODEL"
 ```
 
-Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+```bash
+bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh brainstorm <topic-stem>
+```
+
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
 
 #### 1.1a Stats Capture Config Check
 

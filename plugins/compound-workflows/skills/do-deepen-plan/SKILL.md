@@ -39,19 +39,13 @@ If prior runs exist, increment the run number (e.g., if `run-2-manifest.json` ex
 
 ```bash
 mkdir -p .workflows/deepen-plan/<plan-stem>/agents/run-<N>
-mkdir -p .workflows/stats
+```
+
+```bash
 bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh deepen-plan <plan-stem>
 ```
 
-Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
-
-Also capture the subagent model setting:
-
-```bash
-CACHED_MODEL="${CLAUDE_CODE_SUBAGENT_MODEL:-opus}"
-echo "CACHED_MODEL=$CACHED_MODEL"
-[[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
-```
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
 
 #### Phase 0a: Stats Capture Config Check
 
@@ -63,7 +57,7 @@ If stats capture is enabled, read `$PLUGIN_ROOT/resources/stats-capture-schema.m
 
 If stats_capture ≠ false in compound-workflows.local.md: after each Agent completion, extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and pass as arg 9 to capture-stats.sh: `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" deepen-plan <agent> <step> <model> <stem> null $RUN_ID "total_tokens: N, tool_uses: N, duration_ms: N"`. If `<usage>` is absent, pass `"null"` as arg 9. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules. Increment the dispatch counter for each capture call.
 
-**Model resolution per dispatch:** Use `sonnet` for agents with `model: sonnet` in their YAML frontmatter or an explicit `model: sonnet` dispatch parameter. Use the cached model value (env var or `opus` default) for `inherit`-model agents.
+**Model resolution per dispatch:** Use `sonnet` for agents with `model: sonnet` in their YAML frontmatter or an explicit `model: sonnet` dispatch parameter. Use `CACHED_MODEL` for `inherit`-model agents.
 
 **Step field:** Use category--agent-name format. Categories: `research` (research agents), `review` (review agents), `synthesis` (synthesis + convergence-advisor), `red-team` (red team providers + MINOR triage), `readiness` (semantic-checks, plan-readiness-reviewer, plan-consolidator).
 

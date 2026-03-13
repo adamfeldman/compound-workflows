@@ -7,8 +7,8 @@
 # Model parses by matching line prefix (e.g., "the line starting with PLUGIN_ROOT=").
 #
 # Supported commands:
-#   brainstorm, plan, deepen-plan, review  -> PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE
-#   work                                   -> PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR
+#   brainstorm, plan, deepen-plan, review  -> PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL[, NOTE]
+#   work                                   -> PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR, CACHED_MODEL[, NOTE]
 #   compact-prep                           -> PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE
 #   setup                                  -> PLUGIN_ROOT, VERSION_CHECK
 #   plugin-changes-qa, classify-stats      -> REPO_ROOT, PLUGIN_ROOT, DATE, RUN_ID
@@ -158,6 +158,7 @@ case "$CMD" in
     DATE_VAL="$(compute_date)"
     RUN_ID_VAL="$(compute_run_id)"
     STATS_FILE_VAL="$(compute_repo_root)/.workflows/stats/${DATE_VAL}-${CMD}-${STEM}.yaml"
+    mkdir -p "$(dirname "$STATS_FILE_VAL")"
 
     validate_plugin_root
     validate_date "$DATE_VAL"
@@ -168,6 +169,13 @@ case "$CMD" in
     echo "RUN_ID=$RUN_ID_VAL"
     echo "DATE=$DATE_VAL"
     echo "STATS_FILE=$STATS_FILE_VAL"
+
+    # Subagent model for inherit-model agents
+    _csm="${CLAUDE_CODE_SUBAGENT_MODEL:-}"
+    echo "CACHED_MODEL=${_csm:-opus}"
+    if [[ -n "$_csm" ]]; then
+      echo "NOTE=CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
+    fi
     ;;
 
   work)
@@ -179,6 +187,7 @@ case "$CMD" in
     DATE_VAL="$(compute_date)"
     RUN_ID_VAL="$(compute_run_id)"
     STATS_FILE_VAL="$(compute_repo_root)/.workflows/stats/${DATE_VAL}-work-${STEM}.yaml"
+    mkdir -p "$(dirname "$STATS_FILE_VAL")"
     WORKTREE_MGR_VAL="$(resolve_worktree_mgr)"
 
     validate_plugin_root
@@ -192,6 +201,13 @@ case "$CMD" in
     echo "STEM=$STEM"
     echo "STATS_FILE=$STATS_FILE_VAL"
     echo "WORKTREE_MGR=$WORKTREE_MGR_VAL"
+
+    # Subagent model for inherit-model agents
+    _csm="${CLAUDE_CODE_SUBAGENT_MODEL:-}"
+    echo "CACHED_MODEL=${_csm:-opus}"
+    if [[ -n "$_csm" ]]; then
+      echo "NOTE=CLAUDE_CODE_SUBAGENT_MODEL is set — agents with model: inherit will use the override. Agents with explicit model: sonnet are unaffected."
+    fi
     ;;
 
   compact-prep)
@@ -200,6 +216,7 @@ case "$CMD" in
     TIMESTAMP_VAL="$(compute_timestamp)"
     VERSION_CHECK_VAL="$(resolve_version_check)"
     SNAPSHOT_FILE_VAL=".workflows/stats/${DATE_VAL}-ccusage-snapshot.yaml"
+    mkdir -p "$(dirname "$SNAPSHOT_FILE_VAL")"
 
     validate_plugin_root
     validate_date "$DATE_VAL"

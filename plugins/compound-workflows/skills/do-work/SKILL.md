@@ -61,30 +61,22 @@ Initialize per-dispatch stats collection. This runs once at command start; all d
 Derive `STEM` from the plan filename by stripping the date prefix and `-plan.md` suffix (e.g., `docs/plans/2026-03-10-feat-per-agent-token-instrumentation-plan.md` becomes `feat-per-agent-token-instrumentation`). If no plan file is provided (ad-hoc work), omit the stem — the script will auto-detect from the current branch name.
 
 ```bash
-mkdir -p .workflows/stats
 bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh work <stem>
 ```
 
 If no stem is known yet (ad-hoc work, no plan file), run without stem:
 
 ```bash
-mkdir -p .workflows/stats
 bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh work
 ```
 
-Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
-
-Also capture the subagent model setting:
-
-```bash
-echo "CACHED_SUBAGENT_MODEL=${CLAUDE_CODE_SUBAGENT_MODEL:-unset}"
-```
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
 
 **Config check:** Read `compound-workflows.local.md` and check the `stats_capture` key. If the value is `false`, skip all stats capture for this run (do not read the schema file, do not call `capture-stats.sh`). If the key is missing or any other value, proceed with stats capture.
 
 **Stats file path:** Use the STATS_FILE value from init-values.sh output.
 
-**Model resolution:** For each dispatch, resolve the `model` field using the cached `$CACHED_SUBAGENT_MODEL`. The `general-purpose` agent uses `model: inherit`, so: if `$CACHED_SUBAGENT_MODEL` is set, use that; otherwise default to `opus`. If a dispatch uses an explicit model override, use that instead. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for the full 4-step model resolution algorithm.
+**Model resolution:** For each dispatch, resolve the `model` field using `CACHED_MODEL`. The `general-purpose` agent uses `model: inherit`, so use `CACHED_MODEL` as its model value. If a dispatch uses an explicit model override, use that instead. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for the full 4-step model resolution algorithm.
 
 ### 1.2 Setup Worktree
 

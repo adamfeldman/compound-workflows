@@ -95,22 +95,20 @@ Use **AskUserQuestion tool** to ask questions one at a time:
 Before any dispatches, initialize stats capture infrastructure:
 
 ```bash
-mkdir -p .workflows/stats
 bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh plan <plan-stem>
-echo $CLAUDE_CODE_SUBAGENT_MODEL
 ```
 
-Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
 
 Read `stats_capture` from `compound-workflows.local.md`. If `stats_capture` is `false`, skip all stats capture for this run. If missing or any other value, proceed with capture.
 
-Cache the model value: if `CLAUDE_CODE_SUBAGENT_MODEL` is set, that is the default model for `inherit`-model agents. Otherwise default to `opus`. Use the STATS_FILE value from init-values.sh output. Initialize a dispatch counter at 0.
+Use the CACHED_MODEL value from init-values.sh output as the default model for inherit-model agents. Use the STATS_FILE value from init-values.sh output. Initialize a dispatch counter at 0.
 
 ### Stats Capture
 
 If stats_capture ≠ false in compound-workflows.local.md: after each Task/Agent completion, extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and format as a named-field string `"total_tokens: N, tool_uses: N, duration_ms: N"`. Pass this as the 9th argument to capture-stats.sh. If `<usage>` is absent, pass `"null"` as the 9th argument. Run: `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" plan <agent> <step> <model> <stem> null $RUN_ID "<usage-string-or-null>"`. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules. Increment the dispatch counter for each capture call.
 
-**Model resolution per dispatch:** Use `sonnet` for agents with `model: sonnet` in their YAML frontmatter or an explicit `model: sonnet` dispatch parameter. Use the cached model value (env var or `opus` default) for `inherit`-model agents. For red-team-relay dispatches with `model: sonnet`, record `sonnet`.
+**Model resolution per dispatch:** Use `sonnet` for agents with `model: sonnet` in their YAML frontmatter or an explicit `model: sonnet` dispatch parameter. Use `CACHED_MODEL` for `inherit`-model agents. For red-team-relay dispatches with `model: sonnet`, record `sonnet`.
 
 **Step field:** Use the agent role name as the step value. For verify-only re-dispatches (Phase 6.7), use `"<agent>-verify"` suffixes. For re-check dispatches (Phase 6.9), use `"<agent>-recheck"` suffixes. For red team MINOR triage, use `"red-team-minor-triage"`.
 

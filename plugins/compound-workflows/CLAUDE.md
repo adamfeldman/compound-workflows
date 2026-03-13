@@ -31,7 +31,7 @@ scripts/
 ├── append-snapshot.sh       # Atomic append of ccusage snapshot YAML documents — hides heredoc from heuristic inspector
 ├── capture-stats.sh         # Deterministic atomic append for per-dispatch YAML stats capture
 ├── check-sentinel.sh        # Sentinel staleness detection — replaces inline 3-pattern block in work.md
-├── init-values.sh           # Shared init-value computation — PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE (auto-approved)
+├── init-values.sh           # Shared init-value computation + directory creation — PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (auto-approved)
 ├── validate-stats.sh        # Diagnostic stats entry count validation — replaces inline ENTRY_COUNT=$(grep -c ...) blocks
 ├── migrate-stats-keys.sh    # Heuristic-safe config key migration — appends stats_capture/stats_classify to local config
 ├── plugin-qa/               # 9 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
