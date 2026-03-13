@@ -2277,6 +2277,143 @@ def assign_askuser_to_workflow(event_ts, phase_windows):
     return "non-workflow"
 
 
+def compute_permission_prompt_estimate(jsonl_files, all_askuser_events):
+    """Estimate cost of OS-level permission prompts.
+
+    There is no JSONL signal for OS-level permission prompts. This function
+    uses a proxy: count Bash tool calls in permissionMode="default" sessions
+    that match known heuristic-triggering patterns ($(), <<, {").
+
+    The estimate multiplies the triggering-pattern count by the median user
+    response time for confirmation AskUserQuestion events as an upper bound.
+
+    Args:
+        jsonl_files: list of JSONL file paths
+        all_askuser_events: list of AskUserQuestion event dicts (with category, wait_minutes)
+
+    Returns:
+        dict with estimation data for the summary
+    """
+    # Heuristic-triggering patterns in Bash commands
+    # These are the patterns documented in AGENTS.md Bash Generation Rules
+    PERMISSION_PATTERNS = [
+        re.compile(r'\$\('),       # $() command substitution
+        re.compile(r'<<'),          # heredoc
+        re.compile(r'\{"'),         # JSON-like brace-quote ({"key": ...)
+    ]
+
+    # Compute median confirmation wait time from AskUserQuestion data
+    confirmation_waits = [
+        evt["wait_minutes"]
+        for evt in all_askuser_events
+        if evt.get("category") == "confirmation" and evt.get("wait_minutes") is not None
+    ]
+    median_confirmation_wait = round(statistics.median(confirmation_waits), 2) if confirmation_waits else 5.0
+
+    # Per-session analysis
+    sessions_default_mode = 0
+    sessions_accept_edits = 0
+    sessions_no_mode = 0
+    total_triggering_commands = 0
+    pattern_counts = defaultdict(int)  # pattern_name -> count
+    triggering_by_session = []  # (session_id, count)
+
+    for filepath in jsonl_files:
+        session_id = os.path.basename(filepath).replace(".jsonl", "")
+
+        # Determine permission mode for this session
+        # permissionMode can vary within a session; collect unique modes per user entry
+        session_modes = set()
+        bash_commands_in_default = []  # (timestamp_approx, command) for entries under default mode
+
+        # We need to track the "current" permissionMode as it appears on user entries,
+        # then count bash commands from assistant entries that follow default-mode user entries.
+        # Strategy: scan sequentially, track last-seen permissionMode, and count
+        # bash calls from assistant entries when mode is "default".
+        current_mode = None
+
+        with open(filepath, "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                entry_type = entry.get("type")
+
+                if entry_type == "user":
+                    pm = entry.get("permissionMode")
+                    if pm:
+                        current_mode = pm
+                        session_modes.add(pm)
+
+                elif entry_type == "assistant" and current_mode == "default":
+                    # Count bash commands that match triggering patterns
+                    message = entry.get("message", {})
+                    content = message.get("content", [])
+                    if not isinstance(content, list):
+                        continue
+                    for block in content:
+                        if not isinstance(block, dict):
+                            continue
+                        if block.get("type") != "tool_use":
+                            continue
+                        if block.get("name") != "Bash":
+                            continue
+                        cmd = block.get("input", {}).get("command", "")
+                        if not cmd:
+                            continue
+                        for pat in PERMISSION_PATTERNS:
+                            if pat.search(cmd):
+                                bash_commands_in_default.append(cmd)
+                                # Track which pattern matched (use first match)
+                                if re.search(r'\$\(', cmd):
+                                    pattern_counts["$()"] += 1
+                                elif re.search(r'<<', cmd):
+                                    pattern_counts["<<"] += 1
+                                elif re.search(r'\{"', cmd):
+                                    pattern_counts['{"'] += 1
+                                break  # Only count each command once
+
+        # Classify session by mode
+        if "default" in session_modes:
+            sessions_default_mode += 1
+        if "acceptEdits" in session_modes:
+            sessions_accept_edits += 1
+        if not session_modes:
+            sessions_no_mode += 1
+
+        if bash_commands_in_default:
+            triggering_by_session.append((session_id, len(bash_commands_in_default)))
+            total_triggering_commands += len(bash_commands_in_default)
+
+    # Compute estimate
+    estimated_total_minutes = round(total_triggering_commands * median_confirmation_wait, 1)
+    estimated_total_hours = round(estimated_total_minutes / 60.0, 2)
+
+    return {
+        "record_type": "permission_prompt_estimate",
+        "sessions_with_default_mode": sessions_default_mode,
+        "sessions_with_accept_edits": sessions_accept_edits,
+        "sessions_no_mode_field": sessions_no_mode,
+        "total_triggering_bash_commands": total_triggering_commands,
+        "pattern_counts": dict(pattern_counts),
+        "median_confirmation_wait_min": median_confirmation_wait,
+        "estimated_total_minutes": estimated_total_minutes,
+        "estimated_total_hours": estimated_total_hours,
+        "sessions_with_triggers": len(triggering_by_session),
+        "methodology": (
+            "Upper-bound estimate. Not every pattern-matching Bash call triggers "
+            "a permission prompt (static rules suppress some heuristics). Not every "
+            "prompt takes as long as a confirmation AskUserQuestion (permission prompts "
+            "are simpler yes/no). True cost is likely 30-50% of this estimate."
+        ),
+    }
+
+
 def compute_orchestration_analysis(segments, tool_events, bash_commands_with_ts):
     """For orchestration/orch-coding segments, compute bd overhead vs productive split.
 
@@ -3076,6 +3213,17 @@ def main():
         orch_record = {"record_type": "orchestration_analysis", **orch_analysis}
         raw_out.write(json.dumps(orch_record) + "\n")
 
+        # --- P5-S7: Permission prompt estimate ---
+        print("Estimating permission prompt overhead...", file=sys.stderr)
+        permission_prompt_data = compute_permission_prompt_estimate(
+            jsonl_files, all_askuser_events
+        )
+        raw_out.write(json.dumps(permission_prompt_data) + "\n")
+        print(f"  Permission prompts: {permission_prompt_data['total_triggering_bash_commands']} "
+              f"triggering commands in {permission_prompt_data['sessions_with_triggers']} sessions, "
+              f"est {permission_prompt_data['estimated_total_hours']} hours upper bound",
+              file=sys.stderr)
+
         # --- S2: Headline metrics ---
         print("Computing headline metrics...", file=sys.stderr)
         total_cost = read_total_cost_from_file()
@@ -3178,6 +3326,7 @@ def main():
         stats_timing_data, askuser_per_workflow_record,
         estimation_segment_data, compaction_cost_data,
         all_compaction_costs, velocity_trend_summary,
+        permission_prompt_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -3191,7 +3340,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      stats_timing_data=None, askuser_per_workflow=None,
                      estimation_segment_data=None, compaction_cost_data=None,
                      compaction_cost_details=None,
-                     velocity_trend_data=None):
+                     velocity_trend_data=None,
+                     permission_prompt_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -4799,6 +4949,97 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append("")
     else:
         lines.append("*No velocity trend data available.*")
+        lines.append("")
+
+    # --- Section 25: Permission Prompt Estimate ---
+    lines.append("## 25. Permission Prompt Estimate")
+    lines.append("")
+    lines.append(
+        "**Methodology caveat:** There is no JSONL signal for OS-level permission "
+        "prompts. This section uses a proxy: count Bash tool calls in "
+        '`permissionMode="default"` sessions that match known heuristic-triggering '
+        "patterns (`$()`, `<<`, `{\"`) from the AGENTS.md Bash Generation Rules. "
+        "The estimate multiplies the triggering-pattern count by the median user "
+        "response time for confirmation AskUserQuestion events as an upper bound. "
+        "True cost is likely 30-50% of this estimate because: (a) not every "
+        "pattern-matching Bash call triggers a permission prompt (static rules "
+        "suppress some heuristics), and (b) permission prompts are simpler yes/no "
+        "confirmations that resolve faster than full AskUserQuestion interactions."
+    )
+    lines.append("")
+
+    if permission_prompt_data:
+        ppd = permission_prompt_data
+        total_sessions = (
+            ppd.get("sessions_with_default_mode", 0)
+            + ppd.get("sessions_with_accept_edits", 0)
+            + ppd.get("sessions_no_mode_field", 0)
+        )
+        lines.append("### Session Permission Modes")
+        lines.append("")
+        lines.append("| Mode | Sessions |")
+        lines.append("|------|----------|")
+        lines.append(
+            f"| `default` | {ppd.get('sessions_with_default_mode', 0)} |"
+        )
+        lines.append(
+            f"| `acceptEdits` | {ppd.get('sessions_with_accept_edits', 0)} |"
+        )
+        lines.append(
+            f"| No mode field | {ppd.get('sessions_no_mode_field', 0)} |"
+        )
+        lines.append(f"| **Total** | **{total_sessions}** |")
+        lines.append("")
+
+        lines.append("### Triggering Patterns")
+        lines.append("")
+        lines.append(
+            f"**Total triggering Bash commands:** "
+            f"{ppd.get('total_triggering_bash_commands', 0)} "
+            f"across {ppd.get('sessions_with_triggers', 0)} sessions"
+        )
+        lines.append("")
+
+        pattern_counts = ppd.get("pattern_counts", {})
+        if pattern_counts:
+            lines.append("| Pattern | Count |")
+            lines.append("|---------|-------|")
+            for pattern_name, count in sorted(
+                pattern_counts.items(), key=lambda x: -x[1]
+            ):
+                lines.append(f"| `{pattern_name}` | {count} |")
+            lines.append("")
+
+        lines.append("### Cost Estimate")
+        lines.append("")
+        lines.append(
+            f"| Metric | Value |"
+        )
+        lines.append("|--------|-------|")
+        lines.append(
+            f"| Median confirmation wait (proxy) | "
+            f"{ppd.get('median_confirmation_wait_min', 'N/A')} min |"
+        )
+        lines.append(
+            f"| Estimated total wait (upper bound) | "
+            f"{ppd.get('estimated_total_minutes', 'N/A')} min "
+            f"({ppd.get('estimated_total_hours', 'N/A')} hours) |"
+        )
+        # Compute likely range (30-50% of upper bound)
+        est_min = ppd.get("estimated_total_minutes", 0)
+        if est_min and est_min > 0:
+            low_min = round(est_min * 0.3, 1)
+            high_min = round(est_min * 0.5, 1)
+            low_hrs = round(low_min / 60.0, 2)
+            high_hrs = round(high_min / 60.0, 2)
+            lines.append(
+                f"| Likely range (30-50% of upper bound) | "
+                f"{low_min}-{high_min} min "
+                f"({low_hrs}-{high_hrs} hours) |"
+            )
+        lines.append("")
+    else:
+        lines.append("*No permission prompt data available.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
