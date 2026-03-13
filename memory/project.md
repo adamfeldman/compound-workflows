@@ -116,12 +116,19 @@
 - **v3.1.6** — Compact-prep commit message scoping (bead je54): commit message files write to `.workflows/compact-prep/<run-id>/` instead of shared `.workflows/scratch/`. Removed `.workflows/scratch/*` blanket exemption from unslugged-paths.sh QA.
 
 ## Session Analysis Infrastructure (2026-03-13)
-- Script: `.workflows/session-analysis/extract-timings.py` (~3150 lines) — parses all JSONL session logs
-- Raw data: `.workflows/session-analysis/raw-observations.jsonl` (2096 records: 89 sessions, 125 phases, 720 agents, 154 segments, 261 windowed attributions, 77 concurrent pairs, 802 AskUserQuestion events)
-- Summary: `.workflows/session-analysis/summary.md`
+- Script: `.workflows/session-analysis/extract-timings.py` (~5200 lines) — parses all JSONL session logs + stats YAML
+- Raw data: `.workflows/session-analysis/raw-observations.jsonl` (93 sessions, 137 phases, 777 agents, 170 segments, 282 windowed attributions, 89 concurrent pairs, 859 AskUserQuestion events)
+- Summary: `.workflows/session-analysis/summary.md` (26 sections)
 - Estimation heuristics: `.claude/memory/estimation-heuristics.md` (private, gitignored)
-- **Headline findings (phase 4):** 66.25 hrs deduplicated active time, 369.6 hrs wall-clock, $4.69/active hr (cross-repo ccusage), 17.5% overhead (proportional bd allocation), 0.59x estimation accuracy (estimates generous), 28.6 beads/day, 70.1% phase skip rate, 238 confirmation prompts (20.8 hrs wait)
-- **Phase 5 planned:** `docs/plans/2026-03-13-task-session-analysis-phase5-plan.md` — 9 items: stats YAML mining, per-project cost from JSONL, confirmation breakdown per workflow, estimation accuracy segmentation, compaction cost, velocity trend, permission prompt estimation, QA retry cost, tighten heuristics
+- Stats YAML: 132 entries classified (complexity + output_type) across 34 files
+- **Phase 4 findings:** 66.25 hrs deduplicated active time, 369.6 hrs wall-clock, 17.5% overhead, 0.59x estimation accuracy, 28.6 beads/day, 70.1% phase skip rate, 238 confirmation prompts (20.8 hrs wait)
+- **Phase 5 complete:** `docs/plans/2026-03-13-task-session-analysis-phase5-plan.md` — 9 steps executed via `/do:work` in worktree. Key findings:
+  - **True project cost: $4,945** from JSONL (vs $310 ccusage — 16x correction). $72.38/active hr.
+  - **Estimation accuracy segmented:** bugs 2.36x under-estimated, tasks 0.55x over-estimated, multi-session 4.27x (strongest predictor), single-session 0.51x. Correction factors: bug 2.0x, task 0.6x, multi-session 3.0x, >60min estimate 3.0x.
+  - **Compaction:** 94 events, $0.31 median, 5.67 min median reorientation
+  - **Velocity:** 2.28 beads/hr steady-state
+  - **AUQ by workflow:** work confirmations wait 12.22 min avg, brainstorm 1.10 min
+  - **QA retry:** 0 sequences detected (insufficient data)
 - 8 bead labels in use: docs, github, observability, permissions, qa, robustness, setup, workflow
 - AGENTS.md has Memory Hot Cache section with critical preferences that survive compaction
 - AGENTS.md Interaction Rules and Routing moved to top for higher attention weight
@@ -137,7 +144,7 @@
 - **Plugin-wide config toggles (bead 4a1o)** — P3. Created during ka3w plan. Extends ka3w's config toggle pattern to other commands (red team, readiness, etc.).
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
 - **Fix usage-pipe race + work-in-progress scoping (bead 8one)** — P2 bug. Plan complete (`docs/plans/2026-03-12-fix-usage-pipe-isolation-plan.md`). Next: `/do:work`. Two shared static files have race conditions under concurrent sessions. Fix: eliminate .usage-pipe (named-field string arg 9), scope .work-in-progress per-session (.work-in-progress.d/$RUN_ID directory). 13+ files in one atomic commit.
-- **Mine session logs for empirical timing data (bead 3zr)** — P2. Phase 4 complete: phase boundary correction, subcategory refinement, proportional allocation, active time deduplication, AskUserQuestion categorization, headline metrics. Phase 5 planned (9 items). Closed.
+- **Mine session logs for empirical timing data (bead 3zr)** — Closed. Phase 4+5 complete. 9 phase 5 steps executed: per-request cost, stats YAML mining, AUQ by workflow, estimation segmentation, compaction cost, velocity trend, permission prompt estimate, QA retry, heuristic tightening.
 - **Reduce confirmation prompts (bead 1hu4)** — P2. 238 confirmation prompts, 20.8 hrs wait. Depends on phase 5 data. Related: 42s.
 - **Live estimation display in workflows (bead t7sd)** — P3. Deferred from 3zr phase 5 — requires plugin skill changes.
 - **Git index isolation (bead s7qj)** — P2 bug. Brainstorm complete (`docs/brainstorms/2026-03-13-git-index-isolation-brainstorm.md`). 3 rounds of red team drove 3 pivots: lock-based wrapper → `git commit --only` → `GIT_INDEX_FILE`. Red team v3 expanded scope to include working-tree isolation (not just index). Next: analyze session logs for simultaneous file writes (not just overlapping session windows) to decide whether worktrees are needed, then `/do:plan`.
