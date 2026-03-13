@@ -911,12 +911,14 @@ def load_known_bead_ids():
 
 
 def load_closed_bead_estimates():
-    """Load estimated_minutes for closed beads from the database."""
+    """Load estimated_minutes and metadata for closed beads from the database."""
     try:
         result = subprocess.run(
             [
                 "bd", "sql",
-                "SELECT id, title, estimated_minutes, status FROM issues WHERE status = 'closed' AND estimated_minutes IS NOT NULL"
+                "SELECT id, title, estimated_minutes, issue_type, priority, "
+                "JSON_EXTRACT(metadata, '$.impact_score') AS score "
+                "FROM issues WHERE status = 'closed' AND estimated_minutes IS NOT NULL"
             ],
             capture_output=True,
             text=True,
@@ -931,7 +933,7 @@ def load_closed_bead_estimates():
                 continue
             # Parse pipe-separated output
             parts = [p.strip() for p in line.split("|")]
-            if len(parts) < 4:
+            if len(parts) < 6:
                 continue
             full_id = parts[0].strip()
             if not full_id.startswith(prefix):
@@ -942,14 +944,138 @@ def load_closed_bead_estimates():
                 est_min = int(parts[2].strip())
             except (ValueError, IndexError):
                 continue
+            issue_type = parts[3].strip() if parts[3].strip() != "<nil>" else None
+            try:
+                priority = int(parts[4].strip())
+            except (ValueError, IndexError):
+                priority = None
+            score_str = parts[5].strip()
+            try:
+                impact_score = int(score_str) if score_str and score_str != "<nil>" else None
+            except ValueError:
+                impact_score = None
             beads[short_id] = {
                 "title": title,
                 "estimated_minutes": est_min,
+                "issue_type": issue_type,
+                "priority": priority,
+                "impact_score": impact_score,
             }
         return beads
     except Exception as e:
         print(f"  WARNING: Could not load bead estimates: {e}", file=sys.stderr)
         return {}
+
+
+def classify_estimate_bucket(est_min):
+    """Classify an estimate into a size bucket."""
+    if est_min < 15:
+        return "<15min"
+    elif est_min <= 60:
+        return "15-60min"
+    elif est_min <= 120:
+        return "60-120min"
+    else:
+        return ">120min"
+
+
+def compute_estimation_segments(closed_bead_estimates, bead_attribution_windowed):
+    """Segment estimation accuracy by type, priority, session count, and estimate size.
+
+    Args:
+        closed_bead_estimates: dict bead_id -> {title, estimated_minutes, issue_type, priority, impact_score}
+        bead_attribution_windowed: dict bead_id -> {sessions, total_active_minutes, ...}
+
+    Returns:
+        dict with segment data and summary statistics
+    """
+    # Build per-bead records with actual vs estimated
+    bead_records = []
+    for bid, est_data in closed_bead_estimates.items():
+        if bid not in bead_attribution_windowed:
+            continue
+        bw = bead_attribution_windowed[bid]
+        estimated = est_data["estimated_minutes"]
+        if estimated <= 0:
+            continue
+        actual = bw["total_active_minutes"]
+        ratio = actual / estimated
+        session_count = len(bw["sessions"])
+
+        bead_records.append({
+            "bead_id": bid,
+            "title": est_data["title"],
+            "issue_type": est_data.get("issue_type") or "unknown",
+            "priority": est_data.get("priority"),
+            "impact_score": est_data.get("impact_score"),
+            "estimated_minutes": estimated,
+            "actual_minutes": round(actual, 1),
+            "ratio": round(ratio, 2),
+            "session_count": session_count,
+            "multi_session": session_count > 1,
+            "estimate_bucket": classify_estimate_bucket(estimated),
+        })
+
+    if not bead_records:
+        return {"segments": {}, "records": [], "bead_count": 0}
+
+    # Helper: compute segment stats from a list of ratios
+    def segment_stats(ratios):
+        if not ratios:
+            return {"n": 0}
+        return {
+            "n": len(ratios),
+            "median_ratio": round(statistics.median(ratios), 2),
+            "mean_ratio": round(statistics.mean(ratios), 2),
+            "min_ratio": round(min(ratios), 2),
+            "max_ratio": round(max(ratios), 2),
+            "under_estimated": sum(1 for r in ratios if r > 1.0),
+            "over_estimated": sum(1 for r in ratios if r < 1.0),
+            "exact": sum(1 for r in ratios if r == 1.0),
+        }
+
+    segments = {}
+
+    # Segment by issue_type
+    by_type = defaultdict(list)
+    for rec in bead_records:
+        by_type[rec["issue_type"]].append(rec["ratio"])
+    segments["by_type"] = {t: segment_stats(ratios) for t, ratios in sorted(by_type.items())}
+
+    # Segment by priority
+    by_priority = defaultdict(list)
+    for rec in bead_records:
+        p = rec["priority"]
+        label = f"P{p}" if p is not None else "unknown"
+        by_priority[label].append(rec["ratio"])
+    segments["by_priority"] = {p: segment_stats(ratios) for p, ratios in sorted(by_priority.items())}
+
+    # Segment by single-session vs multi-session
+    by_session_type = defaultdict(list)
+    for rec in bead_records:
+        label = "multi-session" if rec["multi_session"] else "single-session"
+        by_session_type[label].append(rec["ratio"])
+    segments["by_session_type"] = {s: segment_stats(ratios) for s, ratios in sorted(by_session_type.items())}
+
+    # Segment by estimate size bucket
+    by_bucket = defaultdict(list)
+    for rec in bead_records:
+        by_bucket[rec["estimate_bucket"]].append(rec["ratio"])
+    # Sort buckets in logical order
+    bucket_order = ["<15min", "15-60min", "60-120min", ">120min"]
+    segments["by_estimate_bucket"] = {
+        b: segment_stats(by_bucket[b]) for b in bucket_order if b in by_bucket
+    }
+
+    # Overall stats
+    all_ratios = [rec["ratio"] for rec in bead_records]
+    segments["overall"] = segment_stats(all_ratios)
+
+    return {
+        "segments": segments,
+        "records": bead_records,
+        "bead_count": len(bead_records),
+    }
 
 
 def detect_concurrent_sessions(session_ranges):
@@ -2638,6 +2764,29 @@ def main():
         }
         raw_out.write(json.dumps(askuser_per_workflow_record) + "\n")
 
+        # --- P5-S4: Estimation accuracy segmentation ---
+        print("Computing estimation accuracy segments...", file=sys.stderr)
+        estimation_segment_data = compute_estimation_segments(
+            closed_bead_estimates, bead_attribution_windowed
+        )
+        if estimation_segment_data["bead_count"] > 0:
+            est_seg_record = {
+                "record_type": "estimation_segments",
+                "bead_count": estimation_segment_data["bead_count"],
+                "segments": estimation_segment_data["segments"],
+            }
+            raw_out.write(json.dumps(est_seg_record) + "\n")
+            # Also emit per-bead detail records
+            for rec in estimation_segment_data["records"]:
+                detail_record = {"record_type": "estimation_segment_detail", **rec}
+                raw_out.write(json.dumps(detail_record) + "\n")
+            print(f"  Segmented {estimation_segment_data['bead_count']} beads across "
+                  f"{len(estimation_segment_data['segments'])} dimensions",
+                  file=sys.stderr)
+        else:
+            estimation_segment_data = None
+            print("  No beads with both estimates and windowed attribution", file=sys.stderr)
+
         # --- S2: Orchestration analysis ---
         print("Computing orchestration analysis...", file=sys.stderr)
         orch_analysis = compute_orchestration_analysis(
@@ -2746,6 +2895,7 @@ def main():
         dedup_data, proportional_records, askuser_record,
         orch_analysis, headline_record, project_cost_record,
         stats_timing_data, askuser_per_workflow_record,
+        estimation_segment_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -2756,7 +2906,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      concurrent_overlaps, phase_token_totals,
                      dedup_data, proportional_records, askuser_record,
                      orch_analysis, headline_record, project_cost_record=None,
-                     stats_timing_data=None, askuser_per_workflow=None):
+                     stats_timing_data=None, askuser_per_workflow=None,
+                     estimation_segment_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -4114,6 +4265,87 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             lines.append("")
     else:
         lines.append("*No AskUserQuestion per-workflow data available.*")
+        lines.append("")
+
+    # =========================================
+    # 22. ESTIMATION ACCURACY SEGMENTATION (P5-S4)
+    # =========================================
+    lines.append("## 22. Estimation Accuracy by Segment")
+    lines.append("")
+    lines.append(
+        "Estimation accuracy (actual/estimated ratio) segmented by bead type, "
+        "priority, session count, and estimate size. Ratio < 1 means faster than "
+        "estimated; > 1 means slower."
+    )
+    lines.append("")
+
+    if estimation_segment_data and estimation_segment_data.get("bead_count", 0) > 0:
+        segs = estimation_segment_data["segments"]
+        overall = segs.get("overall", {})
+        lines.append(
+            f"**Beads analyzed:** {estimation_segment_data['bead_count']} "
+            f"(overall median ratio: {overall.get('median_ratio', '-')}x, "
+            f"mean: {overall.get('mean_ratio', '-')}x)"
+        )
+        lines.append("")
+
+        # Helper to render a segment table
+        def render_segment_table(title, seg_dict, label_header="Segment"):
+            lines.append(f"### {title}")
+            lines.append("")
+            lines.append(
+                f"| {label_header} | N | Median | Mean | Min | Max | Under-est | Over-est |"
+            )
+            lines.append(
+                "|---------|---|--------|------|-----|-----|-----------|----------|"
+            )
+            for label, stats in seg_dict.items():
+                if stats["n"] == 0:
+                    continue
+                lines.append(
+                    f"| {label} | {stats['n']} | "
+                    f"{stats['median_ratio']}x | {stats['mean_ratio']}x | "
+                    f"{stats['min_ratio']}x | {stats['max_ratio']}x | "
+                    f"{stats['under_estimated']} | {stats['over_estimated']} |"
+                )
+            lines.append("")
+
+        render_segment_table("By Issue Type", segs.get("by_type", {}), "Type")
+        render_segment_table("By Priority", segs.get("by_priority", {}), "Priority")
+        render_segment_table(
+            "By Session Count", segs.get("by_session_type", {}), "Sessions"
+        )
+        render_segment_table(
+            "By Estimate Size", segs.get("by_estimate_bucket", {}), "Bucket"
+        )
+
+        # Per-bead detail table (sorted by ratio descending)
+        lines.append("### Per-Bead Detail")
+        lines.append("")
+        lines.append(
+            "| Bead | Type | Pri | Est | Actual | Ratio | Sessions | Bucket |"
+        )
+        lines.append(
+            "|------|------|-----|-----|--------|-------|----------|--------|"
+        )
+        detail_records = sorted(
+            estimation_segment_data["records"],
+            key=lambda x: x["ratio"],
+            reverse=True,
+        )
+        for rec in detail_records:
+            title = rec["title"][:35] + "..." if len(rec["title"]) > 35 else rec["title"]
+            title = title.replace("|", "\\|")
+            pri = f"P{rec['priority']}" if rec["priority"] is not None else "-"
+            lines.append(
+                f"| {rec['bead_id']} | {rec['issue_type']} | {pri} | "
+                f"{rec['estimated_minutes']} | {rec['actual_minutes']} | "
+                f"{rec['ratio']}x | {rec['session_count']} | "
+                f"{rec['estimate_bucket']} |"
+            )
+        lines.append("")
+    else:
+        lines.append("*No estimation segment data available.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
