@@ -2379,6 +2379,43 @@ def read_total_cost_from_file():
     return total_cost if total_cost > 0 else None
 
 
+def load_bead_closures_by_date():
+    """Load bead closure counts grouped by date from the database."""
+    try:
+        result = subprocess.run(
+            [
+                "bd", "sql",
+                "SELECT DATE(closed_at) as date, COUNT(*) as count "
+                "FROM issues WHERE status='closed' AND closed_at IS NOT NULL "
+                "GROUP BY DATE(closed_at) ORDER BY date"
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        closures = {}  # date_str -> count
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("-") or line.startswith("date"):
+                continue
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) < 2:
+                continue
+            date_str = parts[0].strip()
+            # Extract just the date portion (YYYY-MM-DD) from full timestamp
+            if " " in date_str:
+                date_str = date_str.split(" ")[0]
+            try:
+                count = int(parts[1].strip())
+                closures[date_str] = count
+            except (ValueError, IndexError):
+                continue
+        return closures
+    except Exception as e:
+        print(f"  WARNING: Could not load bead closures by date: {e}", file=sys.stderr)
+        return {}
+
+
 def count_closed_beads():
     """Count closed beads from the database."""
     try:
@@ -2972,6 +3009,65 @@ def main():
         else:
             print("  No compaction events found", file=sys.stderr)
 
+        # --- P5-S6: Velocity trend ---
+        print("Computing velocity trend...", file=sys.stderr)
+        bead_closures_by_date = load_bead_closures_by_date()
+
+        # Bucket active time by date from session data
+        active_minutes_by_date = defaultdict(float)
+        for result in all_session_results:
+            if result["first_ts"]:
+                date_str = result["first_ts"].date().isoformat()
+                session_active = result["session"]["active_minutes"]
+                active_minutes_by_date[date_str] += session_active
+
+        # Collect all dates from both sources
+        all_trend_dates = sorted(set(
+            list(bead_closures_by_date.keys()) +
+            list(active_minutes_by_date.keys())
+        ))
+
+        velocity_trend_records = []
+        for date_str in all_trend_dates:
+            beads_closed = bead_closures_by_date.get(date_str, 0)
+            active_min = round(active_minutes_by_date.get(date_str, 0), 1)
+            active_hrs = round(active_min / 60.0, 2)
+            beads_per_hour = round(beads_closed / active_hrs, 2) if active_hrs > 0 else None
+            rec = {
+                "record_type": "velocity_trend",
+                "date": date_str,
+                "beads_closed": beads_closed,
+                "active_minutes": active_min,
+                "active_hours": active_hrs,
+                "beads_per_hour": beads_per_hour,
+            }
+            velocity_trend_records.append(rec)
+            raw_out.write(json.dumps(rec) + "\n")
+
+        # Compute overall velocity summary
+        total_beads_closed = sum(r["beads_closed"] for r in velocity_trend_records)
+        total_active_hrs = sum(r["active_hours"] for r in velocity_trend_records)
+        beads_per_day_values = [r["beads_closed"] for r in velocity_trend_records if r["beads_closed"] > 0]
+        active_hrs_per_day_values = [r["active_hours"] for r in velocity_trend_records if r["active_hours"] > 0]
+
+        velocity_trend_summary = {
+            "record_type": "velocity_trend_summary",
+            "date_count": len(all_trend_dates),
+            "total_beads_closed": total_beads_closed,
+            "total_active_hours": round(total_active_hrs, 2),
+            "overall_beads_per_hour": round(total_beads_closed / total_active_hrs, 2) if total_active_hrs > 0 else None,
+            "median_beads_per_day": round(statistics.median(beads_per_day_values), 1) if beads_per_day_values else None,
+            "mean_beads_per_day": round(statistics.mean(beads_per_day_values), 1) if beads_per_day_values else None,
+            "median_active_hours_per_day": round(statistics.median(active_hrs_per_day_values), 2) if active_hrs_per_day_values else None,
+            "mean_active_hours_per_day": round(statistics.mean(active_hrs_per_day_values), 2) if active_hrs_per_day_values else None,
+            "records": velocity_trend_records,
+        }
+        raw_out.write(json.dumps(velocity_trend_summary) + "\n")
+        print(f"  Velocity: {len(all_trend_dates)} dates, "
+              f"{total_beads_closed} beads closed, "
+              f"{round(total_active_hrs, 1)} active hours",
+              file=sys.stderr)
+
         # --- S2: Orchestration analysis ---
         print("Computing orchestration analysis...", file=sys.stderr)
         orch_analysis = compute_orchestration_analysis(
@@ -3081,7 +3177,7 @@ def main():
         orch_analysis, headline_record, project_cost_record,
         stats_timing_data, askuser_per_workflow_record,
         estimation_segment_data, compaction_cost_data,
-        all_compaction_costs,
+        all_compaction_costs, velocity_trend_summary,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -3094,7 +3190,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      orch_analysis, headline_record, project_cost_record=None,
                      stats_timing_data=None, askuser_per_workflow=None,
                      estimation_segment_data=None, compaction_cost_data=None,
-                     compaction_cost_details=None):
+                     compaction_cost_details=None,
+                     velocity_trend_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -4625,6 +4722,83 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             lines.append("")
     else:
         lines.append("*No compaction events found.*")
+        lines.append("")
+
+    # =========================================
+    # 24. VELOCITY TREND (P5-S6)
+    # =========================================
+    lines.append("## 24. Velocity Trend by Date")
+    lines.append("")
+    lines.append(
+        "Daily velocity: bead closures and active hours per date. "
+        "Active time is computed from session timestamps (sum of session "
+        "active minutes bucketed by session start date). Bead closures "
+        "come from the beads database `closed_at` field. Note: beads/hour "
+        "can be skewed on individual dates because long sessions bucket "
+        "to their start date while bead closures bucket to their close date."
+    )
+    lines.append("")
+
+    if velocity_trend_data and velocity_trend_data.get("date_count", 0) > 0:
+        vt = velocity_trend_data
+        lines.append(
+            f"**Date range:** {vt['date_count']} dates, "
+            f"{vt['total_beads_closed']} beads closed, "
+            f"{vt['total_active_hours']} active hours"
+        )
+        lines.append("")
+
+        # Summary stats
+        lines.append("### Velocity Summary")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(
+            f"| Overall beads/hour | "
+            f"{vt['overall_beads_per_hour']} |"
+        )
+        if vt.get("median_beads_per_day") is not None:
+            lines.append(
+                f"| Median beads/day | {vt['median_beads_per_day']} |"
+            )
+        if vt.get("mean_beads_per_day") is not None:
+            lines.append(
+                f"| Mean beads/day | {vt['mean_beads_per_day']} |"
+            )
+        if vt.get("median_active_hours_per_day") is not None:
+            lines.append(
+                f"| Median active hours/day | "
+                f"{vt['median_active_hours_per_day']} |"
+            )
+        if vt.get("mean_active_hours_per_day") is not None:
+            lines.append(
+                f"| Mean active hours/day | "
+                f"{vt['mean_active_hours_per_day']} |"
+            )
+        lines.append("")
+
+        # Daily trend table
+        lines.append("### Daily Trend")
+        lines.append("")
+        lines.append(
+            "| Date | Beads Closed | Active Hours | Beads/Hour |"
+        )
+        lines.append(
+            "|------|-------------|-------------|------------|"
+        )
+        for rec in vt.get("records", []):
+            bph = (
+                f"{rec['beads_per_hour']}"
+                if rec.get("beads_per_hour") is not None
+                else "-"
+            )
+            lines.append(
+                f"| {rec['date']} | {rec['beads_closed']} | "
+                f"{rec['active_hours']} | {bph} |"
+            )
+        lines.append("")
+    else:
+        lines.append("*No velocity trend data available.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
