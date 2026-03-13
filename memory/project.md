@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.1.6 (plugins/compound-workflows/)
+- Plugin: compound-workflows v3.1.7 (plugins/compound-workflows/)
 - 27 agents, 29 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -18,7 +18,7 @@
 
 ## Critical Discoveries
 - **Nested Task dispatch does NOT work** — subagents cannot spawn further subagents. Use flat dispatch.
-- **Claude Code hooks cannot trigger slash commands** — use PostToolUse on Bash instead. Sentinel `.workflows/.work-in-progress` suppresses during `/compound:work`.
+- **Claude Code hooks cannot trigger slash commands** — use PostToolUse on Bash instead. Sentinel directory `.workflows/.work-in-progress.d/` (per-session files) suppresses during `/do:work`.
 - **Subagents cannot write to `.claude/` directory** — orchestrator must handle protected paths.
 - **Claude Code per-directory command limit** — ~8 commands per `commands/` subdirectory. Overflow goes to `skills/`.
 - **Skill tool requires fully qualified names** — user slash commands resolve `/do:work` to `compound-workflows:do-work`, but the model's Skill tool call with `do-work` fails ("Unknown skill"). Only the fully qualified `compound-workflows:do-work` works programmatically. Can't add `do:*` command aliases without removing `compound:*` aliases (already at the 8-command limit). Costs one wasted tool call per model-initiated skill invocation.
@@ -111,6 +111,8 @@
 
 - **v3.1.3** — Bash generation rules improvements (beads zdhc, g84l): polling avoidance pattern (row 9), dedicated "Polling Agent Output" section, consequence statement for importance, row 5 fix (stdin heredoc instead of broken Write tool pattern).
 
+- **v3.1.4** — Usage-pipe race + sentinel scoping (bead 8one): eliminate shared `.usage-pipe` file (named-field string arg 9 to capture-stats.sh), scope `.work-in-progress` sentinel per-session (`.work-in-progress.d/$RUN_ID` directory). 15 files in 1 atomic commit. Hook delegates to shared check-sentinel.sh helper. All 5 skill files updated.
+
 - **v3.1.5** — Compact-prep cleanup (bead bw9v): defer run directory creation from init to Step 3 (only when compound pause-and-resume needs it).
 
 - **v3.1.6** — Compact-prep commit message scoping (bead je54): commit message files write to `.workflows/compact-prep/<run-id>/` instead of shared `.workflows/scratch/`. Removed `.workflows/scratch/*` blanket exemption from unslugged-paths.sh QA.
@@ -143,7 +145,7 @@
 - **Correction-capture skill (bead rhl)** — P2. Next: `/compound:brainstorm`.
 - **Plugin-wide config toggles (bead 4a1o)** — P3. Created during ka3w plan. Extends ka3w's config toggle pattern to other commands (red team, readiness, etc.).
 - **User input gates before automated work (bead 42s)** — P2. Brainstorm complete. Next: `/compound:plan`.
-- **Fix usage-pipe race + work-in-progress scoping (bead 8one)** — P2 bug. Plan complete (`docs/plans/2026-03-12-fix-usage-pipe-isolation-plan.md`). Next: `/do:work`. Two shared static files have race conditions under concurrent sessions. Fix: eliminate .usage-pipe (named-field string arg 9), scope .work-in-progress per-session (.work-in-progress.d/$RUN_ID directory). 13+ files in one atomic commit.
+- **Fix usage-pipe race + work-in-progress scoping (bead 8one)** — DONE (v3.1.4). Released.
 - **Mine session logs for empirical timing data (bead 3zr)** — Closed. Phase 4+5 complete. 9 phase 5 steps executed: per-request cost, stats YAML mining, AUQ by workflow, estimation segmentation, compaction cost, velocity trend, permission prompt estimate, QA retry, heuristic tightening.
 - **Reduce confirmation prompts (bead 1hu4)** — P2. 238 confirmation prompts, 20.8 hrs wait. Depends on phase 5 data. Related: 42s.
 - **Live estimation display in workflows (bead t7sd)** — P3. Deferred from 3zr phase 5 — requires plugin skill changes.
