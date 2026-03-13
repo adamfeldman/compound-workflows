@@ -1975,6 +1975,59 @@ def categorize_askuser(question_text):
     return "other"
 
 
+def build_phase_windows(skill_invocations, last_ts, compact_summary_timestamps=None):
+    """Build phase windows from skill invocations for AUQ-to-workflow matching.
+
+    Returns a list of (phase_name, start_ts, end_ts) tuples.
+    Reuses the same boundary logic as the main phase processing:
+    - compact-prep uses isCompactSummary as end marker when available
+    - Other phases end at the next skill invocation or session end
+    """
+    windows = []
+    compact_summary_ts = compact_summary_timestamps or []
+    for i, inv in enumerate(skill_invocations):
+        phase_start = inv["timestamp"]
+        if not phase_start:
+            continue
+
+        # Default: phase ends at next skill invocation or end of session
+        if i + 1 < len(skill_invocations):
+            phase_end = skill_invocations[i + 1]["timestamp"]
+        else:
+            phase_end = last_ts
+
+        # compact-prep boundary correction
+        if inv["phase"] == "compact-prep" and compact_summary_ts:
+            for cs_ts in compact_summary_ts:
+                if cs_ts > phase_start:
+                    if phase_end is None or cs_ts <= phase_end:
+                        phase_end = cs_ts
+                    break
+
+        if phase_start and phase_end:
+            windows.append((inv["phase"], phase_start, phase_end))
+
+    return windows
+
+
+def assign_askuser_to_workflow(event_ts, phase_windows):
+    """Determine which workflow phase an AskUserQuestion event falls within.
+
+    Args:
+        event_ts: datetime timestamp of the AUQ event
+        phase_windows: list of (phase_name, start_ts, end_ts) tuples
+
+    Returns:
+        phase name string, or "non-workflow" if outside all windows
+    """
+    if not event_ts:
+        return "non-workflow"
+    for phase_name, start_ts, end_ts in phase_windows:
+        if start_ts <= event_ts <= end_ts:
+            return phase_name
+    return "non-workflow"
+
+
 def compute_orchestration_analysis(segments, tool_events, bash_commands_with_ts):
     """For orchestration/orch-coding segments, compute bd overhead vs productive split.
 
@@ -2208,6 +2261,17 @@ def main():
 
             # S2: Extract AskUserQuestion events
             askuser_events = extract_askuser_events(filepath)
+            # P5-S3: Tag each event with session_id and workflow phase
+            session_phase_windows = build_phase_windows(
+                result["skill_invocations"],
+                result["last_ts"],
+                result.get("compact_summary_timestamps"),
+            )
+            for evt in askuser_events:
+                evt["session_id"] = session["session_id"]
+                evt["workflow"] = assign_askuser_to_workflow(
+                    evt["timestamp"], session_phase_windows
+                )
             all_askuser_events.extend(askuser_events)
 
             # Track session ranges for concurrent detection
@@ -2515,6 +2579,65 @@ def main():
         }
         raw_out.write(json.dumps(askuser_record) + "\n")
 
+        # --- P5-S3: AskUserQuestion per-workflow breakdown ---
+        print("Breaking down AskUserQuestion events by workflow...",
+              file=sys.stderr)
+        # All events by workflow
+        all_by_workflow = defaultdict(lambda: {"count": 0, "total_wait_minutes": 0.0})
+        # Confirmation events by workflow
+        confirm_by_workflow = defaultdict(lambda: {"count": 0, "total_wait_minutes": 0.0})
+        # All categories by workflow (nested: workflow -> category -> count)
+        cats_by_workflow = defaultdict(lambda: defaultdict(int))
+
+        for evt in all_askuser_events:
+            wf = evt.get("workflow", "non-workflow")
+            cat = evt["category"]
+
+            all_by_workflow[wf]["count"] += 1
+            if evt["wait_minutes"] is not None:
+                all_by_workflow[wf]["total_wait_minutes"] += evt["wait_minutes"]
+
+            cats_by_workflow[wf][cat] += 1
+
+            if cat == "confirmation":
+                confirm_by_workflow[wf]["count"] += 1
+                if evt["wait_minutes"] is not None:
+                    confirm_by_workflow[wf]["total_wait_minutes"] += evt["wait_minutes"]
+
+        # Build the record
+        askuser_per_workflow_record = {
+            "record_type": "askuser_per_workflow",
+            "total_events": len(all_askuser_events),
+            "total_confirmation_events": sum(
+                d["count"] for d in confirm_by_workflow.values()
+            ),
+            "all_by_workflow": {
+                wf: {
+                    "count": data["count"],
+                    "total_wait_minutes": round(data["total_wait_minutes"], 2),
+                    "avg_wait_minutes": round(
+                        data["total_wait_minutes"] / data["count"], 2
+                    ) if data["count"] > 0 else 0,
+                }
+                for wf, data in all_by_workflow.items()
+            },
+            "confirmation_by_workflow": {
+                wf: {
+                    "count": data["count"],
+                    "total_wait_minutes": round(data["total_wait_minutes"], 2),
+                    "avg_wait_minutes": round(
+                        data["total_wait_minutes"] / data["count"], 2
+                    ) if data["count"] > 0 else 0,
+                }
+                for wf, data in confirm_by_workflow.items()
+            },
+            "categories_by_workflow": {
+                wf: dict(cats)
+                for wf, cats in cats_by_workflow.items()
+            },
+        }
+        raw_out.write(json.dumps(askuser_per_workflow_record) + "\n")
+
         # --- S2: Orchestration analysis ---
         print("Computing orchestration analysis...", file=sys.stderr)
         orch_analysis = compute_orchestration_analysis(
@@ -2622,7 +2745,7 @@ def main():
         closed_bead_estimates, concurrent_overlaps, phase_token_totals,
         dedup_data, proportional_records, askuser_record,
         orch_analysis, headline_record, project_cost_record,
-        stats_timing_data,
+        stats_timing_data, askuser_per_workflow_record,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -2633,7 +2756,7 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      concurrent_overlaps, phase_token_totals,
                      dedup_data, proportional_records, askuser_record,
                      orch_analysis, headline_record, project_cost_record=None,
-                     stats_timing_data=None):
+                     stats_timing_data=None, askuser_per_workflow=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -3914,6 +4037,83 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                 lines.append("")
     else:
         lines.append("*No stats YAML data available.*")
+        lines.append("")
+
+    # =========================================
+    # 21. ASKUSERQUESTION PER WORKFLOW (P5-S3)
+    # =========================================
+    lines.append("## 21. AskUserQuestion by Workflow")
+    lines.append("")
+    lines.append(
+        "AskUserQuestion events attributed to workflow phases by matching "
+        "event timestamps against phase windows. Events outside any phase "
+        "window are classified as non-workflow."
+    )
+    lines.append("")
+
+    if askuser_per_workflow and askuser_per_workflow.get("total_events", 0) > 0:
+        pw = askuser_per_workflow
+        lines.append(f"**Total events:** {pw['total_events']}")
+        lines.append(
+            f"**Total confirmation events:** {pw['total_confirmation_events']}"
+        )
+        lines.append("")
+
+        # All events by workflow table
+        lines.append("### All AskUserQuestion Events by Workflow")
+        lines.append("")
+        lines.append("| Workflow | Count | % of Total | Total Wait Min | Avg Wait Min |")
+        lines.append("|----------|-------|-----------|----------------|--------------|")
+
+        all_wf = pw.get("all_by_workflow", {})
+        for wf in sorted(all_wf.keys(), key=lambda k: all_wf[k]["count"], reverse=True):
+            data = all_wf[wf]
+            pct = round(data["count"] / pw["total_events"] * 100, 1) if pw["total_events"] > 0 else 0
+            lines.append(
+                f"| {wf} | {data['count']} | {pct}% | "
+                f"{data['total_wait_minutes']} | {data['avg_wait_minutes']} |"
+            )
+        lines.append("")
+
+        # Confirmation events by workflow table
+        lines.append("### Confirmation Prompts by Workflow")
+        lines.append("")
+        total_confirm = pw["total_confirmation_events"]
+        lines.append("| Workflow | Count | % of Confirmations | Total Wait Min | Avg Wait Min |")
+        lines.append("|----------|-------|-------------------|----------------|--------------|")
+
+        conf_wf = pw.get("confirmation_by_workflow", {})
+        for wf in sorted(conf_wf.keys(), key=lambda k: conf_wf[k]["count"], reverse=True):
+            data = conf_wf[wf]
+            pct = round(data["count"] / total_confirm * 100, 1) if total_confirm > 0 else 0
+            lines.append(
+                f"| {wf} | {data['count']} | {pct}% | "
+                f"{data['total_wait_minutes']} | {data['avg_wait_minutes']} |"
+            )
+        lines.append("")
+
+        # Category breakdown per workflow (detailed)
+        lines.append("### Category Breakdown per Workflow")
+        lines.append("")
+        cats_wf = pw.get("categories_by_workflow", {})
+        # Collect all unique categories
+        all_cats = sorted(set(
+            cat for wf_cats in cats_wf.values() for cat in wf_cats.keys()
+        ))
+        if all_cats:
+            header = "| Workflow | " + " | ".join(all_cats) + " | Total |"
+            sep = "|----------|" + "|".join(["------"] * len(all_cats)) + "|-------|"
+            lines.append(header)
+            lines.append(sep)
+
+            for wf in sorted(cats_wf.keys(), key=lambda k: sum(cats_wf[k].values()), reverse=True):
+                wf_cats = cats_wf[wf]
+                total = sum(wf_cats.values())
+                cells = [str(wf_cats.get(cat, 0)) for cat in all_cats]
+                lines.append(f"| {wf} | " + " | ".join(cells) + f" | {total} |")
+            lines.append("")
+    else:
+        lines.append("*No AskUserQuestion per-workflow data available.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
