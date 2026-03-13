@@ -2,16 +2,18 @@
 
 This repo contains the **compound-workflows** Claude Code plugin. Workflow skills use the `/do:*` namespace (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect to `/do:*` during the v3.0.0 transition period.
 
+The plugin's purpose is to capture best-practice patterns and make them shareable, while remaining configurable to individual user preferences.
+
 ## Project Structure
 
 ```
 plugins/compound-workflows/
 ├── .claude-plugin/plugin.json    # Plugin manifest (version here)
-├── agents/{research,review,workflow}/  # 26 agent YAML files
+├── agents/{research,review,workflow}/  # Agent definitions (.md)
 ├── skills/                       # Skill directories (SKILL.md each)
 ├── commands/compound/            # Thin aliases redirecting to /do:* skills
-├── scripts/plugin-qa/           # Tier 1 QA scripts (9 scripts + lib.sh)
-├── CLAUDE.md                     # Plugin dev instructions
+├── scripts/plugin-qa/           # Tier 1 QA scripts + lib.sh
+├── CLAUDE.md                     # Plugin dev instructions (authoritative inventory counts)
 ├── CHANGELOG.md                  # Version history
 └── README.md                     # User-facing docs
 
@@ -156,6 +158,10 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
 
 **Research artifacts are not garbage** — they contain valuable detail, citations, and cross-references that higher-tier docs often summarize away. Read them for depth. Just don't let them override reviewed decisions.
 
+## Interaction Rules
+
+- Always present proposals and wait for explicit confirmation before executing. Do not treat analysis as permission to act.
+
 ## Key Conventions
 
 - Workflow skills use `do:` namespace prefix; `compound:` aliases redirect for backwards compat
@@ -163,7 +169,7 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
 - Red team uses 3 independent providers in parallel (Gemini, OpenAI, Claude Opus)
 - Red team provider method (clink vs pal chat) is runtime-detected, not stored in config
 - Config is split: `compound-workflows.md` (committed) + `compound-workflows.local.md` (gitignored)
-- No git remote configured; local-only development
+- Git remote: `origin` at `github.com/adamfeldman/compound-workflows.git`
 - Only commit files you changed in the current session. If untracked or modified files from prior sessions are present, offer to commit them separately (they may have been left behind) — the goal is a clean working tree at session end
 - **Suggest squash before push** — when multiple commits on the same topic accumulate during a session, suggest squashing to the user before pushing. Never auto-squash. Wait for the user to say the change is done before committing — don't commit mid-iteration while still refining.
 - Do not use auto memory (`~/.claude/projects/.../memory/`) — use repo-level memory instead: `memory/` (committed, project knowledge) + `.claude/memory/` (gitignored, private preferences)
@@ -227,3 +233,29 @@ Each semicolon-joined segment adds heuristic surface area. Quoted separators (`"
 - Variables do NOT persist across Bash tool calls (each is a fresh shell). CWD does persist.
 - Commands covered by `Bash(X:*)` static rules (git, for, python3, bd, cat) can use any pattern — static rules suppress heuristics entirely.
 - These rules apply to in-conversation bash only. Script files (.sh) use normal shell idioms.
+
+## Memory Hot Cache
+
+Critical preferences that must survive compaction. Source of truth: `.claude/memory/MEMORY.md` + `memory/`.
+
+### Interaction
+
+- **Wait for confirmation** — present proposals and STOP. Do not execute until user says to proceed.
+- **Don't jump to fixing** — when discussing a bead, update the bead with findings but don't edit code until asked.
+
+### Workflow
+
+- **Plans must be fully specified** — no underspecifications that force decisions during /do:work.
+- **Automate, don't ask** — minimize user prompts in workflows and permission prompts.
+- **Reduce main context** — heavy analysis always in subagents.
+- **Cost-conscious** — evaluate workflow cost vs value before running commands.
+- **Always run Tier 2 QA** — never skip semantic agents before merging plugin changes.
+
+### Engineering
+
+- **Deterministic over probabilistic** — prefer bash scripts and hooks over LLM inline instructions for mechanical tasks.
+- **Warn over silent skip** — when something breaks, warn so user can file a bug. Don't silently degrade.
+- **Empirical over speculative** — test before claiming root cause on undocumented Claude Code behavior.
+- **Name the specific config file** — never shorthand like "settings." Specify settings.json vs settings.local.json vs compound-workflows.md vs compound-workflows.local.md.
+- **Changelog entries lead with user benefit** — not implementation details.
+- **Purpose-specific directories over scratch, never `/tmp`** — use `.workflows/<command>/<run-id>/` for artifacts, `.workflows/scratch/` as fallback. Never `/tmp`.
