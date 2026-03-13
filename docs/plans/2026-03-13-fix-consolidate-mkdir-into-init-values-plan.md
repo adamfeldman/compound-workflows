@@ -43,6 +43,8 @@ fi
 
 Do NOT add CACHED_MODEL to branches that don't dispatch agents (`compact-prep`, `setup`, `plugin-changes-qa`, `classify-stats`, `version`).
 
+**Design note (S1):** Emitting `opus` directly (rather than `unset`) is intentional. The prior `unset` sentinel was display-only — all downstream model-resolution prose already said "if unset, default to opus." No downstream logic distinguishes "env var was set to opus" from "env var was absent, defaulted to opus." This snippet is identical for both the `brainstorm|plan|deepen-plan|review` and `work` case branches — place it after the last `echo` in each branch.
+
 ### Step 2: Skill file updates — remove mkdir and env caching from init blocks
 
 For each skill, the init code block should contain ONLY `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh <cmd> <stem>`. Remove all other lines. Adjust the prose instructions to say "Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL" (adding CACHED_MODEL to the tracked values list).
@@ -81,11 +83,13 @@ For each skill, the init code block should contain ONLY `bash ${CLAUDE_SKILL_DIR
 
 Each skill says "Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE." Update to include CACHED_MODEL (and NOTE if emitted). The skills that currently reference `CACHED_MODEL` or `CACHED_SUBAGENT_MODEL` elsewhere in their text should be updated to use the value from init-values.sh output.
 
+Update tracked values lists to: "Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps." For model-resolution prose, replace references to `CACHED_SUBAGENT_MODEL` with `CACHED_MODEL` and remove any "if unset, default to opus" logic since CACHED_MODEL already resolves the default. Use the CACHED_MODEL value from init-values.sh output as the default model for inherit-model agents.
+
 - [ ] do-brainstorm: update tracked values list, update references to CACHED_MODEL
-- [ ] do-plan: update tracked values list, update reference to `echo $CLAUDE_CODE_SUBAGENT_MODEL`
-- [ ] do-work: update tracked values list, update reference to `CACHED_SUBAGENT_MODEL`
-- [ ] do-deepen-plan: update tracked values list, remove "Also capture the subagent model setting" prose
-- [ ] do-review: update tracked values list, update reference to `CACHED_SUBAGENT_MODEL`
+- [ ] do-plan: update tracked values list, replace "Cache the model value: if `CLAUDE_CODE_SUBAGENT_MODEL` is set..." paragraph with: "Use the CACHED_MODEL value from init-values.sh output as the default model for inherit-model agents."
+- [ ] do-work: update tracked values list, replace `CACHED_SUBAGENT_MODEL` reference with CACHED_MODEL
+- [ ] do-deepen-plan: update tracked values list, remove "Also capture the subagent model setting" prose block
+- [ ] do-review: update tracked values list, replace `CACHED_SUBAGENT_MODEL`/`SUBAGENT_MODEL` references with CACHED_MODEL
 
 ### Step 4: Update CLAUDE.md script description
 
@@ -95,7 +99,7 @@ In `plugins/compound-workflows/CLAUDE.md`, update the init-values.sh description
 To:
 > `init-values.sh — Shared init-value computation + directory creation — PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (auto-approved)`
 
-Also update the supported commands table in init-values.sh's header comment to reflect the new CACHED_MODEL output.
+Also update the supported commands table in init-values.sh's header comment. The relevant lines become: `brainstorm, plan, deepen-plan, review -> PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL[, NOTE]` and `work -> PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR, CACHED_MODEL[, NOTE]`.
 
 ### Step 5: QA and verification
 
@@ -108,7 +112,6 @@ Also update the supported commands table in init-values.sh's header comment to r
 - Defensive `mkdir -p` in `capture-stats.sh` (follow-up — defense-in-depth, not required for this fix)
 - Updating CLAUDE.md Principle 10 example text (after fix lands)
 - Other non-init mkdir calls in separate code blocks (already clean)
-- The `[[ -n "$CLAUDE_CODE_SUBAGENT_MODEL" ]] && echo "Note: ..."` check in do-deepen-plan and do-brainstorm — replaced by NOTE= emission from init-values.sh. Skills read NOTE from output and display it.
 
 ## Acceptance Criteria
 
