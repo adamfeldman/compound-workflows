@@ -65,6 +65,8 @@
 - **Upstream compound-engineering uses skills not commands** — `ce:brainstorm`, `ce:plan`, `ce:work`, `ce:review`, `ce:compound` are all skills. No scripts directory. No path resolution problem.
 - **`$ARGUMENTS` / `#$ARGUMENTS` works in SKILL.md files** — substitution identical to commands. `#$ARGUMENTS` becomes `#<actual args>` — the `#` stays as literal text, not consumed. For clean output in skills, use `$ARGUMENTS` without the `#` prefix. Empirically confirmed 2026-03-12 during v3.0.0 prerequisite gate.
 - **Squash-merge → `git branch -d` always warns "not fully merged"** — squash creates a new commit with different SHA than branch commits. Git can't tell the content was merged (only checks SHA reachability). Use `git branch -D` to force-delete. This is expected behavior, not an error.
+- **User MCP config is `~/.claude.json`** — confirmed from Claude Code UI ("User MCPs (/Users/adamf/.claude.json)"). Setup PAL detection should grep this file, not `~/.claude/settings.json`. Bead 17bh updated.
+- **`bd label add <id> <label>`** — beads has first-class label support. Do NOT use metadata for labels. `bd label add/remove/list/list-all/propagate`. Labels appear in `bd show` output under LABELS.
 - **`find` on `~/.claude/plugins/cache` hits sandbox restrictions** — `find -path "*/agents/*.md"` and `find -type f` return empty silently due to sandbox. `ls` and `find` without type/path filters work. Affects deepen-plan Phase 2 agent/skill discovery. Root cause of bash approval cascades.
 
 ## Session Log Format
@@ -106,6 +108,8 @@
 - **v3.1.1** — Compact-prep performance fix (bead rdij): direct memory writes (no temp files), immediate ccusage snapshot in check phase. Eliminates ~15min overhead from deferred temp-file pattern.
 
 - **v3.1.2** — Stats capture worktree path fix (bead j6ui): make STATS_FILE absolute via compute_repo_root() in init-values.sh. Fixes capture-stats.sh writing to nonexistent directory in worktrees.
+
+- **v3.1.3** — Bash generation rules improvements (beads zdhc, g84l): polling avoidance pattern (row 9), dedicated "Polling Agent Output" section, consequence statement for importance, row 5 fix (stdin heredoc instead of broken Write tool pattern).
 
 - **v3.1.5** — Compact-prep cleanup (bead bw9v): defer run directory creation from init to Step 3 (only when compound pause-and-resume needs it).
 
