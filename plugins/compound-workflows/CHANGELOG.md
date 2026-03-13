@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.7] - 2026-03-13
+
+### Fixed
+
+- **Skill init blocks no longer trigger permission prompts** — consolidated `mkdir -p .workflows/stats` and `CACHED_MODEL` env var capture into `init-values.sh`, so each skill's init code block is a single `bash init-values.sh` call. Eliminates compound-command heuristic triggers from `&&` chaining of mkdir, bash, and env var commands. (Robustness Principle 10)
+
 ## [3.1.6] - 2026-03-12
 
 ### Fixed

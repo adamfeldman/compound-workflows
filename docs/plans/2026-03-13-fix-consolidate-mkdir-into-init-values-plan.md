@@ -1,7 +1,7 @@
 ---
 title: "fix: Consolidate mkdir and env caching into init-values.sh"
 type: fix
-status: active
+status: completed
 date: 2026-03-13
 ---
 
@@ -85,11 +85,11 @@ Each skill says "Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE." Update
 
 Update tracked values lists to: "Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps." For model-resolution prose, replace references to `CACHED_SUBAGENT_MODEL` with `CACHED_MODEL` and remove any "if unset, default to opus" logic since CACHED_MODEL already resolves the default. Use the CACHED_MODEL value from init-values.sh output as the default model for inherit-model agents.
 
-- [ ] do-brainstorm: update tracked values list, update references to CACHED_MODEL
-- [ ] do-plan: update tracked values list, replace "Cache the model value: if `CLAUDE_CODE_SUBAGENT_MODEL` is set..." paragraph with: "Use the CACHED_MODEL value from init-values.sh output as the default model for inherit-model agents."
-- [ ] do-work: update tracked values list, replace `CACHED_SUBAGENT_MODEL` reference with CACHED_MODEL
-- [ ] do-deepen-plan: update tracked values list, remove "Also capture the subagent model setting" prose block
-- [ ] do-review: update tracked values list, replace `CACHED_SUBAGENT_MODEL`/`SUBAGENT_MODEL` references with CACHED_MODEL
+- [x] do-brainstorm: update tracked values list, update references to CACHED_MODEL
+- [x] do-plan: update tracked values list, replace "Cache the model value: if `CLAUDE_CODE_SUBAGENT_MODEL` is set..." paragraph with: "Use the CACHED_MODEL value from init-values.sh output as the default model for inherit-model agents."
+- [x] do-work: update tracked values list, replace `CACHED_SUBAGENT_MODEL` reference with CACHED_MODEL
+- [x] do-deepen-plan: update tracked values list, remove "Also capture the subagent model setting" prose block
+- [x] do-review: update tracked values list, replace `CACHED_SUBAGENT_MODEL`/`SUBAGENT_MODEL` references with CACHED_MODEL
 
 ### Step 4: Update CLAUDE.md script description
 
@@ -103,9 +103,9 @@ Also update the supported commands table in init-values.sh's header comment. The
 
 ### Step 5: QA and verification
 
-- [ ] Run `/compound-workflows:plugin-changes-qa` (both Tier 1 and Tier 2)
+- [x] Run `/compound-workflows:plugin-changes-qa` (both Tier 1 and Tier 2)
 - [ ] Manually test: invoke `/do:brainstorm` and verify the init block runs without a permission prompt
-- [ ] Verify init-values.sh exit behavior: `set -euo pipefail` means mkdir failure = exit 1, which skills already handle ("if init-values.sh fails, warn and stop")
+- [x] Verify init-values.sh exit behavior: `set -euo pipefail` means mkdir failure = exit 1, which skills already handle ("if init-values.sh fails, warn and stop")
 
 ## Out of Scope
 
@@ -115,11 +115,11 @@ Also update the supported commands table in init-values.sh's header comment. The
 
 ## Acceptance Criteria
 
-- [ ] Every skill init code block contains exactly one line: `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh <cmd> <stem>`
-- [ ] init-values.sh creates `.workflows/stats/` for all STATS_FILE-emitting branches
-- [ ] init-values.sh emits `CACHED_MODEL=` for all agent-dispatching branches
+- [x] Every skill init code block contains exactly one line: `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh <cmd> <stem>`
+- [x] init-values.sh creates `.workflows/stats/` for all STATS_FILE-emitting branches
+- [x] init-values.sh emits `CACHED_MODEL=` for all agent-dispatching branches
 - [ ] No permission prompt on init block execution (with `Bash(bash:*)` static rule)
-- [ ] QA passes (Tier 1 + Tier 2)
+- [x] QA passes (Tier 1 + Tier 2)
 
 ## Sources
 

@@ -38,19 +38,16 @@ mkdir -p .workflows/code-review/<topic-stem>/agents
 Initialize per-dispatch stats collection. This runs once at command start; all dispatches in this run share the same identifiers.
 
 ```bash
-mkdir -p .workflows/stats
 bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh review <topic-stem>
-CACHED_SUBAGENT_MODEL=$CLAUDE_CODE_SUBAGENT_MODEL
-echo "SUBAGENT_MODEL=${CACHED_SUBAGENT_MODEL:-unset}"
 ```
 
-Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
 
 **Config check:** Read `compound-workflows.local.md` and check the `stats_capture` key. If the value is `false`, skip all stats capture for this run (do not read the schema file, do not call `capture-stats.sh`). If the key is missing or any other value, proceed with stats capture.
 
 **Stats file path:** Use the STATS_FILE value from init-values.sh output.
 
-**Model resolution:** For each dispatch, resolve the `model` field using the cached `$CACHED_SUBAGENT_MODEL`. All review agents use `model: inherit`, so: if `$CACHED_SUBAGENT_MODEL` is set, use that; otherwise default to `opus`. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for the full 4-step model resolution algorithm.
+**Model resolution:** For each dispatch, resolve the `model` field using `CACHED_MODEL`. All review agents use `model: inherit`, so use `CACHED_MODEL` as their model value. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for the full 4-step model resolution algorithm.
 
 **Dispatch counter:** Initialize `DISPATCH_COUNT=0` and a list of dispatched agent names. Increment the counter and append the agent name each time a standard or conditional agent is launched. This tracks the expected entry count for post-dispatch validation.
 
