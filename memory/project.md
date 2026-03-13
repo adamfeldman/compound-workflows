@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.1.5 (plugins/compound-workflows/)
+- Plugin: compound-workflows v3.1.6 (plugins/compound-workflows/)
 - 26 agents, 29 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -112,6 +112,8 @@
 - **v3.1.3** — Bash generation rules improvements (beads zdhc, g84l): polling avoidance pattern (row 9), dedicated "Polling Agent Output" section, consequence statement for importance, row 5 fix (stdin heredoc instead of broken Write tool pattern).
 
 - **v3.1.5** — Compact-prep cleanup (bead bw9v): defer run directory creation from init to Step 3 (only when compound pause-and-resume needs it).
+
+- **v3.1.6** — Compact-prep commit message scoping (bead je54): commit message files write to `.workflows/compact-prep/<run-id>/` instead of shared `.workflows/scratch/`. Removed `.workflows/scratch/*` blanket exemption from unslugged-paths.sh QA.
 
 ## In-Progress Work
 
