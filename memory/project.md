@@ -1,7 +1,7 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.1.4 (plugins/compound-workflows/)
+- Plugin: compound-workflows v3.1.5 (plugins/compound-workflows/)
 - 26 agents, 29 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
@@ -105,6 +105,8 @@
 - **v3.1.1** — Compact-prep performance fix (bead rdij): direct memory writes (no temp files), immediate ccusage snapshot in check phase. Eliminates ~15min overhead from deferred temp-file pattern.
 
 - **v3.1.2** — Stats capture worktree path fix (bead j6ui): make STATS_FILE absolute via compute_repo_root() in init-values.sh. Fixes capture-stats.sh writing to nonexistent directory in worktrees.
+
+- **v3.1.5** — Compact-prep cleanup (bead bw9v): defer run directory creation from init to Step 3 (only when compound pause-and-resume needs it).
 
 ## In-Progress Work
 
