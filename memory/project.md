@@ -152,6 +152,9 @@
 - **Brainstorm should front-load interactive work (bead xcaj)** — P3. Test things empirically during brainstorm instead of deferring to planning. Cleanup: remove `.claude/memory/feedback_brainstorm-frontload-interactive.md` once built into skill.
 - **New beads this session (prior):** n711 (shellcheck QA, P2), 4i61 (GitHub Issues integration, P3), ahoj (cross-repo memory, P3), g1vy (GitHub repo setup, P3), 3e9r (bake hot cache into plugin, P2)
 
+## Documentation Convention
+- **User-facing docs lead with outcomes, not mechanisms** — don't mention script names, internal file paths, or implementation details in READMEs. Frame features as what they do for the user ("see where your time goes") not how they work ("confirmation prompts segmented by workflow phase"). The audience is technical but cares about benefits, not plumbing. CHANGELOG leads with user benefit but includes implementation detail. Exceptions: dev-facing internals docs (CLAUDE.md, AGENTS.md, solutions, plans), and user-facing internals docs (architecture guides, config reference, contributing guides) that exist specifically to explain how things work.
+
 ## Critical Patterns
 - **Plugin paths use `${CLAUDE_SKILL_DIR}`** — skills use `${CLAUDE_SKILL_DIR}/../../scripts/` for init-values.sh. init-values.sh validates PLUGIN_ROOT via `.claude-plugin/plugin.json` existence check. Commands don't get CLAUDE_SKILL_DIR (they're thin aliases).
 - **version-check.sh context detection** — in source repo: 3-way (source vs installed vs release). In consumer project: 2-way (installed vs release only).
