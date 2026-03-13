@@ -2414,6 +2414,188 @@ def compute_permission_prompt_estimate(jsonl_files, all_askuser_events):
     }
 
 
+def compute_qa_retry_sequences(all_session_results):
+    """Detect qa->work->qa retry sequences within sessions.
+
+    A QA retry sequence is: a Skill invocation with phase "qa", followed by
+    one or more non-qa phases (typically "work" to fix issues), followed by
+    another "qa" phase. Each additional qa invocation after the first in such
+    a chain counts as a retry.
+
+    Uses phase observations (which have active_minutes) to measure time cost
+    per QA invocation and the phases between retries.
+
+    Args:
+        all_session_results: list of process_session() result dicts
+
+    Returns:
+        dict with:
+            records: list of qa_retry record dicts
+            summary: aggregated statistics
+    """
+    records = []
+
+    for result in all_session_results:
+        session_id = result["session"]["session_id"]
+        skill_invocations = result["skill_invocations"]
+        phase_observations = result["phases"]
+
+        if not skill_invocations:
+            continue
+
+        # Build a lookup from (phase, start_timestamp) -> phase_obs for active_minutes
+        phase_obs_lookup = {}
+        for pobs in phase_observations:
+            key = (pobs.get("phase"), pobs.get("start_timestamp"))
+            phase_obs_lookup[key] = pobs
+
+        # Walk through skill invocations and find qa->non-qa->qa sequences.
+        # A "sequence" starts at the first qa invocation and ends when we
+        # encounter another qa invocation after intervening non-qa phases.
+        # Multiple retries can chain: qa->work->qa->work->qa = 2 retries.
+
+        # Collect indices of qa invocations
+        qa_indices = [
+            i for i, inv in enumerate(skill_invocations)
+            if inv.get("phase") == "qa"
+        ]
+
+        if len(qa_indices) < 2:
+            continue
+
+        # For each pair of consecutive qa invocations, check if there are
+        # non-qa phases between them
+        sequence_start_idx = qa_indices[0]
+        retry_count = 0
+        phases_between_all = []  # all non-qa phases in this retry chain
+        qa_active_minutes_list = []  # active minutes for each qa invocation
+
+        # Get active_minutes for the first qa invocation
+        first_qa_inv = skill_invocations[sequence_start_idx]
+        first_qa_key = (first_qa_inv["phase"], first_qa_inv.get("ts_str"))
+        first_qa_obs = phase_obs_lookup.get(first_qa_key)
+        if first_qa_obs:
+            qa_active_minutes_list.append(
+                first_qa_obs.get("active_minutes", 0)
+            )
+
+        for qi in range(1, len(qa_indices)):
+            prev_qa_idx = qa_indices[qi - 1]
+            curr_qa_idx = qa_indices[qi]
+
+            # Collect non-qa phases between prev_qa and curr_qa
+            between_phases = []
+            for mid_idx in range(prev_qa_idx + 1, curr_qa_idx):
+                mid_inv = skill_invocations[mid_idx]
+                mid_phase = mid_inv.get("phase")
+                if mid_phase and mid_phase != "qa":
+                    between_phases.append(mid_phase)
+
+            if between_phases:
+                # This is a retry: qa was followed by non-qa work, then qa again
+                retry_count += 1
+                phases_between_all.extend(between_phases)
+
+                # Get active_minutes for this qa retry
+                curr_qa_inv = skill_invocations[curr_qa_idx]
+                curr_qa_key = (curr_qa_inv["phase"], curr_qa_inv.get("ts_str"))
+                curr_qa_obs = phase_obs_lookup.get(curr_qa_key)
+                if curr_qa_obs:
+                    qa_active_minutes_list.append(
+                        curr_qa_obs.get("active_minutes", 0)
+                    )
+            else:
+                # Consecutive qa invocations with no non-qa phases between
+                # (e.g., qa followed immediately by qa) — still count the qa time
+                # but this isn't a "retry" in the fix-then-recheck sense
+                curr_qa_inv = skill_invocations[curr_qa_idx]
+                curr_qa_key = (curr_qa_inv["phase"], curr_qa_inv.get("ts_str"))
+                curr_qa_obs = phase_obs_lookup.get(curr_qa_key)
+                if curr_qa_obs:
+                    qa_active_minutes_list.append(
+                        curr_qa_obs.get("active_minutes", 0)
+                    )
+
+                # If there were prior retries, this is still part of the chain
+                if retry_count > 0:
+                    retry_count += 1
+
+        if retry_count > 0:
+            # Compute total active minutes for the fix phases between retries
+            fix_active_minutes = 0.0
+            for pobs in phase_observations:
+                if pobs.get("phase") != "qa" and pobs.get("phase") in set(phases_between_all):
+                    # Check if this phase observation falls between first qa and last qa
+                    first_qa_ts = skill_invocations[qa_indices[0]].get("timestamp")
+                    last_qa_ts = skill_invocations[qa_indices[-1]].get("timestamp")
+                    pobs_start = parse_timestamp(pobs.get("start_timestamp"))
+                    if (pobs_start and first_qa_ts and last_qa_ts
+                            and first_qa_ts <= pobs_start <= last_qa_ts):
+                        fix_active_minutes += pobs.get("active_minutes", 0)
+
+            total_qa_active = round(sum(qa_active_minutes_list), 2)
+            total_active = round(total_qa_active + fix_active_minutes, 2)
+
+            record = {
+                "session": session_id,
+                "retry_count": retry_count,
+                "qa_invocation_count": len(qa_indices),
+                "total_active_minutes": total_active,
+                "qa_active_minutes": total_qa_active,
+                "fix_active_minutes": round(fix_active_minutes, 2),
+                "phases_between": phases_between_all,
+            }
+            records.append(record)
+
+    # Count total sessions that had any QA invocation (even without retries)
+    sessions_with_any_qa = 0
+    for result in all_session_results:
+        skill_invocations = result["skill_invocations"]
+        if any(inv.get("phase") == "qa" for inv in skill_invocations):
+            sessions_with_any_qa += 1
+
+    # Compute summary statistics
+    summary = {
+        "session_count": len(records),
+        "sessions_with_any_qa": sessions_with_any_qa,
+        "total_retry_count": sum(r["retry_count"] for r in records),
+        "total_qa_active_minutes": round(
+            sum(r["qa_active_minutes"] for r in records), 2
+        ),
+        "total_fix_active_minutes": round(
+            sum(r["fix_active_minutes"] for r in records), 2
+        ),
+        "total_active_minutes": round(
+            sum(r["total_active_minutes"] for r in records), 2
+        ),
+    }
+
+    if records:
+        retry_counts = [r["retry_count"] for r in records]
+        summary["median_retries_per_session"] = round(
+            statistics.median(retry_counts), 1
+        )
+        summary["max_retries_per_session"] = max(retry_counts)
+
+        qa_times = [r["qa_active_minutes"] for r in records]
+        summary["median_qa_active_per_session"] = round(
+            statistics.median(qa_times), 2
+        )
+        summary["mean_qa_active_per_session"] = round(
+            statistics.mean(qa_times), 2
+        )
+
+        # Phases between retries distribution
+        phase_counter = Counter(
+            p for r in records for p in r["phases_between"]
+        )
+        summary["phases_between_distribution"] = dict(
+            phase_counter.most_common()
+        )
+
+    return {"records": records, "summary": summary}
+
+
 def compute_orchestration_analysis(segments, tool_events, bash_commands_with_ts):
     """For orchestration/orch-coding segments, compute bd overhead vs productive split.
 
@@ -3224,6 +3406,24 @@ def main():
               f"est {permission_prompt_data['estimated_total_hours']} hours upper bound",
               file=sys.stderr)
 
+        # --- P5-S8: QA retry cost ---
+        print("Detecting QA retry sequences...", file=sys.stderr)
+        qa_retry_data = compute_qa_retry_sequences(all_session_results)
+        for rec in qa_retry_data["records"]:
+            qa_rec = {"record_type": "qa_retry", **rec}
+            raw_out.write(json.dumps(qa_rec) + "\n")
+        if qa_retry_data["summary"]:
+            qa_summary_rec = {
+                "record_type": "qa_retry_summary",
+                **qa_retry_data["summary"],
+            }
+            raw_out.write(json.dumps(qa_summary_rec) + "\n")
+        print(f"  QA retries: {qa_retry_data['summary']['session_count']} sessions with retries "
+              f"(of {qa_retry_data['summary']['sessions_with_any_qa']} with any QA), "
+              f"{qa_retry_data['summary']['total_retry_count']} total retries, "
+              f"{qa_retry_data['summary']['total_active_minutes']} active min",
+              file=sys.stderr)
+
         # --- S2: Headline metrics ---
         print("Computing headline metrics...", file=sys.stderr)
         total_cost = read_total_cost_from_file()
@@ -3326,7 +3526,7 @@ def main():
         stats_timing_data, askuser_per_workflow_record,
         estimation_segment_data, compaction_cost_data,
         all_compaction_costs, velocity_trend_summary,
-        permission_prompt_data,
+        permission_prompt_data, qa_retry_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -3341,7 +3541,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      estimation_segment_data=None, compaction_cost_data=None,
                      compaction_cost_details=None,
                      velocity_trend_data=None,
-                     permission_prompt_data=None):
+                     permission_prompt_data=None,
+                     qa_retry_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -5040,6 +5241,107 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append("")
     else:
         lines.append("*No permission prompt data available.*")
+        lines.append("")
+
+    # --- Section 26: QA Retry Cost ---
+    lines.append("## 26. QA Retry Cost")
+    lines.append("")
+    lines.append(
+        "QA retry sequences occur when a QA invocation (plugin-changes-qa) fails, "
+        "requiring fix phases (typically work) followed by another QA run. Each "
+        "additional QA invocation after the first in such a chain counts as a retry."
+    )
+    lines.append("")
+
+    if qa_retry_data and qa_retry_data.get("records"):
+        qrs = qa_retry_data["summary"]
+        lines.append("### Summary")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(
+            f"| Sessions with QA retries | {qrs.get('session_count', 0)} |"
+        )
+        lines.append(
+            f"| Total retry count | {qrs.get('total_retry_count', 0)} |"
+        )
+        lines.append(
+            f"| Total active minutes (QA + fix) | "
+            f"{qrs.get('total_active_minutes', 0)} |"
+        )
+        lines.append(
+            f"| QA invocation active minutes | "
+            f"{qrs.get('total_qa_active_minutes', 0)} |"
+        )
+        lines.append(
+            f"| Fix phase active minutes | "
+            f"{qrs.get('total_fix_active_minutes', 0)} |"
+        )
+        lines.append(
+            f"| Median retries per session | "
+            f"{qrs.get('median_retries_per_session', 'N/A')} |"
+        )
+        lines.append(
+            f"| Max retries in one session | "
+            f"{qrs.get('max_retries_per_session', 'N/A')} |"
+        )
+        lines.append(
+            f"| Median QA active per session | "
+            f"{qrs.get('median_qa_active_per_session', 'N/A')} min |"
+        )
+        lines.append(
+            f"| Mean QA active per session | "
+            f"{qrs.get('mean_qa_active_per_session', 'N/A')} min |"
+        )
+        lines.append("")
+
+        # Phases between distribution
+        phase_dist = qrs.get("phases_between_distribution", {})
+        if phase_dist:
+            lines.append("### Fix Phases Between QA Retries")
+            lines.append("")
+            lines.append("| Phase | Count |")
+            lines.append("|-------|-------|")
+            for phase_name, count in sorted(
+                phase_dist.items(), key=lambda x: -x[1]
+            ):
+                lines.append(f"| {phase_name} | {count} |")
+            lines.append("")
+
+        # Per-session detail
+        lines.append("### Per-Session Detail")
+        lines.append("")
+        lines.append(
+            "| Session | Retries | QA Min | Fix Min | Total Min | "
+            "Phases Between |"
+        )
+        lines.append(
+            "|---------|---------|--------|---------|-----------|"
+            "----------------|"
+        )
+        for rec in qa_retry_data["records"]:
+            phases_str = ", ".join(rec.get("phases_between", []))
+            lines.append(
+                f"| {rec['session'][:12]}... | {rec['retry_count']} | "
+                f"{rec.get('qa_active_minutes', 0)} | "
+                f"{rec.get('fix_active_minutes', 0)} | "
+                f"{rec.get('total_active_minutes', 0)} | "
+                f"{phases_str} |"
+            )
+        lines.append("")
+    else:
+        sessions_with_qa = (
+            qa_retry_data["summary"].get("sessions_with_any_qa", 0)
+            if qa_retry_data and qa_retry_data.get("summary")
+            else 0
+        )
+        lines.append(
+            f"*No QA retry sequences detected.* "
+            f"{sessions_with_qa} session(s) had QA skill invocations, "
+            "but none contained qa->fix->qa retry chains. This means "
+            "either QA passed on first attempt or fixes were done "
+            "outside the skill-tracked workflow."
+        )
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
