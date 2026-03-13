@@ -97,6 +97,273 @@ CORRECTION_PATTERNS = re.compile(
 # Usage tag patterns - two formats
 # Format 1: <usage>total_tokens: N\ntool_uses: N\nduration_ms: N</usage>
 # Format 2: <usage><total_tokens>N</total_tokens><tool_uses>N</tool_uses><duration_ms>N</duration_ms></usage>
+# --- Stats YAML directory ---
+# Stats YAML files live in .workflows/stats/ — either in the current repo root
+# or in the main worktree (worktrees have separate .workflows/ directories).
+def find_stats_yaml_dir():
+    """Locate the .workflows/stats/ directory.
+
+    Tries the current repo root first, then the main worktree.
+    Returns the directory path, or None if not found.
+    """
+    repo_root = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+    local_stats = os.path.join(repo_root, ".workflows", "stats")
+    if os.path.isdir(local_stats):
+        return local_stats
+
+    # Try main worktree via git
+    try:
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            capture_output=True, text=True, timeout=5,
+            cwd=repo_root,
+        )
+        for line in result.stdout.splitlines():
+            if line.startswith("worktree "):
+                main_root = line[len("worktree "):]
+                main_stats = os.path.join(main_root, ".workflows", "stats")
+                if os.path.isdir(main_stats):
+                    return main_stats
+    except Exception:
+        pass
+    return None
+
+
+def parse_simple_yaml_docs(filepath):
+    """Parse a multi-document YAML file with flat key-value pairs.
+
+    Each document is separated by '---'. Values are auto-typed:
+    integers, floats, null/true/false, or strings (with optional quotes stripped).
+    Returns a list of dicts, one per document.
+    """
+    docs = []
+    current = {}
+    with open(filepath, "r") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if line == "---":
+                if current:
+                    docs.append(current)
+                    current = {}
+                continue
+            if not line or line.startswith("#"):
+                continue
+            # Split on first ': ' (YAML key-value)
+            colon_idx = line.find(": ")
+            if colon_idx == -1:
+                # Handle 'key:' with empty value
+                if line.endswith(":"):
+                    current[line[:-1].strip()] = None
+                continue
+            key = line[:colon_idx].strip()
+            val_str = line[colon_idx + 2:].strip()
+            # Strip surrounding quotes
+            if len(val_str) >= 2 and val_str[0] == val_str[-1] and val_str[0] in ('"', "'"):
+                val_str = val_str[1:-1]
+                current[key] = val_str
+                continue
+            # Auto-type
+            if val_str == "null":
+                current[key] = None
+            elif val_str == "true":
+                current[key] = True
+            elif val_str == "false":
+                current[key] = False
+            else:
+                # Try integer
+                try:
+                    current[key] = int(val_str)
+                    continue
+                except ValueError:
+                    pass
+                # Try float
+                try:
+                    current[key] = float(val_str)
+                    continue
+                except ValueError:
+                    pass
+                current[key] = val_str
+    # Last document (no trailing ---)
+    if current:
+        docs.append(current)
+    return docs
+
+
+def load_stats_yaml_entries():
+    """Load all agent dispatch entries from .workflows/stats/*.yaml files.
+
+    Skips ccusage-snapshot documents (identified by type: ccusage-snapshot).
+    Returns a list of dicts with fields: command, bead, stem, agent, step,
+    model, run_id, tokens, tools, duration_ms, timestamp, status,
+    complexity, output_type, source_file.
+    """
+    stats_dir = find_stats_yaml_dir()
+    if not stats_dir:
+        print("  WARNING: Could not find .workflows/stats/ directory", file=sys.stderr)
+        return []
+
+    yaml_files = sorted(glob.glob(os.path.join(stats_dir, "*.yaml")))
+    print(f"  Found {len(yaml_files)} stats YAML files in {stats_dir}", file=sys.stderr)
+
+    entries = []
+    skipped_ccusage = 0
+    parse_errors = 0
+
+    for filepath in yaml_files:
+        basename = os.path.basename(filepath)
+        try:
+            docs = parse_simple_yaml_docs(filepath)
+        except Exception as e:
+            print(f"    WARNING: Could not parse {basename}: {e}", file=sys.stderr)
+            parse_errors += 1
+            continue
+
+        for doc in docs:
+            # Skip ccusage-snapshot documents
+            if doc.get("type") == "ccusage-snapshot":
+                skipped_ccusage += 1
+                continue
+
+            # Require at least command and duration_ms for a valid agent dispatch
+            if "command" not in doc or "duration_ms" not in doc:
+                continue
+
+            doc["source_file"] = basename
+            entries.append(doc)
+
+    print(f"  Loaded {len(entries)} agent dispatch entries "
+          f"(skipped {skipped_ccusage} ccusage snapshots, {parse_errors} parse errors)",
+          file=sys.stderr)
+    return entries
+
+
+def compute_stats_step_timing(stats_entries, closed_bead_estimates):
+    """Compute per-command and per-step duration statistics from stats YAML entries.
+
+    Groups by command (workflow type), then by step within each command.
+    Computes median, P90, mean duration for each grouping.
+    Also matches against bead estimates for estimate-vs-actual comparison.
+
+    Args:
+        stats_entries: list of dicts from load_stats_yaml_entries()
+        closed_bead_estimates: dict of bead_id -> {title, estimated_minutes}
+
+    Returns:
+        dict with:
+        - by_command: {command: {n, durations_ms stats, steps: {step: stats}}}
+        - by_agent: {agent: {n, duration stats}}
+        - estimate_vs_actual: list of {bead, estimated_minutes, actual_total_ms, step_count}
+        - records: list of stats_step_timing record dicts for raw output
+    """
+    from collections import defaultdict
+
+    # Group by command
+    by_command = defaultdict(list)
+    by_agent = defaultdict(list)
+    by_command_step = defaultdict(lambda: defaultdict(list))
+    by_bead = defaultdict(list)
+
+    for entry in stats_entries:
+        cmd = entry.get("command", "unknown")
+        step = entry.get("step", "unknown")
+        agent = entry.get("agent", "unknown")
+        duration_ms = entry.get("duration_ms") or 0
+        bead = entry.get("bead")
+        tokens = entry.get("tokens") or 0
+
+        if duration_ms > 0:
+            by_command[cmd].append(duration_ms)
+            by_agent[agent].append(duration_ms)
+            by_command_step[cmd][step].append(duration_ms)
+
+        if bead and duration_ms > 0:
+            bead_str = str(bead)
+            by_bead[bead_str].append({
+                "duration_ms": duration_ms,
+                "tokens": tokens,
+                "command": cmd,
+                "step": step,
+            })
+
+    # Compute per-command stats
+    command_stats = {}
+    for cmd, durations in sorted(by_command.items()):
+        dur_minutes = [d / 60000.0 for d in durations]
+        cmd_stat = compute_stats(dur_minutes)
+
+        # Per-step breakdown within this command
+        step_stats = {}
+        for step, step_durations in sorted(by_command_step[cmd].items()):
+            step_minutes = [d / 60000.0 for d in step_durations]
+            step_stats[step] = compute_stats(step_minutes)
+
+        command_stats[cmd] = {
+            **cmd_stat,
+            "total_duration_ms": sum(durations),
+            "total_duration_min": round(sum(durations) / 60000.0, 2),
+            "steps": step_stats,
+        }
+
+    # Compute per-agent stats
+    agent_stats = {}
+    for agent, durations in sorted(by_agent.items(), key=lambda x: len(x[1]), reverse=True):
+        dur_minutes = [d / 60000.0 for d in durations]
+        agent_stats[agent] = compute_stats(dur_minutes)
+
+    # Estimate vs actual from bead data
+    estimate_vs_actual = []
+    for bead_id, dispatches in sorted(by_bead.items()):
+        total_ms = sum(d["duration_ms"] for d in dispatches)
+        total_tokens = sum(d["tokens"] for d in dispatches)
+        # Look up estimate
+        est_data = closed_bead_estimates.get(bead_id)
+        if est_data:
+            estimated_min = est_data["estimated_minutes"]
+            actual_min = total_ms / 60000.0
+            ratio = actual_min / estimated_min if estimated_min > 0 else None
+            estimate_vs_actual.append({
+                "bead": bead_id,
+                "title": est_data["title"],
+                "estimated_minutes": estimated_min,
+                "actual_dispatch_minutes": round(actual_min, 2),
+                "actual_dispatch_ms": total_ms,
+                "dispatch_count": len(dispatches),
+                "total_tokens": total_tokens,
+                "ratio": round(ratio, 2) if ratio is not None else None,
+                "commands": list(set(d["command"] for d in dispatches)),
+            })
+
+    # Build records for raw output
+    records = []
+    for cmd, stat in command_stats.items():
+        record = {
+            "record_type": "stats_step_timing",
+            "command": cmd,
+            "n": stat["n"],
+            "median_minutes": stat.get("median"),
+            "mean_minutes": stat.get("mean"),
+            "p90_minutes": stat.get("p90"),
+            "min_minutes": stat.get("min"),
+            "max_minutes": stat.get("max"),
+            "total_duration_min": stat.get("total_duration_min"),
+        }
+        records.append(record)
+
+    for entry in estimate_vs_actual:
+        records.append({
+            "record_type": "stats_estimate_vs_actual",
+            **entry,
+        })
+
+    return {
+        "by_command": command_stats,
+        "by_agent": agent_stats,
+        "estimate_vs_actual": estimate_vs_actual,
+        "records": records,
+        "total_entries": len(stats_entries),
+    }
+
+
 USAGE_KV_RE = re.compile(
     r"<usage>\s*total_tokens:\s*(\d+)\s*\n\s*tool_uses:\s*(\d+)\s*\n\s*duration_ms:\s*(\d+)\s*</usage>",
     re.DOTALL,
@@ -2140,6 +2407,17 @@ def main():
         for mp, mc in sorted(project_cost_by_model.items(), key=lambda x: x[1], reverse=True):
             print(f"    {mp}: ${mc:.2f}", file=sys.stderr)
 
+        # --- P5-S2: Stats YAML mining ---
+        print("Mining stats YAML files...", file=sys.stderr)
+        stats_entries = load_stats_yaml_entries()
+        stats_timing_data = compute_stats_step_timing(stats_entries, closed_bead_estimates)
+        for rec in stats_timing_data["records"]:
+            raw_out.write(json.dumps(rec) + "\n")
+        print(f"  Stats: {stats_timing_data['total_entries']} entries, "
+              f"{len(stats_timing_data['by_command'])} commands, "
+              f"{len(stats_timing_data['estimate_vs_actual'])} bead estimate matches",
+              file=sys.stderr)
+
         # --- S2: Deduplicated active time ---
         print("Computing deduplicated active time...", file=sys.stderr)
         dedup_data = compute_dedup_active_minutes(all_session_results)
@@ -2344,6 +2622,7 @@ def main():
         closed_bead_estimates, concurrent_overlaps, phase_token_totals,
         dedup_data, proportional_records, askuser_record,
         orch_analysis, headline_record, project_cost_record,
+        stats_timing_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -2353,7 +2632,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      bead_attribution_windowed, closed_bead_estimates,
                      concurrent_overlaps, phase_token_totals,
                      dedup_data, proportional_records, askuser_record,
-                     orch_analysis, headline_record, project_cost_record=None):
+                     orch_analysis, headline_record, project_cost_record=None,
+                     stats_timing_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -3543,6 +3823,97 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             lines.append("")
     else:
         lines.append("*No cost data available from JSONL.*")
+        lines.append("")
+
+    # =========================================
+    # 20. STEP TIMING FROM STATS YAML (P5-S2)
+    # =========================================
+    lines.append("## 20. Step Timing from Stats YAML")
+    lines.append("")
+    lines.append(
+        "Per-agent-dispatch duration data mined from `.workflows/stats/*.yaml`. "
+        "Each entry represents one subagent dispatch with wall-clock duration. "
+        "Durations shown in minutes."
+    )
+    lines.append("")
+
+    if stats_timing_data and stats_timing_data.get("total_entries", 0) > 0:
+        st = stats_timing_data
+        lines.append(f"**Total dispatch entries:** {st['total_entries']}")
+        lines.append("")
+
+        # Per-command duration table
+        lines.append("### Duration by Workflow Command")
+        lines.append("")
+        lines.append("| Command | N | Median | Mean | P90 | Min | Max | Total Min |")
+        lines.append("|---------|---|--------|------|-----|-----|-----|-----------|")
+        for cmd, stat in sorted(st["by_command"].items(), key=lambda x: x[1].get("total_duration_min", 0), reverse=True):
+            p90 = stat.get("p90", "-")
+            lines.append(
+                f"| {cmd} | {stat['n']} | {stat.get('median', '-')} | "
+                f"{stat.get('mean', '-')} | {p90} | "
+                f"{stat.get('min', '-')} | {stat.get('max', '-')} | "
+                f"{stat.get('total_duration_min', '-')} |"
+            )
+        lines.append("")
+
+        # Per-agent duration table
+        lines.append("### Duration by Agent Type")
+        lines.append("")
+        lines.append("| Agent | N | Median | Mean | P90 | Min | Max |")
+        lines.append("|-------|---|--------|------|-----|-----|-----|")
+        for agent, stat in sorted(st["by_agent"].items(), key=lambda x: x[1]["n"], reverse=True):
+            if stat["n"] < 2:
+                continue  # Skip single-occurrence agents for clarity
+            p90 = stat.get("p90", "-")
+            lines.append(
+                f"| {agent} | {stat['n']} | {stat.get('median', '-')} | "
+                f"{stat.get('mean', '-')} | {p90} | "
+                f"{stat.get('min', '-')} | {stat.get('max', '-')} |"
+            )
+        lines.append("")
+
+        # Estimate vs actual from stats
+        if st["estimate_vs_actual"]:
+            lines.append("### Estimate vs Actual (Stats Dispatch Time)")
+            lines.append("")
+            lines.append(
+                "Compares bead estimated_minutes with total subagent dispatch duration. "
+                "Note: dispatch time is agent wall-clock only — excludes orchestrator "
+                "time, user wait, and inter-step gaps."
+            )
+            lines.append("")
+            lines.append("| Bead | Est Min | Actual Dispatch Min | Ratio | Dispatches | Commands |")
+            lines.append("|------|---------|---------------------|-------|------------|----------|")
+            for eva in sorted(st["estimate_vs_actual"], key=lambda x: x.get("ratio") or 0, reverse=True):
+                ratio_str = f"{eva['ratio']}x" if eva.get("ratio") is not None else "-"
+                cmds = ", ".join(eva.get("commands", []))
+                lines.append(
+                    f"| {eva['bead']} | {eva['estimated_minutes']} | "
+                    f"{eva['actual_dispatch_minutes']} | {ratio_str} | "
+                    f"{eva['dispatch_count']} | {cmds} |"
+                )
+            lines.append("")
+
+            # Summary stats for ratios
+            ratios = [e["ratio"] for e in st["estimate_vs_actual"] if e.get("ratio") is not None]
+            if ratios:
+                ratio_stats = compute_stats(ratios)
+                lines.append(
+                    f"**Dispatch-to-estimate ratio:** "
+                    f"median {ratio_stats.get('median', '-')}x, "
+                    f"mean {ratio_stats.get('mean', '-')}x "
+                    f"(N={ratio_stats['n']})"
+                )
+                lines.append("")
+                lines.append(
+                    "*Ratios < 1.0 mean dispatch time was less than estimated "
+                    "(expected, since estimates cover full workflow including "
+                    "orchestration and user interaction).*"
+                )
+                lines.append("")
+    else:
+        lines.append("*No stats YAML data available.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
