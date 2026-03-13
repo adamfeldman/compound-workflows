@@ -106,6 +106,44 @@ USAGE_XML_RE = re.compile(
     re.DOTALL,
 )
 
+# --- Model pricing (per million tokens) ---
+# Source: Anthropic pricing page, March 2026
+# Format: {model_prefix: (input, cache_creation, cache_read, output)}
+MODEL_PRICING = {
+    "claude-opus-4":   (15.00, 3.75, 1.875, 75.00),
+    "claude-sonnet-4": (3.00, 3.75, 0.30, 15.00),
+    "claude-haiku-3":  (0.25, 0.30, 0.03, 1.25),
+}
+
+def get_model_pricing(model_name):
+    """Return (input, cache_creation, cache_read, output) rates per million tokens.
+
+    Matches model_name against known prefixes (e.g. 'claude-opus-4-6' -> 'claude-opus-4').
+    Returns (0,0,0,0) for unknown/<synthetic> models.
+    """
+    if not model_name or model_name.startswith("<"):
+        return (0.0, 0.0, 0.0, 0.0)
+    for prefix, rates in MODEL_PRICING.items():
+        if model_name.startswith(prefix):
+            return rates
+    return (0.0, 0.0, 0.0, 0.0)
+
+
+def compute_request_cost(usage, model_name):
+    """Compute dollar cost for a single API request given usage dict and model name.
+
+    usage must have: input_tokens, cache_creation_input_tokens,
+                     cache_read_input_tokens, output_tokens
+    Returns cost in USD (float).
+    """
+    rates = get_model_pricing(model_name)
+    input_cost = usage.get("input_tokens", 0) * rates[0] / 1_000_000
+    cache_create_cost = usage.get("cache_creation_input_tokens", 0) * rates[1] / 1_000_000
+    cache_read_cost = usage.get("cache_read_input_tokens", 0) * rates[2] / 1_000_000
+    output_cost = usage.get("output_tokens", 0) * rates[3] / 1_000_000
+    return input_cost + cache_create_cost + cache_read_cost + output_cost
+
+
 # Configuration file patterns for "configuration" segment classification
 CONFIG_PATTERNS = re.compile(
     r"(CLAUDE\.md|AGENTS\.md|settings\.json|memory/|\.claude/|compound-workflows\.md|compound-workflows\.local\.md)",
@@ -887,6 +925,12 @@ def process_session(filepath):
     # Git commits
     git_commit_count = 0
 
+    # Per-request cost tracking
+    # Each entry: (timestamp, model, cost, input_tokens, cache_creation_tokens, cache_read_tokens, output_tokens)
+    request_costs = []
+    session_cost_by_model = defaultdict(float)  # model_prefix -> total cost
+    session_total_cost = 0.0
+
     # Process line by line for memory efficiency
     with open(filepath, "r") as f:
         for line_num, line in enumerate(f, 1):
@@ -913,6 +957,31 @@ def process_session(filepath):
             # --- Skip non-message types for tool extraction ---
             if entry_type == "assistant":
                 message = entry.get("message", {})
+
+                # --- Per-request cost extraction ---
+                usage = message.get("usage")
+                model = message.get("model", "")
+                if usage:
+                    cost = compute_request_cost(usage, model)
+                    session_total_cost += cost
+                    # Map to model prefix for grouping
+                    model_prefix = ""
+                    for prefix in MODEL_PRICING:
+                        if model.startswith(prefix):
+                            model_prefix = prefix
+                            break
+                    if model_prefix:
+                        session_cost_by_model[model_prefix] += cost
+                    request_costs.append({
+                        "timestamp": ts,
+                        "model": model,
+                        "cost": cost,
+                        "input_tokens": usage.get("input_tokens", 0),
+                        "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0),
+                        "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0),
+                        "output_tokens": usage.get("output_tokens", 0),
+                    })
+
                 content = message.get("content", [])
                 if not isinstance(content, list):
                     continue
@@ -1081,6 +1150,8 @@ def process_session(filepath):
         "skill_invocation_count": len(skill_invocations),
         "agent_dispatch_count": len(agent_dispatches),
         "agent_completion_count": len(agent_completions),
+        "session_cost_usd": round(session_total_cost, 6),
+        "cost_by_model": {k: round(v, 6) for k, v in session_cost_by_model.items()},
     }
 
     # --- Compute phase observations ---
@@ -1134,6 +1205,14 @@ def process_session(filepath):
                 if phase_start <= evt_ts <= phase_end:
                     phase_tools[evt_name] += 1
 
+        # Compute per-phase cost
+        phase_cost = 0.0
+        if phase_start and phase_end:
+            for rc in request_costs:
+                rc_ts = rc["timestamp"]
+                if rc_ts and phase_start <= rc_ts <= phase_end:
+                    phase_cost += rc["cost"]
+
         # Compute active/idle for this phase
         phase_active_idle = compute_active_idle(
             sorted_ts, phase_start, phase_end
@@ -1185,6 +1264,7 @@ def process_session(filepath):
             "idle_gap_count": phase_active_idle["idle_gap_count"],
             "entry_count": phase_active_idle["entry_count"],
             "tool_counts": dict(phase_tools),
+            "phase_cost_usd": round(phase_cost, 6),
         }
 
         # Add compact-prep-specific fields
@@ -1225,6 +1305,7 @@ def process_session(filepath):
         "bash_commands_with_ts": bash_commands_with_ts,
         "user_msg_timestamps": user_msg_timestamps,
         "compact_summary_timestamps": compact_summary_ts,
+        "request_costs": request_costs,
         "first_ts": first_ts,
         "last_ts": last_ts,
         "errors": errors,
@@ -1819,6 +1900,12 @@ def main():
     # S2: AskUserQuestion events across all sessions
     all_askuser_events = []
 
+    # P5-S1: Project cost aggregation
+    project_cost_total = 0.0
+    project_cost_by_model = defaultdict(float)
+    project_cost_by_phase = defaultdict(float)
+    project_token_totals = defaultdict(int)  # token type -> total
+
     with open(RAW_OUTPUT, "w") as raw_out:
         for i, filepath in enumerate(jsonl_files):
             basename = os.path.basename(filepath)
@@ -1863,6 +1950,20 @@ def main():
                     result["first_ts"],
                     result["last_ts"],
                 ))
+
+            # P5-S1: Aggregate cost data
+            project_cost_total += session.get("session_cost_usd", 0)
+            for model_prefix, mcost in session.get("cost_by_model", {}).items():
+                project_cost_by_model[model_prefix] += mcost
+            for phase_obs in phases:
+                phase_name = phase_obs.get("phase", "non-workflow")
+                project_cost_by_phase[phase_name] += phase_obs.get("phase_cost_usd", 0)
+            # Sum tokens for overall token accounting
+            for rc in result.get("request_costs", []):
+                project_token_totals["input_tokens"] += rc["input_tokens"]
+                project_token_totals["cache_creation_input_tokens"] += rc["cache_creation_input_tokens"]
+                project_token_totals["cache_read_input_tokens"] += rc["cache_read_input_tokens"]
+                project_token_totals["output_tokens"] += rc["output_tokens"]
 
             # Compute segments
             segments = compute_segments(result)
@@ -2012,6 +2113,33 @@ def main():
             }
             raw_out.write(json.dumps(record) + "\n")
 
+        # --- P5-S1: Project cost record ---
+        print("Computing project cost from JSONL...", file=sys.stderr)
+        # Non-workflow cost = total - sum of all phase costs
+        phase_cost_sum = sum(project_cost_by_phase.values())
+        non_workflow_cost = project_cost_total - phase_cost_sum
+        if abs(non_workflow_cost) > 0.000001:
+            project_cost_by_phase["non-workflow"] += non_workflow_cost
+
+        project_cost_record = {
+            "record_type": "project_cost",
+            "total_cost_usd": round(project_cost_total, 2),
+            "cost_by_model": {k: round(v, 2) for k, v in sorted(
+                project_cost_by_model.items(), key=lambda x: x[1], reverse=True
+            )},
+            "cost_by_phase": {k: round(v, 2) for k, v in sorted(
+                project_cost_by_phase.items(), key=lambda x: x[1], reverse=True
+            )},
+            "token_totals": dict(project_token_totals),
+            "request_count": sum(
+                s.get("entry_count", 0) for s in all_sessions
+            ),
+        }
+        raw_out.write(json.dumps(project_cost_record) + "\n")
+        print(f"  Project cost: ${project_cost_total:.2f}", file=sys.stderr)
+        for mp, mc in sorted(project_cost_by_model.items(), key=lambda x: x[1], reverse=True):
+            print(f"    {mp}: ${mc:.2f}", file=sys.stderr)
+
         # --- S2: Deduplicated active time ---
         print("Computing deduplicated active time...", file=sys.stderr)
         dedup_data = compute_dedup_active_minutes(all_session_results)
@@ -2160,7 +2288,9 @@ def main():
 
         dedup_active_hours = round(dedup_data["dedup_active_minutes"] / 60.0, 2)
         merged_wall_hours = round(dedup_data["merged_wall_clock_minutes"] / 60.0, 2)
-        cost_per_active_hour = round(total_cost / dedup_active_hours, 2) if total_cost and dedup_active_hours > 0 else None
+        # Use JSONL-computed cost if available, fall back to cost-analysis.md
+        effective_cost = round(project_cost_total, 2) if project_cost_total > 0 else total_cost
+        cost_per_active_hour = round(effective_cost / dedup_active_hours, 2) if effective_cost and dedup_active_hours > 0 else None
         overhead_ratio = round(total_bd_minutes / dedup_data["dedup_active_minutes"], 4) if dedup_data["dedup_active_minutes"] > 0 else None
         beads_per_day = round(closed_bead_count / active_days, 1) if closed_bead_count and active_days > 0 else None
         active_min_per_bead = round(dedup_data["dedup_active_minutes"] / closed_bead_count, 1) if closed_bead_count and closed_bead_count > 0 else None
@@ -2181,7 +2311,8 @@ def main():
             "dedup_active_minutes": dedup_data["dedup_active_minutes"],
             "dedup_active_hours": dedup_active_hours,
             "merged_wall_clock_hours": merged_wall_hours,
-            "total_cost_usd": total_cost,
+            "total_cost_usd_ccusage": total_cost,
+            "total_cost_usd_jsonl": round(project_cost_total, 2) if project_cost_total > 0 else None,
             "cost_per_active_hour": cost_per_active_hour,
             "overhead_ratio": overhead_ratio,
             "automation_ratio": round(automation_ratio, 4),
@@ -2212,7 +2343,7 @@ def main():
         bead_attribution_old, bead_attribution_windowed,
         closed_bead_estimates, concurrent_overlaps, phase_token_totals,
         dedup_data, proportional_records, askuser_record,
-        orch_analysis, headline_record,
+        orch_analysis, headline_record, project_cost_record,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -2222,7 +2353,7 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      bead_attribution_windowed, closed_bead_estimates,
                      concurrent_overlaps, phase_token_totals,
                      dedup_data, proportional_records, askuser_record,
-                     orch_analysis, headline_record):
+                     orch_analysis, headline_record, project_cost_record=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -3177,12 +3308,14 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
     lines.append("|--------|-------|")
     lines.append(f"| Deduplicated active hours | {hl.get('dedup_active_hours', '-')} |")
     lines.append(f"| True wall-clock hours (merged intervals) | {hl.get('merged_wall_clock_hours', '-')} |")
-    if hl.get("total_cost_usd"):
-        lines.append(f"| Total cost (from cost-analysis.md) | ${hl['total_cost_usd']:.2f} |")
-        if hl.get("cost_per_active_hour"):
-            lines.append(f"| Cost per active hour | ${hl['cost_per_active_hour']:.2f} |")
-    else:
+    if hl.get("total_cost_usd_jsonl"):
+        lines.append(f"| Total cost (JSONL-computed) | ${hl['total_cost_usd_jsonl']:.2f} |")
+    if hl.get("total_cost_usd_ccusage"):
+        lines.append(f"| Total cost (ccusage, for comparison) | ${hl['total_cost_usd_ccusage']:.2f} |")
+    if not hl.get("total_cost_usd_jsonl") and not hl.get("total_cost_usd_ccusage"):
         lines.append("| Total cost | (not available) |")
+    if hl.get("cost_per_active_hour"):
+        lines.append(f"| Cost per active hour | ${hl['cost_per_active_hour']:.2f} |")
     if hl.get("overhead_ratio") is not None:
         lines.append(f"| Overhead ratio (bd min / active min) | {round(hl['overhead_ratio'] * 100, 2)}% |")
     lines.append(f"| Automation ratio (Agent+Task / total tools) | {round(hl.get('automation_ratio', 0) * 100, 2)}% |")
@@ -3328,6 +3461,88 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append("")
     else:
         lines.append("*No orchestration segments found.*")
+        lines.append("")
+
+    # =========================================
+    # 19. PROJECT COST (P5-S1)
+    # =========================================
+    lines.append("## 19. Project Cost")
+    lines.append("")
+    lines.append(
+        "Per-request cost computed from JSONL `message.usage` fields with "
+        "model-specific rates. Covers all assistant responses across all sessions."
+    )
+    lines.append("")
+
+    if project_cost_record and project_cost_record.get("total_cost_usd", 0) > 0:
+        pc = project_cost_record
+        ccusage_cost = headline_record.get("total_cost_usd_ccusage")
+
+        lines.append("### Total")
+        lines.append("")
+        lines.append(f"**JSONL-computed cost: ${pc['total_cost_usd']:.2f}**")
+        lines.append("")
+        if ccusage_cost:
+            delta = pc["total_cost_usd"] - ccusage_cost
+            pct = (delta / ccusage_cost * 100) if ccusage_cost else 0
+            lines.append(
+                f"ccusage total (for comparison): ${ccusage_cost:.2f} "
+                f"(delta: ${delta:+.2f}, {pct:+.1f}%)"
+            )
+            lines.append("")
+
+        # Token totals
+        tt = pc.get("token_totals", {})
+        lines.append("### Token Totals")
+        lines.append("")
+        lines.append("| Token Type | Count | Cost Contribution |")
+        lines.append("|-----------|-------|-------------------|")
+        # Compute contribution per token type across all models (approximate using weighted average)
+        # For a simpler approach, just show counts
+        lines.append(f"| Input | {tt.get('input_tokens', 0):,} | — |")
+        lines.append(f"| Cache creation | {tt.get('cache_creation_input_tokens', 0):,} | — |")
+        lines.append(f"| Cache read | {tt.get('cache_read_input_tokens', 0):,} | — |")
+        lines.append(f"| Output | {tt.get('output_tokens', 0):,} | — |")
+        lines.append("")
+
+        # Per-model breakdown
+        lines.append("### Cost by Model")
+        lines.append("")
+        lines.append("| Model | Cost | % of Total |")
+        lines.append("|-------|------|-----------|")
+        for model, cost in pc.get("cost_by_model", {}).items():
+            pct = (cost / pc["total_cost_usd"] * 100) if pc["total_cost_usd"] > 0 else 0
+            lines.append(f"| {model} | ${cost:.2f} | {pct:.1f}% |")
+        lines.append("")
+
+        # Per-phase breakdown
+        lines.append("### Cost by Phase")
+        lines.append("")
+        lines.append("| Phase | Cost | % of Total |")
+        lines.append("|-------|------|-----------|")
+        for phase, cost in pc.get("cost_by_phase", {}).items():
+            pct = (cost / pc["total_cost_usd"] * 100) if pc["total_cost_usd"] > 0 else 0
+            lines.append(f"| {phase} | ${cost:.2f} | {pct:.1f}% |")
+        lines.append("")
+
+        # Per-session cost stats
+        session_costs = [s.get("session_cost_usd", 0) for s in sessions if s.get("session_cost_usd", 0) > 0]
+        if session_costs:
+            sc_stats = compute_stats(session_costs)
+            lines.append("### Per-Session Cost Distribution")
+            lines.append("")
+            lines.append("| Metric | Value |")
+            lines.append("|--------|-------|")
+            lines.append(f"| Sessions with cost > $0 | {sc_stats['n']} |")
+            lines.append(f"| Min | ${sc_stats['min']:.2f} |")
+            lines.append(f"| Median | ${sc_stats['median']:.2f} |")
+            lines.append(f"| Mean | ${sc_stats['mean']:.2f} |")
+            lines.append(f"| Max | ${sc_stats['max']:.2f} |")
+            if "p90" in sc_stats:
+                lines.append(f"| P90 | ${sc_stats['p90']:.2f} |")
+            lines.append("")
+    else:
+        lines.append("*No cost data available from JSONL.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
