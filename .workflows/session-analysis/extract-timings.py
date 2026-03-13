@@ -18,6 +18,11 @@ Reads all .jsonl files from the Claude Code projects directory, extracts:
 - Token-per-phase aggregation
 - Concurrent session detection
 - Estimate vs actual comparison for closed beads (using windowed attribution)
+- Deduplicated active time across concurrent sessions (minute-level)
+- Proportional tool-call time allocation per segment/phase
+- AskUserQuestion categorization and time-to-response
+- Orchestration overhead analysis (bd vs productive tool calls)
+- Headline metrics (cost/hour, overhead ratio, automation ratio, etc.)
 
 Outputs:
 - raw-observations.jsonl: One JSON object per observation
@@ -31,7 +36,7 @@ import re
 import glob
 import statistics
 import subprocess
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from collections import defaultdict, Counter
 from pathlib import Path
 
@@ -106,6 +111,44 @@ CONFIG_PATTERNS = re.compile(
     r"(CLAUDE\.md|AGENTS\.md|settings\.json|memory/|\.claude/|compound-workflows\.md|compound-workflows\.local\.md)",
     re.IGNORECASE,
 )
+
+# AskUserQuestion category patterns
+ASKUSER_CATEGORIES = {
+    "triage": re.compile(
+        r"\b(options?|choices?|select|pick|choose|which|red\s*team\s*findings?)\b",
+        re.IGNORECASE,
+    ),
+    "confirmation": re.compile(
+        r"\b(proceed|apply|commit|continue|ready|approve|go\s*ahead)\b",
+        re.IGNORECASE,
+    ),
+    "design-decision": re.compile(
+        r"\b(architecture|pattern|design|approach|structure|interface)\b",
+        re.IGNORECASE,
+    ),
+    "scope": re.compile(
+        r"\b(include|exclude|skip|add|remove|scope|in/out)\b",
+        re.IGNORECASE,
+    ),
+    "diagnosis": re.compile(
+        r"\b(why|cause|root|investigate|debug|failing)\b",
+        re.IGNORECASE,
+    ),
+}
+
+# Tool call classification buckets for proportional allocation
+TOOL_BUCKET_MAP = {
+    "bd": "bd",
+    "Edit": "editing",
+    "Write": "editing",
+    "Read": "reading",
+    "Grep": "reading",
+    "Glob": "reading",
+    "Agent": "agent-dispatch",
+    "Task": "agent-dispatch",
+    "AskUserQuestion": "user-dialogue",
+}
+# Everything else falls into "other"
 
 # Bead ID pattern: "compound-workflows-marketplace-XXXX" where XXXX is 2-4 alphanumeric chars
 BEAD_FULL_PREFIX = "compound-workflows-marketplace-"
@@ -667,14 +710,12 @@ def compute_windowed_bead_attribution(
     Returns:
         list of windowed attribution records
     """
-    from datetime import timedelta
-
     attributions = []
     n_beads = len(bead_timestamps)
 
     for bid, ts_list in bead_timestamps.items():
         ref_types = bead_ref_types.get(bid, set())
-        has_specific_refs = bool(ref_types - {"commit_ref"})  # commit_ref is less specific
+        has_specific_refs = bool(ref_types - {"commit_ref"})
 
         if ts_list and has_specific_refs:
             # Windowed attribution: 2 min before first, 2 min after last
@@ -1327,6 +1368,385 @@ def compute_stats(values):
     return result
 
 
+def classify_tool_call_bucket(tool_name, bash_cmd=None):
+    """Classify a tool call into a proportional allocation bucket.
+
+    Returns one of: bd, editing, reading, agent-dispatch, user-dialogue, other
+    """
+    if tool_name == "Bash" and bash_cmd:
+        if bash_cmd.strip().startswith("bd "):
+            return "bd"
+        return "other"
+    return TOOL_BUCKET_MAP.get(tool_name, "other")
+
+
+def compute_dedup_active_minutes(all_session_results):
+    """Compute deduplicated active minutes across all sessions.
+
+    Uses minute-level deduplication: collect all active (Y,M,D,H,M) tuples
+    across all sessions into a global set. Active = consecutive entries with
+    gaps < 5 min.
+
+    Also computes true wall-clock by merging session intervals.
+
+    Args:
+        all_session_results: list of process_session() result dicts
+
+    Returns:
+        dict with:
+        - dedup_active_minutes: int (set size)
+        - merged_wall_clock_minutes: float
+        - merged_intervals: list of (start_iso, end_iso) strings
+        - session_count: int
+    """
+    global_active_minutes = set()  # (year, month, day, hour, minute) tuples
+
+    for result in all_session_results:
+        sorted_ts = result["sorted_timestamps"]
+        if len(sorted_ts) < 2:
+            # Single entry: add its minute
+            if sorted_ts:
+                ts = sorted_ts[0]
+                global_active_minutes.add((ts.year, ts.month, ts.day, ts.hour, ts.minute))
+            continue
+
+        # Walk consecutive entries, mark minutes as active when gap < threshold
+        for i in range(1, len(sorted_ts)):
+            gap = (sorted_ts[i] - sorted_ts[i - 1]).total_seconds()
+            if gap < IDLE_THRESHOLD_SECONDS:
+                # Both entries are in an active stretch — add all minutes in between
+                t1 = sorted_ts[i - 1]
+                t2 = sorted_ts[i]
+                # Add minute-level tuples for all minutes from t1 to t2
+                current = t1.replace(second=0, microsecond=0)
+                end = t2.replace(second=0, microsecond=0)
+                while current <= end:
+                    global_active_minutes.add(
+                        (current.year, current.month, current.day,
+                         current.hour, current.minute)
+                    )
+                    current += timedelta(minutes=1)
+
+    # Merge session intervals for true wall-clock
+    intervals = []
+    for result in all_session_results:
+        if result["first_ts"] and result["last_ts"]:
+            intervals.append((result["first_ts"], result["last_ts"]))
+
+    merged = merge_intervals(intervals)
+    merged_wall_minutes = sum(
+        (end - start).total_seconds() / 60.0 for start, end in merged
+    )
+
+    return {
+        "dedup_active_minutes": len(global_active_minutes),
+        "merged_wall_clock_minutes": round(merged_wall_minutes, 2),
+        "merged_intervals": [
+            (start.isoformat(), end.isoformat()) for start, end in merged
+        ],
+        "session_count": len(all_session_results),
+    }
+
+
+def merge_intervals(intervals):
+    """Merge overlapping/adjacent time intervals.
+
+    Args:
+        intervals: list of (start_datetime, end_datetime) tuples
+
+    Returns:
+        list of merged (start_datetime, end_datetime) tuples
+    """
+    if not intervals:
+        return []
+    sorted_iv = sorted(intervals, key=lambda x: x[0])
+    merged = [sorted_iv[0]]
+    for start, end in sorted_iv[1:]:
+        prev_start, prev_end = merged[-1]
+        if start <= prev_end:
+            # Overlapping or adjacent — extend
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def compute_proportional_allocation(tool_events, bash_commands_with_ts, start_ts, end_ts, active_minutes):
+    """Compute proportional tool-call time allocation for a time window.
+
+    Classifies each tool call into a bucket and allocates active time proportionally.
+
+    Args:
+        tool_events: list of (timestamp, tool_name) tuples
+        bash_commands_with_ts: list of (timestamp, command) tuples
+        start_ts: window start
+        end_ts: window end
+        active_minutes: total active minutes in the window
+
+    Returns:
+        dict with bucket -> {count, fraction, allocated_minutes}
+    """
+    if not start_ts or not end_ts or active_minutes <= 0:
+        return {}
+
+    # Build bash command lookup by timestamp
+    bash_by_ts = {}
+    for ts, cmd in bash_commands_with_ts:
+        if start_ts <= ts <= end_ts:
+            bash_by_ts[ts] = cmd
+
+    # Classify each tool call in the window
+    bucket_counts = Counter()
+    total_in_window = 0
+    for ts, tool_name in tool_events:
+        if start_ts <= ts <= end_ts:
+            bash_cmd = bash_by_ts.get(ts) if tool_name == "Bash" else None
+            bucket = classify_tool_call_bucket(tool_name, bash_cmd)
+            bucket_counts[bucket] += 1
+            total_in_window += 1
+
+    if total_in_window == 0:
+        return {}
+
+    result = {}
+    for bucket, count in bucket_counts.items():
+        fraction = count / total_in_window
+        result[bucket] = {
+            "count": count,
+            "fraction": round(fraction, 4),
+            "allocated_minutes": round(active_minutes * fraction, 2),
+        }
+    return result
+
+
+def extract_askuser_events(filepath):
+    """Extract AskUserQuestion tool calls with timestamps and question text.
+
+    Also finds the next assistant message timestamp after each question
+    (to compute time-to-response).
+
+    Args:
+        filepath: path to the JSONL file
+
+    Returns:
+        list of dicts with: timestamp, question_text, category, response_timestamp, wait_minutes
+    """
+    events = []
+    # First pass: collect AskUserQuestion events and all timestamps by type
+    entries = []
+    with open(filepath, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            ts = parse_timestamp(entry.get("timestamp"))
+            entry_type = entry.get("type")
+            entries.append((ts, entry_type, entry))
+
+    # Find AskUserQuestion tool calls and their response timestamps
+    for idx, (ts, entry_type, entry) in enumerate(entries):
+        if entry_type != "assistant":
+            continue
+        message = entry.get("message", {})
+        content = message.get("content", [])
+        if not isinstance(content, list):
+            continue
+
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") != "tool_use":
+                continue
+            if block.get("name") != "AskUserQuestion":
+                continue
+
+            tool_input = block.get("input", {})
+            # AskUserQuestion has "questions" (list) field
+            questions_list = tool_input.get("questions", [])
+            if isinstance(questions_list, list) and questions_list:
+                # Concatenate all question texts
+                parts = []
+                for q in questions_list:
+                    if isinstance(q, dict):
+                        parts.append(q.get("question", ""))
+                        parts.append(q.get("header", ""))
+                        # Include option labels for categorization
+                        for opt in q.get("options", []):
+                            if isinstance(opt, dict):
+                                parts.append(opt.get("label", ""))
+                                parts.append(opt.get("description", ""))
+                    elif isinstance(q, str):
+                        parts.append(q)
+                question_text = " ".join(p for p in parts if p)
+            else:
+                # Fallback: try "question" (singular) or "text"
+                question_text = tool_input.get("question", "")
+                if not question_text:
+                    question_text = tool_input.get("text", "")
+
+            # Categorize
+            category = categorize_askuser(question_text)
+
+            # Find next assistant message timestamp (= end of user wait)
+            response_ts = None
+            for future_idx in range(idx + 1, len(entries)):
+                future_ts, future_type, _ = entries[future_idx]
+                if future_type == "assistant" and future_ts and future_ts > ts:
+                    response_ts = future_ts
+                    break
+
+            wait_minutes = None
+            if ts and response_ts:
+                wait_minutes = round(
+                    (response_ts - ts).total_seconds() / 60.0, 2
+                )
+
+            events.append({
+                "timestamp": ts,
+                "question_text": question_text[:200],  # Truncate for storage
+                "category": category,
+                "response_timestamp": response_ts,
+                "wait_minutes": wait_minutes,
+            })
+
+    return events
+
+
+def categorize_askuser(question_text):
+    """Categorize an AskUserQuestion by keyword matching.
+
+    Returns the first matching category, or 'other'.
+    """
+    for category, pattern in ASKUSER_CATEGORIES.items():
+        if pattern.search(question_text):
+            return category
+    return "other"
+
+
+def compute_orchestration_analysis(segments, tool_events, bash_commands_with_ts):
+    """For orchestration/orch-coding segments, compute bd overhead vs productive split.
+
+    Args:
+        segments: list of segment dicts
+        tool_events: list of (timestamp, tool_name) from all sessions
+        bash_commands_with_ts: list of (timestamp, command) from all sessions
+
+    Returns:
+        dict with bd_minutes, productive_minutes, bd_fraction, productive_fraction
+    """
+    # Build a lookup of bash commands by timestamp for fast access
+    bash_lookup = {}
+    for ts, cmd in bash_commands_with_ts:
+        bash_lookup[ts] = cmd
+
+    total_bd_count = 0
+    total_productive_count = 0
+    total_active = 0.0
+
+    productive_tools = {"Edit", "Write", "Read", "Agent", "Task", "Grep", "Glob"}
+
+    for seg in segments:
+        # Check if this is an orchestration or orch-coding segment
+        is_orch = (seg.get("subcategory") == "orchestration" or
+                   seg.get("subcategory") == "orch-coding")
+        if not is_orch:
+            continue
+
+        total_active += seg["active_minutes"]
+
+        # Count tool calls in this segment's tool_counts
+        for tool_name, count in seg.get("tool_counts", {}).items():
+            if tool_name == "Bash":
+                # Need to check individual commands — use bd_subcommand_counts
+                bd_count = sum(seg.get("bd_subcommand_counts", {}).values())
+                non_bd_bash = count - bd_count
+                total_bd_count += bd_count
+                total_productive_count += non_bd_bash
+            elif tool_name in productive_tools:
+                total_productive_count += count
+            # Other tools (Skill, etc.) not counted in either bucket
+
+    total_tool_count = total_bd_count + total_productive_count
+    bd_fraction = total_bd_count / total_tool_count if total_tool_count > 0 else 0
+    productive_fraction = total_productive_count / total_tool_count if total_tool_count > 0 else 0
+
+    return {
+        "bd_count": total_bd_count,
+        "productive_count": total_productive_count,
+        "total_count": total_tool_count,
+        "total_active_minutes": round(total_active, 2),
+        "bd_allocated_minutes": round(total_active * bd_fraction, 2),
+        "productive_allocated_minutes": round(total_active * productive_fraction, 2),
+        "bd_fraction": round(bd_fraction, 4),
+        "productive_fraction": round(productive_fraction, 4),
+    }
+
+
+def read_total_cost_from_file():
+    """Read total cost from memory/cost-analysis.md.
+
+    Looks for the total dollar amount in the Historical Daily Totals table.
+    Returns total cost across all recorded days.
+    """
+    # Script is at .workflows/session-analysis/extract-timings.py
+    # Repo root is two levels up from the script directory
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    cost_file = os.path.join(repo_root, "memory", "cost-analysis.md")
+    if not os.path.exists(cost_file):
+        return None
+
+    total_cost = 0.0
+    in_historical_table = False
+    try:
+        with open(cost_file, "r") as f:
+            for line in f:
+                # Look for "Historical Daily Totals" section
+                if "Historical Daily Totals" in line:
+                    in_historical_table = True
+                    continue
+                if in_historical_table:
+                    # Parse table rows like: | 2026-03-10 | $209.74 | ...
+                    if line.strip().startswith("|") and "$" in line:
+                        parts = [p.strip() for p in line.split("|")]
+                        for part in parts:
+                            if part.startswith("$"):
+                                try:
+                                    val = float(part.replace("$", "").replace(",", ""))
+                                    total_cost += val
+                                    break  # Only take the first $ value per row (Total Cost)
+                                except ValueError:
+                                    pass
+                    # Stop at next section
+                    elif line.startswith("#") and in_historical_table:
+                        break
+    except Exception:
+        return None
+
+    return total_cost if total_cost > 0 else None
+
+
+def count_closed_beads():
+    """Count closed beads from the database."""
+    try:
+        result = subprocess.run(
+            ["bd", "sql", "SELECT COUNT(*) FROM issues WHERE status = 'closed'"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.isdigit():
+                return int(line)
+    except Exception:
+        pass
+    return None
+
+
 def format_stats_row(label, stats):
     """Format a stats dict as a markdown table row."""
     if stats["n"] == 0:
@@ -1391,6 +1811,14 @@ def main():
         "total_duration_ms": 0,
     })
 
+    # S2: Collect all session results for dedup and proportional analysis
+    all_session_results = []
+    # S2: All tool events and bash commands across sessions (for orchestration analysis)
+    all_tool_events = []
+    all_bash_commands_with_ts = []
+    # S2: AskUserQuestion events across all sessions
+    all_askuser_events = []
+
     with open(RAW_OUTPUT, "w") as raw_out:
         for i, filepath in enumerate(jsonl_files):
             basename = os.path.basename(filepath)
@@ -1418,6 +1846,15 @@ def main():
                 total_errors += len(errors)
                 for err in errors[:3]:  # Log first 3 per file
                     print(f"    WARN: {err}", file=sys.stderr)
+
+            # S2: Collect session result for dedup analysis
+            all_session_results.append(result)
+            all_tool_events.extend(result["tool_events"])
+            all_bash_commands_with_ts.extend(result["bash_commands_with_ts"])
+
+            # S2: Extract AskUserQuestion events
+            askuser_events = extract_askuser_events(filepath)
+            all_askuser_events.extend(askuser_events)
 
             # Track session ranges for concurrent detection
             if result["first_ts"] and result["last_ts"]:
@@ -1575,6 +2012,190 @@ def main():
             }
             raw_out.write(json.dumps(record) + "\n")
 
+        # --- S2: Deduplicated active time ---
+        print("Computing deduplicated active time...", file=sys.stderr)
+        dedup_data = compute_dedup_active_minutes(all_session_results)
+        dedup_record = {"record_type": "dedup_active_time", **dedup_data}
+        # Remove non-serializable merged_intervals (already serialized as strings)
+        raw_out.write(json.dumps(dedup_record) + "\n")
+        print(f"  Dedup active: {dedup_data['dedup_active_minutes']} min, "
+              f"Merged wall-clock: {dedup_data['merged_wall_clock_minutes']} min",
+              file=sys.stderr)
+
+        # --- S2: Proportional tool-call allocation per segment ---
+        print("Computing proportional tool-call allocations...", file=sys.stderr)
+        # We need tool_events and bash_commands per session, already collected
+        # Compute per-segment allocations for the 6 major buckets
+        proportional_records = []
+        # Define major buckets of interest
+        major_bucket_categories = {
+            "work": lambda seg: seg.get("phase") == "work",
+            "coding": lambda seg: seg["category"] == "coding",
+            "brainstorm": lambda seg: seg.get("phase") == "brainstorm",
+            "orchestration": lambda seg: (seg.get("subcategory") == "orchestration"
+                                          or seg.get("subcategory") == "orch-coding"),
+            "plan": lambda seg: seg.get("phase") in ("plan", "deepen-plan"),
+            "interactive-dev": lambda seg: seg.get("subcategory") == "interactive-dev",
+        }
+
+        for bucket_name, filter_fn in major_bucket_categories.items():
+            matching_segs = [seg for seg in all_segments if filter_fn(seg)]
+            if not matching_segs:
+                continue
+
+            # Aggregate tool call counts across matching segments
+            agg_buckets = Counter()
+            total_active_for_bucket = 0.0
+            total_tool_count = 0
+            for seg in matching_segs:
+                total_active_for_bucket += seg["active_minutes"]
+                for tool_name, count in seg.get("tool_counts", {}).items():
+                    if tool_name == "Bash":
+                        # Check each bash command for bd
+                        bd_count = sum(seg.get("bd_subcommand_counts", {}).values())
+                        agg_buckets["bd"] += bd_count
+                        agg_buckets["other"] += count - bd_count
+                    else:
+                        tb = TOOL_BUCKET_MAP.get(tool_name, "other")
+                        agg_buckets[tb] += count
+                    total_tool_count += count
+
+            if total_tool_count == 0:
+                continue
+
+            alloc = {}
+            for tb, count in agg_buckets.items():
+                frac = count / total_tool_count
+                alloc[tb] = {
+                    "count": count,
+                    "fraction": round(frac, 4),
+                    "allocated_minutes": round(total_active_for_bucket * frac, 2),
+                }
+
+            prop_record = {
+                "record_type": "proportional_allocation",
+                "bucket": bucket_name,
+                "segment_count": len(matching_segs),
+                "total_active_minutes": round(total_active_for_bucket, 2),
+                "total_tool_calls": total_tool_count,
+                "allocation": alloc,
+            }
+            proportional_records.append(prop_record)
+            raw_out.write(json.dumps(prop_record) + "\n")
+
+        # --- S2: AskUserQuestion categorization ---
+        print(f"Categorizing {len(all_askuser_events)} AskUserQuestion events...",
+              file=sys.stderr)
+        askuser_by_category = defaultdict(lambda: {"count": 0, "total_wait_minutes": 0.0})
+        for evt in all_askuser_events:
+            cat = evt["category"]
+            askuser_by_category[cat]["count"] += 1
+            if evt["wait_minutes"] is not None:
+                askuser_by_category[cat]["total_wait_minutes"] += evt["wait_minutes"]
+
+        askuser_record = {
+            "record_type": "askuser_categorization",
+            "total_events": len(all_askuser_events),
+            "categories": {
+                cat: {
+                    "count": data["count"],
+                    "total_wait_minutes": round(data["total_wait_minutes"], 2),
+                    "avg_wait_minutes": round(
+                        data["total_wait_minutes"] / data["count"], 2
+                    ) if data["count"] > 0 else 0,
+                }
+                for cat, data in askuser_by_category.items()
+            },
+        }
+        raw_out.write(json.dumps(askuser_record) + "\n")
+
+        # --- S2: Orchestration analysis ---
+        print("Computing orchestration analysis...", file=sys.stderr)
+        orch_analysis = compute_orchestration_analysis(
+            all_segments, all_tool_events, all_bash_commands_with_ts
+        )
+        orch_record = {"record_type": "orchestration_analysis", **orch_analysis}
+        raw_out.write(json.dumps(orch_record) + "\n")
+
+        # --- S2: Headline metrics ---
+        print("Computing headline metrics...", file=sys.stderr)
+        total_cost = read_total_cost_from_file()
+        closed_bead_count = count_closed_beads()
+
+        # Compute active days (unique dates from session start timestamps)
+        active_dates = set()
+        for result in all_session_results:
+            if result["first_ts"]:
+                active_dates.add(result["first_ts"].date())
+        active_days = len(active_dates)
+
+        # Compute overhead ratio from proportional allocation
+        total_bd_minutes = 0.0
+        total_alloc_active = 0.0
+        for pr in proportional_records:
+            alloc = pr.get("allocation", {})
+            if "bd" in alloc:
+                total_bd_minutes += alloc["bd"]["allocated_minutes"]
+            total_alloc_active += pr["total_active_minutes"]
+
+        # Automation ratio (Agent/Task tool calls / total tool calls)
+        global_tools = Counter()
+        for s in all_sessions:
+            for tool, count in s.get("tool_counts", {}).items():
+                global_tools[tool] += count
+        total_tool_calls = sum(global_tools.values())
+        agent_task_calls = global_tools.get("Agent", 0) + global_tools.get("Task", 0)
+        automation_ratio = agent_task_calls / total_tool_calls if total_tool_calls > 0 else 0
+
+        # Estimation accuracy (already computed in section 13 — extract median ratio)
+        estimate_ratios = []
+        for bid, est_data in closed_bead_estimates.items():
+            if bid in bead_attribution_windowed:
+                bw = bead_attribution_windowed[bid]
+                actual = bw["total_active_minutes"]
+                estimated = est_data["estimated_minutes"]
+                if estimated > 0:
+                    estimate_ratios.append(actual / estimated)
+        median_estimate_ratio = round(statistics.median(estimate_ratios), 2) if estimate_ratios else None
+
+        dedup_active_hours = round(dedup_data["dedup_active_minutes"] / 60.0, 2)
+        merged_wall_hours = round(dedup_data["merged_wall_clock_minutes"] / 60.0, 2)
+        cost_per_active_hour = round(total_cost / dedup_active_hours, 2) if total_cost and dedup_active_hours > 0 else None
+        overhead_ratio = round(total_bd_minutes / dedup_data["dedup_active_minutes"], 4) if dedup_data["dedup_active_minutes"] > 0 else None
+        beads_per_day = round(closed_bead_count / active_days, 1) if closed_bead_count and active_days > 0 else None
+        active_min_per_bead = round(dedup_data["dedup_active_minutes"] / closed_bead_count, 1) if closed_bead_count and closed_bead_count > 0 else None
+
+        # Phase skip rate: beads with "work" phase but no "brainstorm" or "deepen-plan"
+        beads_with_work = 0
+        beads_skipped_planning = 0
+        for bid, bw in bead_attribution_windowed.items():
+            phases_seen = set(bw["phases"].keys())
+            if "work" in phases_seen:
+                beads_with_work += 1
+                if "brainstorm" not in phases_seen and "deepen-plan" not in phases_seen:
+                    beads_skipped_planning += 1
+        phase_skip_rate = round(beads_skipped_planning / beads_with_work, 4) if beads_with_work > 0 else None
+
+        headline_record = {
+            "record_type": "headline_metrics",
+            "dedup_active_minutes": dedup_data["dedup_active_minutes"],
+            "dedup_active_hours": dedup_active_hours,
+            "merged_wall_clock_hours": merged_wall_hours,
+            "total_cost_usd": total_cost,
+            "cost_per_active_hour": cost_per_active_hour,
+            "overhead_ratio": overhead_ratio,
+            "automation_ratio": round(automation_ratio, 4),
+            "closed_bead_count": closed_bead_count,
+            "active_days": active_days,
+            "beads_per_day": beads_per_day,
+            "active_min_per_bead": active_min_per_bead,
+            "median_estimate_ratio": median_estimate_ratio,
+            "phase_skip_rate": phase_skip_rate,
+            "beads_with_work": beads_with_work,
+            "beads_skipped_planning": beads_skipped_planning,
+        }
+        raw_out.write(json.dumps(headline_record) + "\n")
+
     print(f"\nProcessed {len(all_sessions)} sessions", file=sys.stderr)
     print(f"Found {len(all_phases)} phase observations", file=sys.stderr)
     print(f"Found {len(all_agents)} agent observations", file=sys.stderr)
@@ -1582,6 +2203,7 @@ def main():
     print(f"Found {len(bead_attribution_old)} beads with old session-level attribution", file=sys.stderr)
     print(f"Found {len(bead_attribution_windowed)} beads with windowed attribution", file=sys.stderr)
     print(f"Found {len(concurrent_overlaps)} concurrent session pairs", file=sys.stderr)
+    print(f"Found {len(all_askuser_events)} AskUserQuestion events", file=sys.stderr)
     print(f"Total parse errors: {total_errors}", file=sys.stderr)
 
     # --- Generate summary ---
@@ -1589,6 +2211,8 @@ def main():
         all_sessions, all_phases, all_agents, all_segments,
         bead_attribution_old, bead_attribution_windowed,
         closed_bead_estimates, concurrent_overlaps, phase_token_totals,
+        dedup_data, proportional_records, askuser_record,
+        orch_analysis, headline_record,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -1596,7 +2220,9 @@ def main():
 
 def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      bead_attribution_windowed, closed_bead_estimates,
-                     concurrent_overlaps, phase_token_totals):
+                     concurrent_overlaps, phase_token_totals,
+                     dedup_data, proportional_records, askuser_record,
+                     orch_analysis, headline_record):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -2534,6 +3160,175 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append(f"| {cat} | {act} | {hrs} | {pct}% |")
 
     lines.append("")
+
+    # =========================================
+    # 15. HEADLINE METRICS (S2)
+    # =========================================
+    lines.append("## 15. Headline Metrics")
+    lines.append("")
+    lines.append(
+        "Key aggregate metrics computed with minute-level deduplication "
+        "across concurrent sessions."
+    )
+    lines.append("")
+
+    hl = headline_record
+    lines.append("| Metric | Value |")
+    lines.append("|--------|-------|")
+    lines.append(f"| Deduplicated active hours | {hl.get('dedup_active_hours', '-')} |")
+    lines.append(f"| True wall-clock hours (merged intervals) | {hl.get('merged_wall_clock_hours', '-')} |")
+    if hl.get("total_cost_usd"):
+        lines.append(f"| Total cost (from cost-analysis.md) | ${hl['total_cost_usd']:.2f} |")
+        if hl.get("cost_per_active_hour"):
+            lines.append(f"| Cost per active hour | ${hl['cost_per_active_hour']:.2f} |")
+    else:
+        lines.append("| Total cost | (not available) |")
+    if hl.get("overhead_ratio") is not None:
+        lines.append(f"| Overhead ratio (bd min / active min) | {round(hl['overhead_ratio'] * 100, 2)}% |")
+    lines.append(f"| Automation ratio (Agent+Task / total tools) | {round(hl.get('automation_ratio', 0) * 100, 2)}% |")
+    if hl.get("closed_bead_count"):
+        lines.append(f"| Closed beads | {hl['closed_bead_count']} |")
+    if hl.get("active_days"):
+        lines.append(f"| Active days | {hl['active_days']} |")
+    if hl.get("beads_per_day"):
+        lines.append(f"| Beads per day | {hl['beads_per_day']} |")
+    if hl.get("active_min_per_bead"):
+        lines.append(f"| Active minutes per bead | {hl['active_min_per_bead']} |")
+    if hl.get("median_estimate_ratio") is not None:
+        lines.append(f"| Estimation accuracy (median actual/estimated) | {hl['median_estimate_ratio']} |")
+    if hl.get("phase_skip_rate") is not None:
+        lines.append(
+            f"| Phase skip rate (work without brainstorm/deepen) | "
+            f"{round(hl['phase_skip_rate'] * 100, 1)}% "
+            f"({hl.get('beads_skipped_planning', 0)}/{hl.get('beads_with_work', 0)}) |"
+        )
+    lines.append("")
+
+    # =========================================
+    # 16. PROPORTIONAL TOOL-CALL ALLOCATION (S2)
+    # =========================================
+    lines.append("## 16. Proportional Tool-Call Allocation")
+    lines.append("")
+    lines.append(
+        "For each activity bucket, tool calls are classified as: "
+        "bd (bead-management), editing (Edit/Write), reading (Read/Grep/Glob), "
+        "agent-dispatch (Agent/Task), user-dialogue (AskUserQuestion), other. "
+        "Active time is allocated proportionally to each tool-call type."
+    )
+    lines.append("")
+
+    if proportional_records:
+        # Collect all bucket names across all records
+        all_tool_buckets = set()
+        for pr in proportional_records:
+            all_tool_buckets.update(pr.get("allocation", {}).keys())
+        all_tool_buckets = sorted(all_tool_buckets)
+
+        header = "| Activity Bucket | Segments | Active Min | " + " | ".join(
+            f"{b} %" for b in all_tool_buckets
+        ) + " |"
+        sep = "|-----------------|----------|------------|" + "|".join(
+            ["--------"] * len(all_tool_buckets)
+        ) + "|"
+        lines.append(header)
+        lines.append(sep)
+
+        for pr in sorted(proportional_records, key=lambda x: x["total_active_minutes"], reverse=True):
+            alloc = pr.get("allocation", {})
+            cells = []
+            for b in all_tool_buckets:
+                if b in alloc:
+                    cells.append(f"{round(alloc[b]['fraction'] * 100, 1)}%")
+                else:
+                    cells.append("-")
+            lines.append(
+                f"| {pr['bucket']} | {pr['segment_count']} | "
+                f"{pr['total_active_minutes']} | " + " | ".join(cells) + " |"
+            )
+
+        lines.append("")
+
+        # Also show allocated minutes
+        lines.append("### Allocated minutes by tool-call type")
+        lines.append("")
+        header2 = "| Activity Bucket | " + " | ".join(
+            f"{b} min" for b in all_tool_buckets
+        ) + " |"
+        sep2 = "|-----------------|" + "|".join(
+            ["----------"] * len(all_tool_buckets)
+        ) + "|"
+        lines.append(header2)
+        lines.append(sep2)
+
+        for pr in sorted(proportional_records, key=lambda x: x["total_active_minutes"], reverse=True):
+            alloc = pr.get("allocation", {})
+            cells = []
+            for b in all_tool_buckets:
+                if b in alloc:
+                    cells.append(str(alloc[b]["allocated_minutes"]))
+                else:
+                    cells.append("-")
+            lines.append(f"| {pr['bucket']} | " + " | ".join(cells) + " |")
+
+        lines.append("")
+    else:
+        lines.append("*No proportional allocation data available.*")
+        lines.append("")
+
+    # =========================================
+    # 17. ASKUSERQUESTION CATEGORIZATION (S2)
+    # =========================================
+    lines.append("## 17. AskUserQuestion Categorization")
+    lines.append("")
+    lines.append(
+        "AskUserQuestion tool calls categorized by question content. "
+        "Wait time = gap from AskUserQuestion to next assistant message."
+    )
+    lines.append("")
+
+    askuser_cats = askuser_record.get("categories", {})
+    if askuser_cats:
+        lines.append(f"**Total AskUserQuestion events:** {askuser_record.get('total_events', 0)}")
+        lines.append("")
+        lines.append("| Category | Count | Total Wait Min | Avg Wait Min |")
+        lines.append("|----------|-------|----------------|--------------|")
+
+        for cat in sorted(askuser_cats.keys(), key=lambda k: askuser_cats[k]["count"], reverse=True):
+            data = askuser_cats[cat]
+            lines.append(
+                f"| {cat} | {data['count']} | "
+                f"{data['total_wait_minutes']} | {data['avg_wait_minutes']} |"
+            )
+
+        lines.append("")
+    else:
+        lines.append("*No AskUserQuestion events found.*")
+        lines.append("")
+
+    # =========================================
+    # 18. ORCHESTRATION OVERHEAD ANALYSIS (S2)
+    # =========================================
+    lines.append("## 18. Orchestration Overhead Analysis")
+    lines.append("")
+    lines.append(
+        "For segments classified as orchestration or orch-coding: "
+        "proportional split between bd commands (overhead) and productive "
+        "tool calls (Edit, Write, Read, Grep, Glob, Agent, Task, non-bd Bash)."
+    )
+    lines.append("")
+
+    if orch_analysis and orch_analysis.get("total_count", 0) > 0:
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(f"| Total orchestration active time | {orch_analysis['total_active_minutes']} min |")
+        lines.append(f"| BD commands | {orch_analysis['bd_count']} ({round(orch_analysis['bd_fraction'] * 100, 1)}%) |")
+        lines.append(f"| Productive tool calls | {orch_analysis['productive_count']} ({round(orch_analysis['productive_fraction'] * 100, 1)}%) |")
+        lines.append(f"| BD allocated time | {orch_analysis['bd_allocated_minutes']} min |")
+        lines.append(f"| Productive allocated time | {orch_analysis['productive_allocated_minutes']} min |")
+        lines.append("")
+    else:
+        lines.append("*No orchestration segments found.*")
+        lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
         f.write("\n".join(lines))
