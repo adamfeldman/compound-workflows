@@ -61,7 +61,7 @@ If stats capture is enabled, read `$PLUGIN_ROOT/resources/stats-capture-schema.m
 
 ### Stats Capture
 
-If stats_capture ≠ false in compound-workflows.local.md: after each Agent completion, extract the `<usage>...</usage>` line, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" deepen-plan <agent> <step> <model> <stem> null $RUN_ID`. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules. Increment the dispatch counter for each capture call.
+If stats_capture ≠ false in compound-workflows.local.md: after each Agent completion, extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and pass as arg 9 to capture-stats.sh: `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" deepen-plan <agent> <step> <model> <stem> null $RUN_ID "total_tokens: N, tool_uses: N, duration_ms: N"`. If `<usage>` is absent, pass `"null"` as arg 9. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules. Increment the dispatch counter for each capture call.
 
 **Model resolution per dispatch:** Use `sonnet` for agents with `model: sonnet` in their YAML frontmatter or an explicit `model: sonnet` dispatch parameter. Use the cached model value (env var or `opus` default) for `inherit`-model agents.
 
@@ -359,12 +359,12 @@ After each batch completes, update the corresponding agent entries in `manifest.
 
 #### Stats Capture — Phase 3 Batched Agent Dispatches
 
-If stats capture is enabled: when you receive each background Agent completion notification containing `<usage>`, extract the `<usage>...</usage>` line, save it to `.workflows/.usage-pipe` using the Write tool, then call `capture-stats.sh`. DO NOT call TaskOutput. The completion notification content beyond `<usage>` is not needed — the agent outputs are on disk.
+If stats capture is enabled: when you receive each background Agent completion notification containing `<usage>`, extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and pass as arg 9 to `capture-stats.sh`. DO NOT call TaskOutput. The completion notification content beyond `<usage>` is not needed — the agent outputs are on disk. If `<usage>` is absent, pass `"null"` as arg 9.
 
 For each agent in the batch, derive the step field from the agent's manifest entry: `<category>--<agent-name>` (e.g., `research--repo-research-analyst`, `review--security-sentinel`, `research--learnings-researcher`). The category comes from the manifest entry's `type` field (`research` or `review`).
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "<agent-name>" "<category>--<agent-name>" "<model>" "<plan-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "<agent-name>" "<category>--<agent-name>" "<model>" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Model: use `sonnet` for research agents with `model: sonnet` in their YAML frontmatter. Use `$CACHED_MODEL` for review agents with `model: inherit`. Increment dispatch counter for each capture call.
@@ -436,10 +436,10 @@ After writing both files, return a brief summary of the top 5 findings.
 
 #### Stats Capture — Synthesis Agent
 
-If stats capture is enabled: the synthesis agent is a foreground `general-purpose` Agent dispatch. Extract `<usage>` from the inline response and call:
+If stats capture is enabled: the synthesis agent is a foreground `general-purpose` Agent dispatch. Extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and call:
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "synthesis--plan-synthesizer" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "synthesis--plan-synthesizer" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Increment dispatch counter.
@@ -555,10 +555,10 @@ DO NOT return your full analysis in your response. The file IS the output.
 ")
 ```
 
-**Stats Capture — Synthesis MINOR Triage:** If stats capture is enabled, this is a foreground `general-purpose` Agent dispatch. Extract `<usage>` from the inline response and call:
+**Stats Capture — Synthesis MINOR Triage:** If stats capture is enabled, this is a foreground `general-purpose` Agent dispatch. Extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and call:
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "synthesis--minor-triage" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "synthesis--minor-triage" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Increment dispatch counter.
@@ -859,19 +859,19 @@ Update `manifest.json` to include all three red team agent entries with `"status
 
 #### Stats Capture — Red Team Dispatches
 
-If stats capture is enabled: when you receive each background Agent completion notification containing `<usage>`, extract the `<usage>...</usage>` line, save it to `.workflows/.usage-pipe` using the Write tool, then call `capture-stats.sh`. DO NOT call TaskOutput.
+If stats capture is enabled: when you receive each background Agent completion notification containing `<usage>`, extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and pass as arg 9 to `capture-stats.sh`. DO NOT call TaskOutput. If `<usage>` is absent, pass `"null"` as arg 9.
 
 For the 2 `red-team-relay` agents (Gemini, OpenAI) — model is `sonnet` (dispatch parameter override):
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "red-team-relay" "red-team--gemini" "sonnet" "<plan-stem>" "null" "$RUN_ID"
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "red-team-relay" "red-team--openai" "sonnet" "<plan-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "red-team-relay" "red-team--gemini" "sonnet" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "red-team-relay" "red-team--openai" "sonnet" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 For the `general-purpose` agent (Claude Opus) — no explicit model, use `CACHED_MODEL`:
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "red-team--opus" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "red-team--opus" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Track the number of red team agents actually dispatched (2-3 depending on PAL availability). Increment dispatch counter for each.
@@ -981,10 +981,10 @@ DO NOT return your full analysis in your response. The file IS the output.
 ")
 ```
 
-**Stats Capture — Red Team MINOR Triage:** If stats capture is enabled, this is a foreground `general-purpose` Agent dispatch. Extract `<usage>` from the inline response and call:
+**Stats Capture — Red Team MINOR Triage:** If stats capture is enabled, this is a foreground `general-purpose` Agent dispatch. Extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and call:
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "red-team--minor-triage" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "general-purpose" "red-team--minor-triage" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Increment dispatch counter.
@@ -1100,16 +1100,16 @@ Keep Phase 5.5 focused on dispatch + response handling. The detailed logic lives
 
 If stats capture is enabled: capture stats for each readiness agent dispatch.
 
-**Semantic-checks agent** (background Agent — capture from completion notification):
+**Semantic-checks agent** (background Agent — extract `total_tokens`, `tool_uses`, and `duration_ms` values from the completion notification's `<usage>` and pass as arg 9. If `<usage>` is absent, pass `"null"` as arg 9):
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "semantic-checks" "readiness--semantic-checks" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "semantic-checks" "readiness--semantic-checks" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
-**Plan-readiness-reviewer** (foreground Agent — extract `<usage>` from inline response, save to `.workflows/.usage-pipe` using the Write tool):
+**Plan-readiness-reviewer** (foreground Agent — extract `total_tokens`, `tool_uses`, and `duration_ms` values from the inline response's `<usage>` notification and pass as arg 9. If `<usage>` is absent, pass `"null"` as arg 9):
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "plan-readiness-reviewer" "readiness--plan-readiness-reviewer" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "plan-readiness-reviewer" "readiness--plan-readiness-reviewer" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Increment dispatch counter for each. If semantic-checks was skipped (all 5 passes in skip_checks), do not increment for it.
@@ -1118,10 +1118,10 @@ Increment dispatch counter for each. If semantic-checks was skipped (all 5 passe
 
 1. Dispatch plan-consolidator (foreground Agent): `Agent(subagent_type: "compound-workflows:workflow:plan-consolidator", prompt: "You are a plan consolidator applying auto-fixes and presenting guardrailed items. [pass: plan file path, reviewer report path, consolidation report output path]...")`. Pass: plan file path, reviewer report path, consolidation report output path.
 
-   **Stats Capture — Plan Consolidator:** If stats capture is enabled, extract `<usage>` from the inline response:
+   **Stats Capture — Plan Consolidator:** If stats capture is enabled, extract `total_tokens`, `tool_uses`, and `duration_ms` values from the inline response's `<usage>` notification and call:
 
    ```bash
-   cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "plan-consolidator" "readiness--plan-consolidator" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID"
+   bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "plan-consolidator" "readiness--plan-consolidator" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
    ```
 
    Increment dispatch counter.
@@ -1207,10 +1207,10 @@ Check every 15-20 seconds. When the file exists, the agent has completed. Procee
 
 If a task-notification arrives, note the status but verify file existence rather than processing the notification content.
 
-**Stats Capture — Convergence Advisor:** If stats capture is enabled: when the background Agent completion notification arrives containing `<usage>`, extract the `<usage>...</usage>` line and call:
+**Stats Capture — Convergence Advisor:** If stats capture is enabled: when the background Agent completion notification arrives containing `<usage>`, extract `total_tokens`, `tool_uses`, and `duration_ms` values and pass as arg 9:
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "convergence-advisor" "synthesis--convergence-advisor" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "deepen-plan" "convergence-advisor" "synthesis--convergence-advisor" "$CACHED_MODEL" "<plan-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Increment dispatch counter. If the agent times out, record with `--timeout`:

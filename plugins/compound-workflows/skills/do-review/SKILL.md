@@ -106,10 +106,16 @@ Mark timed-out agents and move on — don't let one slow agent block everything.
 
 #### Stats Capture (Background Completions)
 
-If stats_capture ≠ false: when you receive a background Task completion notification containing `<usage>`, extract the `<usage>...</usage>` line, save it to `.workflows/.usage-pipe` using the Write tool, then run:
+If stats_capture ≠ false: when you receive a background Task completion notification containing `<usage>`, extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and pass as arg 9:
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" review "<agent-name>" "<agent-name>" "<model>" "$TOPIC_STEM" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" review "<agent-name>" "<agent-name>" "<model>" "$TOPIC_STEM" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
+```
+
+If `<usage>` is absent, pass `"null"` as arg 9:
+
+```bash
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" review "<agent-name>" "<agent-name>" "<model>" "$TOPIC_STEM" "null" "$RUN_ID" "null"
 ```
 
 Where `<agent-name>` is the dispatched agent (e.g., `typescript-reviewer`, `security-sentinel`). Both the `agent` and `step` arguments use the agent name (step = agent role name for review, per schema). The `bead` argument is always `null` for review. See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules.
