@@ -1268,6 +1268,129 @@ def scan_compact_summary_timestamps(filepath):
     return timestamps
 
 
+# Productive tool calls for reorientation measurement — excludes
+# orientation tools (Read, Grep, Glob) and non-productive (Bash for reading).
+PRODUCTIVE_TOOLS = {"Edit", "Write", "Agent", "Task"}
+
+
+def extract_compaction_costs(filepath, session_id):
+    """Extract cost and reorientation data for each compaction event in a session.
+
+    For each isCompactSummary entry:
+    1. Find the assistant entry immediately preceding it and read its message.usage
+       to compute the compaction request's token cost.
+    2. Find the first productive tool call (Edit/Write/Agent/Task) after the
+       compaction and measure the reorientation gap.
+
+    Returns:
+        list of dicts with: session, timestamp, token_cost, reorientation_minutes,
+        model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
+    """
+    results = []
+
+    # Two-pass approach: first pass collects all entries with timestamps
+    entries = []
+    with open(filepath, "r") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            entries.append(entry)
+
+    # Walk through entries to find compaction events
+    last_assistant_usage = None  # (timestamp, cost, model, usage_dict)
+    for i, entry in enumerate(entries):
+        entry_type = entry.get("type")
+        ts_str = entry.get("timestamp")
+        ts = parse_timestamp(ts_str)
+
+        # Track last assistant entry with usage
+        if entry_type == "assistant":
+            message = entry.get("message", {})
+            usage = message.get("usage")
+            model = message.get("model", "")
+            if usage and ts:
+                cost = compute_request_cost(usage, model)
+                last_assistant_usage = {
+                    "timestamp": ts,
+                    "cost": cost,
+                    "model": model,
+                    "input_tokens": usage.get("input_tokens", 0),
+                    "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0),
+                    "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0),
+                    "output_tokens": usage.get("output_tokens", 0),
+                }
+
+        # Found a compaction event
+        if entry.get("isCompactSummary") and ts:
+            compaction_ts = ts
+
+            # Get the preceding assistant's cost
+            token_cost = 0.0
+            model_name = ""
+            input_tok = 0
+            output_tok = 0
+            cache_create_tok = 0
+            cache_read_tok = 0
+            if last_assistant_usage:
+                token_cost = last_assistant_usage["cost"]
+                model_name = last_assistant_usage["model"]
+                input_tok = last_assistant_usage["input_tokens"]
+                output_tok = last_assistant_usage["output_tokens"]
+                cache_create_tok = last_assistant_usage["cache_creation_input_tokens"]
+                cache_read_tok = last_assistant_usage["cache_read_input_tokens"]
+
+            # Find first productive tool call after compaction
+            reorientation_minutes = None
+            for j in range(i + 1, len(entries)):
+                future_entry = entries[j]
+                if future_entry.get("type") != "assistant":
+                    continue
+                future_msg = future_entry.get("message", {})
+                future_content = future_msg.get("content", [])
+                if not isinstance(future_content, list):
+                    continue
+                future_ts_str = future_entry.get("timestamp")
+                future_ts = parse_timestamp(future_ts_str)
+                if not future_ts:
+                    continue
+
+                # Check tool calls in this assistant message
+                found_productive = False
+                for block in future_content:
+                    if not isinstance(block, dict):
+                        continue
+                    if block.get("type") != "tool_use":
+                        continue
+                    tool_name = block.get("name", "")
+                    if tool_name in PRODUCTIVE_TOOLS:
+                        found_productive = True
+                        break
+
+                if found_productive:
+                    gap = (future_ts - compaction_ts).total_seconds() / 60.0
+                    reorientation_minutes = round(gap, 2)
+                    break
+
+            results.append({
+                "session": session_id,
+                "timestamp": compaction_ts.isoformat(),
+                "token_cost": round(token_cost, 4),
+                "reorientation_minutes": reorientation_minutes,
+                "model": model_name,
+                "input_tokens": input_tok,
+                "output_tokens": output_tok,
+                "cache_creation_tokens": cache_create_tok,
+                "cache_read_tokens": cache_read_tok,
+            })
+
+    return results
+
+
 def process_session(filepath):
     """Process a single JSONL session file.
 
@@ -2352,6 +2475,9 @@ def main():
     project_cost_by_phase = defaultdict(float)
     project_token_totals = defaultdict(int)  # token type -> total
 
+    # P5-S5: Compaction cost records
+    all_compaction_costs = []
+
     with open(RAW_OUTPUT, "w") as raw_out:
         for i, filepath in enumerate(jsonl_files):
             basename = os.path.basename(filepath)
@@ -2421,6 +2547,13 @@ def main():
                 project_token_totals["cache_creation_input_tokens"] += rc["cache_creation_input_tokens"]
                 project_token_totals["cache_read_input_tokens"] += rc["cache_read_input_tokens"]
                 project_token_totals["output_tokens"] += rc["output_tokens"]
+
+            # P5-S5: Extract compaction costs for sessions with compaction
+            if session.get("compaction_count", 0) > 0:
+                session_compaction_costs = extract_compaction_costs(
+                    filepath, session["session_id"]
+                )
+                all_compaction_costs.extend(session_compaction_costs)
 
             # Compute segments
             segments = compute_segments(result)
@@ -2787,6 +2920,58 @@ def main():
             estimation_segment_data = None
             print("  No beads with both estimates and windowed attribution", file=sys.stderr)
 
+        # --- P5-S5: Compaction cost ---
+        print(f"Computing compaction costs ({len(all_compaction_costs)} events)...",
+              file=sys.stderr)
+        for cc in all_compaction_costs:
+            record = {"record_type": "compaction_cost", **cc}
+            raw_out.write(json.dumps(record) + "\n")
+
+        # Aggregate compaction cost stats
+        compaction_cost_data = None
+        if all_compaction_costs:
+            costs = [cc["token_cost"] for cc in all_compaction_costs]
+            reorient_times = [
+                cc["reorientation_minutes"]
+                for cc in all_compaction_costs
+                if cc["reorientation_minutes"] is not None
+            ]
+            compaction_cost_data = {
+                "event_count": len(all_compaction_costs),
+                "total_cost_usd": round(sum(costs), 4),
+                "median_cost_usd": round(statistics.median(costs), 4) if costs else 0,
+                "mean_cost_usd": round(statistics.mean(costs), 4) if costs else 0,
+                "max_cost_usd": round(max(costs), 4) if costs else 0,
+                "min_cost_usd": round(min(costs), 4) if costs else 0,
+                "reorientation_event_count": len(reorient_times),
+                "median_reorientation_minutes": round(
+                    statistics.median(reorient_times), 2
+                ) if reorient_times else None,
+                "mean_reorientation_minutes": round(
+                    statistics.mean(reorient_times), 2
+                ) if reorient_times else None,
+                "max_reorientation_minutes": round(
+                    max(reorient_times), 2
+                ) if reorient_times else None,
+                "total_reorientation_minutes": round(
+                    sum(reorient_times), 2
+                ) if reorient_times else None,
+                "sessions_with_compaction": len(set(
+                    cc["session"] for cc in all_compaction_costs
+                )),
+            }
+            summary_record = {
+                "record_type": "compaction_cost_summary",
+                **compaction_cost_data,
+            }
+            raw_out.write(json.dumps(summary_record) + "\n")
+            print(f"  Compaction: {len(all_compaction_costs)} events, "
+                  f"total cost ${sum(costs):.2f}, "
+                  f"median reorientation {compaction_cost_data.get('median_reorientation_minutes', 'N/A')} min",
+                  file=sys.stderr)
+        else:
+            print("  No compaction events found", file=sys.stderr)
+
         # --- S2: Orchestration analysis ---
         print("Computing orchestration analysis...", file=sys.stderr)
         orch_analysis = compute_orchestration_analysis(
@@ -2895,7 +3080,8 @@ def main():
         dedup_data, proportional_records, askuser_record,
         orch_analysis, headline_record, project_cost_record,
         stats_timing_data, askuser_per_workflow_record,
-        estimation_segment_data,
+        estimation_segment_data, compaction_cost_data,
+        all_compaction_costs,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -2907,7 +3093,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      dedup_data, proportional_records, askuser_record,
                      orch_analysis, headline_record, project_cost_record=None,
                      stats_timing_data=None, askuser_per_workflow=None,
-                     estimation_segment_data=None):
+                     estimation_segment_data=None, compaction_cost_data=None,
+                     compaction_cost_details=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -4346,6 +4533,98 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append("")
     else:
         lines.append("*No estimation segment data available.*")
+        lines.append("")
+
+    # =========================================
+    # 23. COMPACTION COST (P5-S5)
+    # =========================================
+    lines.append("## 23. Compaction Cost")
+    lines.append("")
+    lines.append(
+        "Cost per compaction event (token cost of the compaction request) "
+        "and reorientation time (gap from compaction to first productive "
+        "tool call — Edit/Write/Agent/Task, excluding Read/Grep/Glob)."
+    )
+    lines.append("")
+
+    if compaction_cost_data and compaction_cost_data.get("event_count", 0) > 0:
+        cd = compaction_cost_data
+        lines.append(f"**Compaction events:** {cd['event_count']} "
+                      f"across {cd['sessions_with_compaction']} sessions")
+        lines.append("")
+
+        # Cost summary table
+        lines.append("### Token Cost per Compaction")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(f"| Total | ${cd['total_cost_usd']:.2f} |")
+        lines.append(f"| Median | ${cd['median_cost_usd']:.4f} |")
+        lines.append(f"| Mean | ${cd['mean_cost_usd']:.4f} |")
+        lines.append(f"| Min | ${cd['min_cost_usd']:.4f} |")
+        lines.append(f"| Max | ${cd['max_cost_usd']:.4f} |")
+        lines.append("")
+
+        # Reorientation time table
+        if cd.get("reorientation_event_count", 0) > 0:
+            lines.append("### Reorientation Time")
+            lines.append("")
+            lines.append(
+                "Time from compaction to first productive tool call "
+                "(Edit/Write/Agent/Task)."
+            )
+            lines.append("")
+            lines.append("| Metric | Value |")
+            lines.append("|--------|-------|")
+            lines.append(
+                f"| Events with productive follow-up | "
+                f"{cd['reorientation_event_count']}/{cd['event_count']} |"
+            )
+            lines.append(
+                f"| Median | {cd['median_reorientation_minutes']} min |"
+            )
+            lines.append(
+                f"| Mean | {cd['mean_reorientation_minutes']} min |"
+            )
+            lines.append(
+                f"| Max | {cd['max_reorientation_minutes']} min |"
+            )
+            lines.append(
+                f"| Total | {cd['total_reorientation_minutes']} min |"
+            )
+            lines.append("")
+        else:
+            lines.append(
+                "*No productive tool calls found after compaction events.*"
+            )
+            lines.append("")
+
+        # Per-event detail table
+        if compaction_cost_details:
+            lines.append("### Per-Event Detail")
+            lines.append("")
+            lines.append(
+                "| Session | Timestamp | Cost | Reorientation | Model |"
+            )
+            lines.append(
+                "|---------|-----------|------|---------------|-------|"
+            )
+            for cc in sorted(compaction_cost_details, key=lambda x: x["timestamp"]):
+                session_short = cc["session"][-8:] if len(cc["session"]) > 8 else cc["session"]
+                ts_short = cc["timestamp"][:19] if len(cc["timestamp"]) > 19 else cc["timestamp"]
+                reorient = (
+                    f"{cc['reorientation_minutes']} min"
+                    if cc["reorientation_minutes"] is not None
+                    else "N/A"
+                )
+                model_short = cc["model"].split("-")[-1] if cc["model"] else "-"
+                lines.append(
+                    f"| ...{session_short} | {ts_short} | "
+                    f"${cc['token_cost']:.4f} | {reorient} | {model_short} |"
+                )
+            lines.append("")
+    else:
+        lines.append("*No compaction events found.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
