@@ -8,7 +8,7 @@
 #   - Bare UPPER_CASE path segments: PR_NUMBER, RUN_ID (2+ uppercase letters)
 #
 # Exempt paths:
-#   - .workflows/.work-in-progress (sentinel, intentionally static)
+#   - .workflows/.work-in-progress.d/ (sentinel directory, per-session files intentionally overwrite)
 #
 # Usage: ./unslugged-paths.sh [plugin-root-path]
 
@@ -81,7 +81,7 @@ for f in "${scan_files[@]}"; do
 
     # Exempt: intentionally static scratch files (overwritten each call, not persisted artifacts)
     case "$workflows_path" in
-      .workflows/.work-in-progress*|.workflows/.usage-pipe*|.workflows/scratch/*) continue ;;
+      .workflows/.work-in-progress.d/*|.workflows/scratch/*) continue ;;
     esac
 
     # Check if path contains at least one slug token

@@ -136,11 +136,11 @@ git checkout -b feat/<descriptive-name>
 Suppress the PostToolUse QA hook during `/do:work` execution. Without this, every subagent commit triggers Tier 1 QA scripts — adding overhead and stderr noise per commit.
 
 ```bash
-mkdir -p .workflows
-date +%s > .workflows/.work-in-progress
+mkdir -p .workflows/.work-in-progress.d
+date +%s > .workflows/.work-in-progress.d/$RUN_ID
 ```
 
-This sentinel is checked by `.claude/hooks/plugin-qa-check.sh`. It is cleared (content set to "cleared" via Write tool) in Phase 4 (Ship) and cleaned up if stale in Phase 2.4 (Recovery). The hook validates numeric content — non-numeric content like "cleared" is treated as inactive.
+This sentinel directory is checked by `.claude/hooks/plugin-qa-check.sh`. Each session creates its own sentinel file using `$RUN_ID`. It is cleared via `rm -f` in Phase 4 (Ship) and cleaned up if stale in Phase 2.4 (Recovery). The hook iterates all files in the directory — QA is suppressed if ANY file has a recent timestamp.
 
 ### 1.3 Create or Resume Task Issues
 
@@ -298,7 +298,7 @@ Task general-purpose (foreground): "[constructed prompt above]" <!-- context-lea
 ```
 
 ### Stats Capture
-If stats_capture ≠ false in compound-workflows.local.md: after each Task completion, extract the `<usage>...</usage>` line from the inline response, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" work general-purpose "<step>" "<model>" "$STEM" "<bead>" "$RUN_ID"`. Use the bead issue number (or sequential loop counter) as `<step>`. Use the bead ID as `<bead>` (null if no bead). See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules.
+If stats_capture ≠ false in compound-workflows.local.md: after each Task completion, extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and pass as arg 9: `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" work general-purpose "<step>" "<model>" "$STEM" "<bead>" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"`. If `<usage>` is absent, pass `"null"` as arg 9. Use the bead issue number (or sequential loop counter) as `<step>`. Use the bead ID as `<bead>` (null if no bead). See `$PLUGIN_ROOT/resources/stats-capture-schema.md` for field derivation rules.
 
 ### 2.3 Handling Subagent Results
 
@@ -336,11 +336,11 @@ If context compacts mid-execution, recovery is simple:
    bd list --status=closed | tail -5  # What was recently completed
    ```
 2. If worktree info shows you should be in a worktree but you're not, `cd` into it
-3. Check for stale sentinel file and clean up if needed:
+3. Check for stale sentinel files and clean up if needed:
    ```bash
-   bash ${CLAUDE_SKILL_DIR}/../../scripts/check-sentinel.sh
+   bash ${CLAUDE_SKILL_DIR}/../../scripts/check-sentinel.sh .workflows/.work-in-progress.d
    ```
-   Read the output. If output is `STALE:<hours>`, the sentinel is stale — **IMMEDIATELY** use the **Write tool** to write `cleared` to `.workflows/.work-in-progress` before proceeding to Phase 3. Do not continue with stale sentinel active. If `ACTIVE`, proceed normally. If `NOT_FOUND` or `CLEARED`, the sentinel is already inactive — skip.
+   Read the output. If output is `STALE:<N>`, there are stale sentinel files — **IMMEDIATELY** remove them using `find .workflows/.work-in-progress.d -type f -mmin +240 -delete` before proceeding to Phase 3. Do not continue with stale sentinels active. If `ACTIVE`, proceed normally. If `NOT_FOUND`, the sentinel directory is empty or does not exist — skip.
 4. Check git log for recent commits:
    ```bash
    git log --oneline -10
@@ -400,7 +400,7 @@ After all issues are closed (or all TodoWrite tasks completed):
 
    Read review output files. Address critical issues only.
 
-   **Stats capture (reviewer):** If stats capture is enabled and the reviewer was dispatched, extract the `<usage>...</usage>` line from the background Task completion notification, save it to `.workflows/.usage-pipe` using the Write tool, then run `cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" work code-simplicity-reviewer "reviewer" "<model>" "$STEM" "<bead>" "$RUN_ID"`. Use `"reviewer"` as the step value. Include this entry in the post-dispatch validation count.
+   **Stats capture (reviewer):** If stats capture is enabled and the reviewer was dispatched, extract `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and pass as arg 9: `bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" work code-simplicity-reviewer "reviewer" "<model>" "$STEM" "<bead>" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"`. If `<usage>` is absent, pass `"null"` as arg 9. Use `"reviewer"` as the step value. Include this entry in the post-dispatch validation count.
 
 ## Phase 4: Ship (Orchestrator)
 
@@ -415,7 +415,7 @@ After all issues are closed (or all TodoWrite tasks completed):
 
 2. **Clear QA hook sentinel** (re-enable PostToolUse QA enforcement):
 
-   Use the **Write tool** to write `cleared` to `.workflows/.work-in-progress`. Do not use `rm` — the Write tool is prompt-free and the hook already handles non-numeric content correctly (falls through without suppressing QA).
+   Clear the QA hook sentinel: `rm -f .workflows/.work-in-progress.d/$RUN_ID`
 
 3. **Create PR** (if project uses PRs):
    ```bash

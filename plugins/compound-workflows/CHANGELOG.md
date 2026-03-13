@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.4] - 2026-03-12
+
+### Fixed
+
+- **Stats capture no longer uses a shared pipe file** — eliminates race conditions under concurrent sessions and removes noisy Write tool diffs from the UI. Work-in-progress sentinel is now scoped per-session, so concurrent `/do:work` runs don't interfere with each other's QA hook suppression.
+
 ## [3.1.3] - 2026-03-12
 
 ### Fixed

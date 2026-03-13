@@ -30,27 +30,33 @@ if [ "$is_commit" != "true" ]; then
   exit 0
 fi
 
-# --- Check sentinel file (suppress during /compound:work) ---
-check_sentinel() {
-  local sentinel="$1"
-  if [ -f "$sentinel" ]; then
-    local file_content
-    file_content="$(cat "$sentinel" 2>/dev/null || echo "0")"
-    # Validate numeric content
-    if echo "$file_content" | grep -qE '^[0-9]+$' 2>/dev/null; then
-      local sentinel_age=$(( $(date +%s) - file_content ))
-      if [ "$sentinel_age" -lt 14400 ]; then
-        exit 0  # Within 4 hours — suppressed
-      fi
+# --- Resolve paths ---
+git_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+plugin_root="plugins/compound-workflows"
+if [ ! -d "$plugin_root" ] && [ -n "$git_root" ]; then
+  plugin_root="$git_root/$plugin_root"
+fi
+check_script="$plugin_root/scripts/check-sentinel.sh"
+
+# --- Check sentinel directory (suppress during /do:work) ---
+# One-time migration: remove old single-file sentinel if it exists
+rm -f .workflows/.work-in-progress
+if [ -n "$git_root" ] && [ "$git_root" != "$(pwd)" ]; then
+  rm -f "$git_root/.workflows/.work-in-progress"
+fi
+
+# Use shared check-sentinel.sh helper (single source of truth)
+if [ -f "$check_script" ]; then
+  result="$(bash "$check_script" ".workflows/.work-in-progress.d")"
+  if [ "$result" = "ACTIVE" ]; then
+    exit 0
+  fi
+  if [ -n "$git_root" ] && [ "$git_root" != "$(pwd)" ]; then
+    result="$(bash "$check_script" "$git_root/.workflows/.work-in-progress.d")"
+    if [ "$result" = "ACTIVE" ]; then
+      exit 0
     fi
   fi
-}
-
-# Check both CWD and git root (worktree support)
-check_sentinel ".workflows/.work-in-progress"
-git_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
-if [ -n "$git_root" ] && [ "$git_root" != "$(pwd)" ]; then
-  check_sentinel "$git_root/.workflows/.work-in-progress"
 fi
 
 # --- Check if committed files include plugin dirs ---
@@ -60,14 +66,7 @@ if ! git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null | \
 fi
 
 # --- Run Tier 1 scripts ---
-script_dir="plugins/compound-workflows/scripts/plugin-qa"
-plugin_root="plugins/compound-workflows"
-
-# If we're not at repo root, try to find scripts relative to git root
-if [ ! -d "$script_dir" ] && [ -n "$git_root" ]; then
-  script_dir="$git_root/$script_dir"
-  plugin_root="$git_root/$plugin_root"
-fi
+script_dir="$plugin_root/scripts/plugin-qa"
 
 if [ ! -d "$script_dir" ]; then
   exit 0  # Scripts not found — nothing to check

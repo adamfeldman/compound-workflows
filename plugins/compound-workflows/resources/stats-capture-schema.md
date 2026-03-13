@@ -57,27 +57,30 @@ Expected format:
 <usage>total_tokens: 20121, tool_uses: 13, duration_ms: 43364</usage>
 ```
 
+The model extracts `total_tokens`, `tool_uses`, and `duration_ms` values from the `<usage>` notification and formats them as a named-field string. The model does NOT pass raw `<usage>` XML to the script — it extracts numeric values and formats as `"total_tokens: N, tool_uses: N, duration_ms: N"`. This keeps angle brackets out of Bash tool commands.
+
 **Important:** `<usage>` is an observed API, not a documented contract. A future Claude Code update may change the format. If `capture-stats.sh` emits a warning about format changes, consider filing a bug to update the parser.
 
 ## How to Call `capture-stats.sh`
 
 ### Standard Call (after successful dispatch)
 
-Extract the full `<usage>...</usage>` line from the response/notification and save it to `.workflows/.usage-pipe` using the Write tool (this keeps angle brackets out of Bash tool commands, avoiding heuristic prompts). Then pipe it to capture-stats.sh:
+Pass usage data as the 9th positional argument. The model extracts values from `<usage>` and formats them as a named-field string:
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh \
-  "<stats-file>" "<command>" "<agent>" "<step>" "<model>" "<stem>" "<bead>" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh \
+  "<stats-file>" "<command>" "<agent>" "<step>" "<model>" "<stem>" "<bead>" "$RUN_ID" "<usage-data>"
 ```
+
+Where `<usage-data>` is `"total_tokens: N, tool_uses: N, duration_ms: N"` or `"null"`.
 
 Example:
 
 ```bash
-# 1. Save the <usage> line to .workflows/.usage-pipe via Write tool
-# 2. Pipe to capture-stats.sh:
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh \
+bash $PLUGIN_ROOT/scripts/capture-stats.sh \
   ".workflows/stats/2026-03-09-work-quota-optimization.yaml" \
-  "work" "general-purpose" "1" "opus" "quota-optimization" "22l" "a1b2c3d4"
+  "work" "general-purpose" "1" "opus" "quota-optimization" "22l" "a1b2c3d4" \
+  "total_tokens: 20121, tool_uses: 13, duration_ms: 43364"
 ```
 
 ### Timeout Call (dispatch timed out)
@@ -93,11 +96,11 @@ No `<usage-line>` argument. The script writes an entry with `status: timeout` an
 
 ### Failure Handling
 
-If `<usage>` is absent from the response, pipe an empty string via stdin:
+If `<usage>` is absent from the response, pass `"null"` as the usage-data argument:
 
 ```bash
-echo "" | bash $PLUGIN_ROOT/scripts/capture-stats.sh \
-  "<stats-file>" "work" "general-purpose" "1" "opus" "quota-optimization" "22l" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh \
+  "<stats-file>" "work" "general-purpose" "1" "opus" "quota-optimization" "22l" "$RUN_ID" "null"
 ```
 
 The script writes `status: failure` with null token fields. If `<usage>` is present but in an unexpected format, the script attempts best-effort extraction, prints a warning to stderr, and writes whatever it could parse.

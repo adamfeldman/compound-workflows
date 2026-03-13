@@ -77,12 +77,12 @@ Return ONLY a 2-3 sentence summary.
 
 #### 1.1b Stats Capture — Research Dispatches
 
-If stats capture is enabled: when you receive each background Task completion notification containing `<usage>`, extract the `<usage>...</usage>` line, save it to `.workflows/.usage-pipe` using the Write tool, then call `capture-stats.sh`. DO NOT call TaskOutput. The completion notification content beyond `<usage>` is not needed — the research outputs are on disk.
+If stats capture is enabled: when you receive each background Task completion notification containing `<usage>`, extract the `total_tokens`, `tool_uses`, and `duration_ms` numeric values from the `<usage>` notification and pass as arg 9 to `capture-stats.sh`. If `<usage>` is absent, pass `"null"` as arg 9. DO NOT call TaskOutput. The completion notification content beyond `<usage>` is not needed — the research outputs are on disk.
 
 For each of the 2 research agents (`repo-research-analyst`, `context-researcher`):
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "<agent-name>" "<agent-name>" "sonnet" "<topic-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "<agent-name>" "<agent-name>" "sonnet" "<topic-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Both agents have `model: sonnet` in their YAML frontmatter, so the model field is `sonnet` regardless of `CACHED_MODEL`.
@@ -335,19 +335,19 @@ Wait until all expected red team files exist (`red-team--gemini.md`, `red-team--
 
 ##### Step 1a: Stats Capture — Red Team Dispatches
 
-If stats capture is enabled: when you receive each background Task completion notification containing `<usage>`, extract the `<usage>...</usage>` line, save it to `.workflows/.usage-pipe` using the Write tool, then call `capture-stats.sh`. DO NOT call TaskOutput.
+If stats capture is enabled: when you receive each background Task completion notification containing `<usage>`, extract the `total_tokens`, `tool_uses`, and `duration_ms` numeric values from the `<usage>` notification and pass as arg 9 to `capture-stats.sh`. If `<usage>` is absent, pass `"null"` as arg 9. DO NOT call TaskOutput.
 
 For the 2 `red-team-relay` agents (Gemini, OpenAI) — model is `sonnet` (agent YAML frontmatter):
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "red-team-relay" "red-team-gemini" "sonnet" "<topic-stem>" "null" "$RUN_ID"
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "red-team-relay" "red-team-openai" "sonnet" "<topic-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "red-team-relay" "red-team-gemini" "sonnet" "<topic-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "red-team-relay" "red-team-openai" "sonnet" "<topic-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 For the `general-purpose` agent (Claude Opus) — no explicit model, use `CACHED_MODEL`:
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "general-purpose" "red-team-opus" "$CACHED_MODEL" "<topic-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "general-purpose" "red-team-opus" "$CACHED_MODEL" "<topic-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Track the number of red team agents actually dispatched (2-3 depending on PAL availability). After all red team completions, validate stats count. The expected total is 2 (research) + the number of red team agents dispatched. Note: the old arithmetic expression for dispatch counting was itself a heuristic trigger (empirically verified); model-side tracking eliminates it:
@@ -456,12 +456,12 @@ After writing the file, return ONLY a 2-3 sentence summary.
 
 ##### Step 3a-stats: Stats Capture — MINOR Triage Dispatch
 
-If stats capture is enabled: when you receive the background Task completion notification containing `<usage>`, extract the `<usage>...</usage>` line, save it to `.workflows/.usage-pipe` using the Write tool, then call `capture-stats.sh`. DO NOT call TaskOutput.
+If stats capture is enabled: when you receive the background Task completion notification containing `<usage>`, extract the `total_tokens`, `tool_uses`, and `duration_ms` numeric values from the `<usage>` notification and pass as arg 9 to `capture-stats.sh`. If `<usage>` is absent, pass `"null"` as arg 9. DO NOT call TaskOutput.
 
 The `general-purpose` agent has no explicit model — use `CACHED_MODEL`:
 
 ```bash
-cat .workflows/.usage-pipe | bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "general-purpose" "minor-triage" "$CACHED_MODEL" "<topic-stem>" "null" "$RUN_ID"
+bash $PLUGIN_ROOT/scripts/capture-stats.sh "$STATS_FILE" "brainstorm" "general-purpose" "minor-triage" "$CACHED_MODEL" "<topic-stem>" "null" "$RUN_ID" "total_tokens: N, tool_uses: N, duration_ms: N"
 ```
 
 Validate total entry count (2 research + N red team + 1 triage). The expected total is tracked by the dispatch counter:
