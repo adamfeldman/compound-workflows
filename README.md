@@ -131,9 +131,9 @@ Instead of agents returning full results into conversation context (which fills 
 
 ## Stats & Analysis
 
-The plugin automatically collects per-dispatch timing and token data during every
-`/do:work`, `/do:plan`, and `/do:brainstorm` run. All data stays local on your machine
-in `.workflows/stats/` — nothing is sent externally. This enables:
+The plugin automatically collects per-dispatch timing and token data across all
+workflows. All data stays local on your machine in `.workflows/stats/` — nothing
+is sent externally. This enables:
 
 - **Estimation calibration** — compare estimated vs actual time, segmented by type,
   priority, scope, and size. Discover which kinds of work consistently blow estimates
