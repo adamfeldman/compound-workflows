@@ -26,6 +26,7 @@ Self-contained compound engineering workflows for Claude Code. 26 agents, 29 ski
 | Phase gates | Enforced (open questions must be resolved/deferred) |
 | Plan deepening | Multi-run with numbered directories |
 | Knowledge search | 5 directories, tagged by source type |
+| Stats collection | Automatic per-dispatch data — learn which steps are slow, which estimates are wrong, and where quota goes |
 | Bundled agents | 26 specialized agents (research, review, workflow) |
 | Bundled skills | 29 reusable patterns, workflow skills, and reference materials |
 
@@ -56,6 +57,7 @@ Then run setup to detect your environment:
 | `/do:compact-prep` | Pre-compaction checklist — save memory, compound, commit, queue resume task |
 | `/do:abandon` | Session-end capture without resumption — memory, compound, commit, push |
 | `/compound-workflows:recover` | Recover context from dead/exhausted sessions — parse JSONL logs, cross-reference state |
+| `/compound-workflows:classify-stats` | Classify collected stats entries with complexity and output-type labels |
 
 > **v3.0.0 migration:** Workflow commands moved from `/compound:*` to `/do:*` namespace. The old `/compound:*` names still work as aliases during the transition period but will be removed in a future version. Full invocation: `/compound-workflows:do:brainstorm`. Shorthand: `/do:brainstorm`.
 
