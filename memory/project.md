@@ -21,6 +21,7 @@
 - **Claude Code hooks cannot trigger slash commands** — use PostToolUse on Bash instead. Sentinel `.workflows/.work-in-progress` suppresses during `/compound:work`.
 - **Subagents cannot write to `.claude/` directory** — orchestrator must handle protected paths.
 - **Claude Code per-directory command limit** — ~8 commands per `commands/` subdirectory. Overflow goes to `skills/`.
+- **Skill tool requires fully qualified names** — user slash commands resolve `/do:work` to `compound-workflows:do-work`, but the model's Skill tool call with `do-work` fails ("Unknown skill"). Only the fully qualified `compound-workflows:do-work` works programmatically. Can't add `do:*` command aliases without removing `compound:*` aliases (already at the 8-command limit). Costs one wasted tool call per model-initiated skill invocation.
 - **Marketplace clone** — cache at `~/.claude/plugins/marketplaces/<name>/` is a full git clone. Use `claude plugin update compound-workflows@compound-workflows-marketplace`.
 - **`bd list --json` does NOT produce JSON** — use `bd search "" --status open --json` instead.
 - **`bd search` default limit is 50** — pass `--limit N` for more.
