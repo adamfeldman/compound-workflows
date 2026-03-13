@@ -48,8 +48,9 @@ Ambitious tasks in Claude Code hit walls:
 | Plan quality | Unbounded iteration | Readiness checks, auto-consolidation, and signals for when to stop iterating (+2 agents: plan-readiness-reviewer, plan-consolidator) |
 | Red team | Single model | 3 providers in parallel with configurable model selection |
 | Task tracking | TodoWrite only | Beads preferred, TodoWrite fallback |
-| Session recovery | Manual | `/compact-prep` (proactive) + `/recover` (reactive, JSONL log parsing) |
+| Session recovery | Manual | `/do:compact-prep` (proactive) + `/recover` (reactive, JSONL log parsing) |
 | Memory management | None | Adapted fork of Anthropic's memory skill with tiered storage (in progress) |
+| Process analysis | None | See where your time goes and which tasks take longer than expected |
 
 ## Install
 
@@ -58,12 +59,12 @@ Ambitious tasks in Claude Code hit walls:
 /plugin install compound-workflows
 ```
 
-> **Warning:** Do not install alongside compound-engineering. This plugin bundles all agents and skills. Installing both will cause agent name conflicts. Run `/compound:setup` to detect and resolve conflicts.
+> **Warning:** Do not install alongside compound-engineering. This plugin bundles all agents and skills. Installing both will cause agent name conflicts. Run `/do:setup` to detect and resolve conflicts.
 
 Then run setup to detect your environment:
 
 ```
-/compound:setup
+/do:setup
 ```
 
 ## Update
@@ -80,15 +81,18 @@ Or use the interactive `/plugin` menu inside Claude Code.
 
 | Command | Purpose |
 |---------|---------|
-| `/compound:setup` | Detect environment, configure directories, recommend enhancements |
-| `/compound:brainstorm` | Explore requirements through collaborative dialogue |
-| `/compound:plan` | Transform ideas into implementation plans with research agents |
-| `/compound:deepen-plan` | Enhance plans with parallel research + red-team challenges |
-| `/compound:work` | Execute plans via subagent dispatch with task tracking |
-| `/compound:review` | Multi-agent code review with disk-persisted findings |
-| `/compound:compound` | Document solved problems to build institutional knowledge |
-| `/compound:compact-prep` | Pre-compaction checklist — save context before `/compact` |
-| `/compound:recover` | Recover context from dead/exhausted sessions via JSONL log parsing |
+| `/do:setup` | Detect environment, configure directories, recommend enhancements |
+| `/do:brainstorm` | Explore requirements through collaborative dialogue |
+| `/do:plan` | Transform ideas into implementation plans with research agents |
+| `/do:deepen-plan` | Enhance plans with parallel research + red-team challenges |
+| `/do:work` | Execute plans via subagent dispatch with task tracking |
+| `/do:review` | Multi-agent code review with disk-persisted findings |
+| `/do:compound` | Document solved problems to build institutional knowledge |
+| `/do:compact-prep` | Pre-compaction checklist — save context before `/compact` |
+| `/do:abandon` | Session-end capture without resumption |
+| `/compound-workflows:recover` | Recover context from dead/exhausted sessions via JSONL log parsing |
+
+> `/compound:*` aliases still work during the v3.0 transition period.
 
 ### Workflow Cycle
 
@@ -102,8 +106,9 @@ Each step produces documents that feed the next. Solutions feed future brainstor
 
 Context exhaustion is inevitable in long sessions. Two paths:
 
-- **Proactive:** `/compound:compact-prep` before `/compact` — saves memory, checks for uncommitted work, queues a resume task. Say "resume" after compaction.
-- **Reactive:** `/compound:recover` when a session dies without compaction — parses the JSONL session log, cross-references git/beads/.workflows/plan state to reconstruct progress and extract what would otherwise be lost.
+- **Proactive:** `/do:compact-prep` before `/compact` — saves memory, checks for uncommitted work, queues a resume task. Say "resume" after compaction.
+- **Ending a session:** `/do:abandon` — captures memory, compounds learnings, commits, and pushes without queuing a resume task.
+- **Reactive:** `/compound-workflows:recover` when a session dies without compaction — parses the JSONL session log, cross-references git/beads/.workflows/plan state to reconstruct progress and extract what would otherwise be lost.
 
 ## Dependencies
 
@@ -124,21 +129,48 @@ Instead of agents returning full results into conversation context (which fills 
 - **Traceability** — see exactly what informed each decision
 - **Recovery** — disk files + beads = full recovery after compaction
 
+## Stats & Analysis
+
+The plugin automatically collects per-dispatch timing and token data during every
+`/do:work`, `/do:plan`, and `/do:brainstorm` run. This enables:
+
+- **Estimation calibration** — compare estimated vs actual time, segmented by type,
+  priority, scope, and size. Discover which kinds of work consistently blow estimates
+  and apply correction factors.
+- **Workflow-level prompt analysis** — confirmation prompts segmented by workflow phase,
+  identifying where unnecessary gates cost the most user attention.
+- **Subagent classification** — dispatches classified by complexity
+  (rote/mechanical/analytical/judgment) and output type, revealing which steps
+  could run on cheaper models without quality loss.
+- **Velocity tracking** — beads/hour trend over time, correlated with workflow maturity.
+- **Outcome correlation** — because beads track tangible goals, time and token data
+  connects back to actual deliverables, not just activity.
+- **Session log mining** — Claude Code's internal JSONL session logs contain per-request
+  token billing, model usage, and tool call sequences. Cross-referencing these with
+  plugin stats and beads data surfaces deeper insights like cache vs non-cache cost
+  splits, compaction overhead, and permission prompt frequency.
+
+Run `/compound-workflows:classify-stats` to add complexity labels to collected data.
+`/do:analyze-stats` (coming soon) will run the full analysis and present findings interactively.
+
 ## Roadmap
 
 | Priority | Feature | Description | Done | Next | Target |
 |----------|---------|-------------|------|------|--------|
-| P1 | Quota optimization | Sonnet for research agents, relay wrappers to cut token usage | Released | — | v2.0 |
-| P1 | Red team model selection | Configurable model routing for multi-provider challenges | Brainstorm | Plan | — |
+| P1 | Quota optimization | Sonnet for research agents, relay wrappers | Released | — | v2.0 |
+| P1 | Per-agent token tracking | Stats capture across all workflows | Released | — | v2.3 |
+| P1 | Sonnet work subagents | Route mechanical work steps to Sonnet, save quota for judgment | Data collected | Brainstorm | — |
+| P1 | Harden commands for Sonnet | Structural robustness so cheaper models follow instructions | — | Brainstorm | — |
+| P2 | Workflow prompt optimization | Extend compact-prep's batch pattern to `/do:work` — where 43% of confirmation wait time concentrates | Phase 5 data | Brainstorm | — |
+| P2 | Session analysis phase 6 | Hook audit, classification analysis, cache cost splits, effort dimension | Phase 5 done | Plan | — |
 | P1 | Memory skill integration | Memory management with cleanup emphasis | Plan | Deepen | — |
-| P2 | Plugin handbook | User-facing docs: getting-started, commands, config, architecture, troubleshooting | Brainstorm | Plan | — |
-| P2 | Command commit hygiene | All commands offer to commit artifacts before handoff | — | Scope | — |
+| P2 | Plugin handbook | User-facing docs: getting-started, commands, config, architecture | Brainstorm | Plan | — |
 | P2 | Correction-capture skill | Guide turning one-time corrections into durable rules | — | Brainstorm | — |
-| P1 | Per-agent token tracking | Persist Task completion stats across all commands for cost/complexity dataset | — | Brainstorm | — |
-| P4 | Orchestrating-swarms review | Context-lean compliance review when swarms GA | — | Deferred | — |
-| P4 | Setup: PRIME.md generation | Generate .beads/PRIME.md to prevent memory instruction conflicts | Scoped | Brainstorm | — |
-| P4 | Setup: tool install guides | Guide PAL, Gemini CLI, Codex CLI installation | Scoped | Brainstorm | — |
-| P4 | Setup: statusline config | Recommend context usage statusline during setup | Scoped | Brainstorm | — |
+| P3 | Red team model selection | Configurable model routing for multi-provider challenges | Brainstorm | Plan | — |
+| P3 | `/do:analyze-stats` | Run analysis on collected data and present findings interactively | Script built | Skill wrapper | — |
+| P3 | macOS notifications | Native alerts for permission prompts and tool failures | Built | Plugin-ize | — |
+| P3 | Live estimation | Workflows show estimated time remaining as they progress | Data collected | Brainstorm | — |
+| — | `/do:abandon` | Session-end capture without resumption | Released | — | v3.1 |
 
 ## Attribution
 
