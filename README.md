@@ -1,6 +1,6 @@
 # compound-workflows
 
-Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Adds agents that don't exhaust context, session recovery after exhaustion, compaction-safe task tracking, multi-model red team ([PAL](https://github.com/BeehiveInnovations/pal-mcp-server) + Claude), fewer plan iterations via readiness checks, and tiered memory management.
+Fork of [Every's compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Longer sessions without context exhaustion, session recovery when things go wrong, task tracking that survives compaction, multi-model red team ([PAL](https://github.com/BeehiveInnovations/pal-mcp-server) + Claude), fewer plan iterations, and memory that persists across sessions.
 
 - [What is Compound Engineering?](#what-is-compound-engineering)
 - [Why Fork?](#why-fork)
@@ -44,12 +44,12 @@ Ambitious tasks in Claude Code hit walls:
 
 | | compound-engineering | compound-workflows |
 |---|---|---|
-| Agent outputs | In-context (fills up) | Disk-persisted to `.workflows/` |
-| Plan quality | Unbounded iteration | Readiness checks, auto-consolidation, and signals for when to stop iterating (+2 agents: plan-readiness-reviewer, plan-consolidator) |
-| Red team | Single model | 3 providers in parallel with configurable model selection |
-| Task tracking | TodoWrite only | Beads preferred, TodoWrite fallback |
-| Session recovery | Manual | `/do:compact-prep` (proactive) + `/recover` (reactive, JSONL log parsing) |
-| Memory management | None | Adapted fork of Anthropic's memory skill with tiered storage (in progress) |
+| Agent outputs | In-context (fills up) | Sessions last longer — agents write to disk, not context |
+| Plan quality | Unbounded iteration | Plans reach quality faster — readiness checks and auto-consolidation catch issues early |
+| Red team | Single model | 3 models in parallel surface what a single model misses |
+| Task tracking | TodoWrite only | Survives compaction — beads preferred, TodoWrite fallback |
+| Session recovery | Manual | `/do:compact-prep` (proactive) + `/recover` (reactive) |
+| Memory management | None | What you learn in one session carries to the next (in progress) |
 | Process analysis | None | See where your time goes and which tasks take longer than expected |
 
 ## Install
@@ -84,11 +84,11 @@ Or use the interactive `/plugin` menu inside Claude Code.
 | `/do:setup` | Detect environment, configure directories, recommend enhancements |
 | `/do:brainstorm` | Explore requirements through collaborative dialogue |
 | `/do:plan` | Transform ideas into implementation plans with research agents |
-| `/do:deepen-plan` | Enhance plans with parallel research + red-team challenges |
-| `/do:work` | Execute plans via subagent dispatch with task tracking |
-| `/do:review` | Multi-agent code review with disk-persisted findings |
+| `/do:deepen-plan` | Enhance plans with parallel multi-model research + red-team challenges |
+| `/do:work` | Execute plans autonomously with progress tracking |
+| `/do:review` | Multi-agent code review from multiple perspectives |
 | `/do:compound` | Document solved problems to build institutional knowledge |
-| `/do:compact-prep` | Pre-compaction checklist — save context before `/compact` |
+| `/do:compact-prep` | Save your work before compaction — checklist for memory, commits, and resume |
 | `/do:abandon` | Session-end capture without resumption |
 | `/compound-workflows:recover` | Recover context from dead/exhausted sessions via JSONL log parsing |
 
@@ -138,18 +138,15 @@ is sent externally. This enables:
 - **Estimation calibration** — compare estimated vs actual time, segmented by type,
   priority, scope, and size. Discover which kinds of work consistently blow estimates
   and apply correction factors.
-- **Workflow-level prompt analysis** — confirmation prompts segmented by workflow phase,
-  identifying where unnecessary gates cost the most user attention.
-- **Subagent classification** — dispatches classified by complexity
-  (rote/mechanical/analytical/judgment) and output type, revealing which steps
-  could run on cheaper models without quality loss.
+- **Workflow-level timing** — see how long each workflow step takes you, so you
+  know where your time goes.
+- **Model routing** — see which steps need the most capable model and which can
+  run cheaper, so you spend quota where it matters.
 - **Velocity tracking** — beads/hour trend over time, correlated with workflow maturity.
 - **Outcome correlation** — because beads track tangible goals, time and token data
   connects back to actual deliverables, not just activity.
-- **Session log mining** — Claude Code's internal JSONL session logs contain per-request
-  token billing, model usage, and tool call sequences. Cross-referencing these with
-  plugin stats and beads data surfaces deeper insights like cache vs non-cache cost
-  splits, compaction overhead, and permission prompt frequency.
+- **Deep insights** — mine Claude Code's session logs to understand compaction overhead,
+  quota consumption patterns, and what's actually driving cost.
 
 Run `/compound-workflows:classify-stats` to add complexity labels to collected data.
 `/do:analyze-stats` (coming soon) will run the full analysis and present findings interactively.
