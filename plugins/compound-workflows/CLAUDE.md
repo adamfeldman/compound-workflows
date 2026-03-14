@@ -38,6 +38,8 @@ scripts/
 ├── init-values.sh           # Shared init-value computation + directory creation — PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (auto-approved)
 ├── validate-stats.sh        # Diagnostic stats entry count validation — replaces inline ENTRY_COUNT=$(grep -c ...) blocks
 ├── migrate-stats-keys.sh    # Heuristic-safe config key migration — appends stats_capture/stats_classify to local config
+├── safe-commit.sh           # Worktree-safe git add+commit — uses temporary GIT_INDEX_FILE when not in a worktree
+├── session-merge.sh         # Merge session worktree branch back to default branch with retry loop and conflict detection
 ├── plugin-qa/               # 9 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
 └── version-check.sh         # 3-way version comparison (source vs installed vs release) — NOT in plugin-qa/ (makes network calls)
 
@@ -46,7 +48,8 @@ resources/
 └── stats-capture-schema.md   # YAML schema, field derivation rules, and capture-stats.sh usage reference
 
 templates/
-└── auto-approve.sh          # PreToolUse hook template — installed to .claude/hooks/ by /do:setup
+├── auto-approve.sh          # PreToolUse hook template — installed to .claude/hooks/ by /do:setup
+└── session-worktree.sh      # SessionStart hook template — installed to .claude/hooks/ by /do:setup
 
 skills/
 ├── do-abandon/              # Workflow: session-end capture without resumption (thin skill, delegates to do-compact-prep --abandon)
@@ -54,6 +57,7 @@ skills/
 ├── do-compact-prep/         # Workflow: pre-compaction batch — check-then-act architecture, single consolidated prompt, --abandon flag
 ├── do-compound/             # Workflow: document solved problems for institutional knowledge
 ├── do-deepen-plan/          # Workflow: enhance plans with parallel research + red-team challenges
+├── do-merge/                # Workflow: merge session worktree back to default branch
 ├── do-plan/                 # Workflow: transform ideas into implementation plans
 ├── do-review/               # Workflow: multi-agent code review with disk-persisted findings
 ├── do-setup/                # Workflow: detect environment, configure directories (disable-model-invocation)
@@ -150,7 +154,11 @@ Machine-specific environment detection and compact-prep behavior toggles.
 - `do-review` reads: gh_cli
 - `do-compact-prep` reads: compact_version_check, compact_cost_summary, compact_auto_commit, compact_compound_check, compact_push
 
-Keys: tracker, gh_cli, stats_capture, stats_classify, compact_version_check, compact_cost_summary, compact_auto_commit, compact_compound_check, compact_push.
+Keys: tracker, gh_cli, stats_capture, stats_classify, compact_version_check, compact_cost_summary, compact_auto_commit, compact_compound_check, compact_push, session_worktree.
+
+- `do-compact-prep` reads: session_worktree
+- `session-worktree.sh` hook reads: session_worktree
+- `do-work` Phase 1.2 reads: session_worktree
 
 **Config reading pattern:** Read `compound-workflows.local.md` at the start of the command. For each key: if present, use its value; if absent, use the default. Most keys default to `true` (enabled) when missing. Exceptions: `compact_auto_commit` defaults to `false` (opt-in auto-execute) and `compact_version_check` defaults to `false` (only relevant to plugin developers). This follows the existing `stats_capture` convention where missing = enabled, with documented exceptions for keys where the default should be off.
 
