@@ -22,7 +22,7 @@ Self-contained compound engineering workflows for Claude Code. 26 agents, 29 ski
 | Task tracking | Beads preferred, TodoWrite fallback |
 | Red-team challenges | 3-provider parallel (Gemini + OpenAI + Claude Opus) |
 | Large plan execution | Subagent dispatch (`/do:work`) |
-| Research traceability | Retained across sessions |
+| Workflow traceability | AI mistakes become diagnosable — agent traces its own reasoning across persisted artifacts |
 | Phase gates | Enforced (open questions must be resolved/deferred) |
 | Plan deepening | Multi-run with numbered directories |
 | Knowledge search | 5 directories, tagged by source type |
@@ -108,7 +108,7 @@ The core innovation. This plugin follows the **context-lean** principle: instead
 
 - **Context stays lean** -- you can run 15+ agents without exhaustion
 - **Research survives** -- files persist across sessions and compactions
-- **Traceability** -- see exactly what informed each decision
+- **Traceability** -- see exactly what informed each decision. When a plan misses the mark, ask the agent to trace its reasoning across brainstorm research, red team challenges, and plan analysis — the full evidence trail is already on disk
 - **Recovery** -- if context compacts, `bd ready` + disk files = full recovery
 
 See `skills/disk-persist-agents/SKILL.md` for the full pattern.
