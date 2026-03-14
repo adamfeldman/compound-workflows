@@ -1,0 +1,18 @@
+feat(session-analysis): session cost vs productivity correlation (3zr-P6-S6)
+
+Add compute_cost_productivity_correlation() that buckets daily session
+cost (with cache/non-cache breakdown) and joins with bead closures to
+produce cost-per-bead and beads-per-dollar metrics.
+
+Section 29 "Cost vs Productivity" shows:
+- Daily table with cost, cache split, beads closed, cost/bead, beads/$
+- Pearson correlation r=-0.252 (N=5, small sample caveat noted)
+- Trend: cost/bead decreasing 76% (improving efficiency over time)
+- 5 qualifying dates (active_hours >= 1.0), 4 excluded
+- Cost/bead range: $5.49 (Mar 12) to $61.89 (Mar 8)
+- Overall: $16.26/bead, 0.06 beads/$
+
+Exclusion filter (active_hours < 1.0) removes batch-closure dates where
+beads were closed administratively without substantial session work.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>

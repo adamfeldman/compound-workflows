@@ -1120,6 +1120,166 @@ def compute_phase_cost_by_token_type(all_session_results):
     }
 
 
+def compute_cost_productivity_correlation(all_session_results, cost_by_token_type,
+                                           bead_closures_by_date, active_minutes_by_date):
+    """Compute cost vs productivity correlation by date.
+
+    Buckets session costs by date (from first_ts), joins with bead closures,
+    and computes cost-per-bead-closed, beads-per-dollar, and Pearson correlation.
+
+    Applies cache split principle: daily cost shows cache/non-cache breakdown.
+
+    Exclusion: dates with active_hours < 1.0 are excluded. These are typically
+    batch-closure dates (e.g., Mar 9/10) where beads were closed administratively
+    without substantial active session work, which would distort cost/bead metrics.
+
+    Args:
+        all_session_results: list of process_session() result dicts
+        cost_by_token_type: output of compute_phase_cost_by_token_type()
+        bead_closures_by_date: dict from load_bead_closures_by_date() {date_str: count}
+        active_minutes_by_date: dict {date_str: float} of active minutes per date
+
+    Returns:
+        dict with keys:
+        - daily_records: list of per-date dicts (all dates, before exclusion filtering)
+        - qualifying_records: list of per-date dicts (after active_hours >= 1.0 filter)
+        - excluded_records: list of per-date dicts (active_hours < 1.0)
+        - overall: dict with aggregate metrics
+        - pearson_r: float or None
+        - pearson_n: int (number of qualifying dates with both cost > 0 and closures > 0)
+        - trend_direction: str describing cost/bead trend
+    """
+    # Bucket session costs by date
+    daily_cost = defaultdict(float)
+    daily_cache_cost = defaultdict(float)
+    daily_non_cache_cost = defaultdict(float)
+
+    # Build session_id -> cache split lookup from cost_by_token_type per_session
+    session_cache_lookup = {}
+    if cost_by_token_type:
+        for ps in cost_by_token_type.get("per_session", []):
+            session_cache_lookup[ps["session_id"]] = {
+                "cache_cost": ps["cache_cost"],
+                "non_cache_cost": ps["non_cache_cost"],
+            }
+
+    for result in all_session_results:
+        first_ts = result.get("first_ts")
+        if not first_ts:
+            continue
+        date_str = first_ts.date().isoformat()
+        session_id = result["session"]["session_id"]
+        session_cost = result["session"].get("session_cost_usd", 0)
+        daily_cost[date_str] += session_cost
+
+        # Cache split from cost_by_token_type per_session data
+        cache_data = session_cache_lookup.get(session_id, {})
+        daily_cache_cost[date_str] += cache_data.get("cache_cost", 0)
+        daily_non_cache_cost[date_str] += cache_data.get("non_cache_cost", 0)
+
+    # Collect all dates from both cost and closure sources
+    all_dates = sorted(set(
+        list(daily_cost.keys()) +
+        list(bead_closures_by_date.keys())
+    ))
+
+    daily_records = []
+    qualifying_records = []
+    excluded_records = []
+
+    for date_str in all_dates:
+        cost = daily_cost.get(date_str, 0)
+        cache_cost = daily_cache_cost.get(date_str, 0)
+        non_cache_cost = daily_non_cache_cost.get(date_str, 0)
+        closures = bead_closures_by_date.get(date_str, 0)
+        active_min = active_minutes_by_date.get(date_str, 0)
+        active_hrs = active_min / 60.0
+
+        cost_per_bead = cost / closures if closures > 0 and cost > 0 else None
+        beads_per_dollar = closures / cost if cost > 0 and closures > 0 else None
+
+        rec = {
+            "date": date_str,
+            "cost": round(cost, 2),
+            "cache_cost": round(cache_cost, 2),
+            "non_cache_cost": round(non_cache_cost, 2),
+            "beads_closed": closures,
+            "active_hours": round(active_hrs, 2),
+            "cost_per_bead": round(cost_per_bead, 2) if cost_per_bead is not None else None,
+            "beads_per_dollar": round(beads_per_dollar, 2) if beads_per_dollar is not None else None,
+        }
+        daily_records.append(rec)
+
+        if active_hrs >= 1.0:
+            qualifying_records.append(rec)
+        else:
+            excluded_records.append(rec)
+
+    # Overall metrics from qualifying dates only
+    total_cost_q = sum(r["cost"] for r in qualifying_records)
+    total_closures_q = sum(r["beads_closed"] for r in qualifying_records)
+    total_cache_q = sum(r["cache_cost"] for r in qualifying_records)
+    total_non_cache_q = sum(r["non_cache_cost"] for r in qualifying_records)
+    overall_cost_per_bead = total_cost_q / total_closures_q if total_closures_q > 0 else None
+    overall_beads_per_dollar = total_closures_q / total_cost_q if total_cost_q > 0 else None
+
+    # Pearson correlation: cost vs beads_closed for qualifying dates with both > 0
+    paired = [(r["cost"], r["beads_closed"]) for r in qualifying_records
+              if r["cost"] > 0 and r["beads_closed"] > 0]
+    pearson_n = len(paired)
+    pearson_r = None
+
+    if pearson_n >= 3:
+        # Manual Pearson using statistics.stdev (no scipy)
+        costs = [p[0] for p in paired]
+        closures = [p[1] for p in paired]
+        mean_c = statistics.mean(costs)
+        mean_cl = statistics.mean(closures)
+        stdev_c = statistics.stdev(costs)
+        stdev_cl = statistics.stdev(closures)
+
+        if stdev_c > 0 and stdev_cl > 0:
+            covariance = sum((c - mean_c) * (cl - mean_cl) for c, cl in paired) / (pearson_n - 1)
+            pearson_r = covariance / (stdev_c * stdev_cl)
+            pearson_r = round(pearson_r, 4)
+
+    # Trend direction: compare first half vs second half cost/bead
+    trend_direction = "insufficient data"
+    cpb_values = [r["cost_per_bead"] for r in qualifying_records if r["cost_per_bead"] is not None]
+    if len(cpb_values) >= 4:
+        mid = len(cpb_values) // 2
+        first_half_avg = statistics.mean(cpb_values[:mid])
+        second_half_avg = statistics.mean(cpb_values[mid:])
+        if first_half_avg > 0:
+            change_pct = (second_half_avg - first_half_avg) / first_half_avg * 100
+            if change_pct > 15:
+                trend_direction = f"increasing (cost/bead up {change_pct:.0f}% — diminishing returns)"
+            elif change_pct < -15:
+                trend_direction = f"decreasing (cost/bead down {abs(change_pct):.0f}% — improving efficiency)"
+            else:
+                trend_direction = f"stable (cost/bead changed {change_pct:+.0f}%)"
+    elif len(cpb_values) >= 2:
+        # With very few points, just report variance
+        trend_direction = f"too few data points (N={len(cpb_values)}) for trend detection"
+
+    return {
+        "daily_records": daily_records,
+        "qualifying_records": qualifying_records,
+        "excluded_records": excluded_records,
+        "overall": {
+            "total_cost": round(total_cost_q, 2),
+            "total_closures": total_closures_q,
+            "total_cache_cost": round(total_cache_q, 2),
+            "total_non_cache_cost": round(total_non_cache_q, 2),
+            "cost_per_bead": round(overall_cost_per_bead, 2) if overall_cost_per_bead is not None else None,
+            "beads_per_dollar": round(overall_beads_per_dollar, 2) if overall_beads_per_dollar is not None else None,
+        },
+        "pearson_r": pearson_r,
+        "pearson_n": pearson_n,
+        "trend_direction": trend_direction,
+    }
+
+
 # Configuration file patterns for "configuration" segment classification
 CONFIG_PATTERNS = re.compile(
     r"(CLAUDE\.md|AGENTS\.md|settings\.json|memory/|\.claude/|compound-workflows\.md|compound-workflows\.local\.md)",
@@ -4258,6 +4418,30 @@ def main():
               f"user-prompted: {agg['user_prompted']}",
               file=sys.stderr)
 
+        # --- P6-S6: Cost vs productivity correlation ---
+        print("Computing cost vs productivity correlation...", file=sys.stderr)
+        cost_productivity_data = compute_cost_productivity_correlation(
+            all_session_results, cost_by_token_type,
+            bead_closures_by_date, dict(active_minutes_by_date),
+        )
+        for rec in cost_productivity_data["daily_records"]:
+            cp_rec = {"record_type": "cost_productivity", **rec}
+            raw_out.write(json.dumps(cp_rec) + "\n")
+        cp_summary = {
+            "record_type": "cost_productivity_summary",
+            **cost_productivity_data["overall"],
+            "pearson_r": cost_productivity_data["pearson_r"],
+            "pearson_n": cost_productivity_data["pearson_n"],
+            "trend_direction": cost_productivity_data["trend_direction"],
+            "qualifying_dates": len(cost_productivity_data["qualifying_records"]),
+            "excluded_dates": len(cost_productivity_data["excluded_records"]),
+        }
+        raw_out.write(json.dumps(cp_summary) + "\n")
+        print(f"  Cost-productivity: {len(cost_productivity_data['qualifying_records'])} qualifying dates, "
+              f"{len(cost_productivity_data['excluded_records'])} excluded (active_hours < 1.0), "
+              f"Pearson r={cost_productivity_data['pearson_r']}, N={cost_productivity_data['pearson_n']}",
+              file=sys.stderr)
+
         # --- S2: Headline metrics ---
         print("Computing headline metrics...", file=sys.stderr)
         total_cost = read_total_cost_from_file()
@@ -4363,6 +4547,7 @@ def main():
         permission_prompt_data, qa_retry_data,
         hook_audit_data,
         cost_by_token_type=cost_by_token_type,
+        cost_productivity_data=cost_productivity_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -4380,7 +4565,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      permission_prompt_data=None,
                      qa_retry_data=None,
                      hook_audit_data=None,
-                     cost_by_token_type=None):
+                     cost_by_token_type=None,
+                     cost_productivity_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -6602,6 +6788,84 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             lines.append("")
     else:
         lines.append("*No classification data available in stats YAML entries.*")
+        lines.append("")
+
+    # --- Section 29: Cost vs Productivity ---
+    lines.append("## 29. Cost vs Productivity")
+    lines.append("")
+    lines.append(
+        "Correlates daily session cost with bead closures to assess cost efficiency. "
+        "Dates with < 1.0 active hours are excluded (typically batch-closure dates "
+        "where beads were closed administratively without substantial session work). "
+        "Daily cost includes cache/non-cache breakdown from JSONL token data."
+    )
+    lines.append("")
+
+    if cost_productivity_data and cost_productivity_data["qualifying_records"]:
+        cp = cost_productivity_data
+
+        # Daily table
+        lines.append("### Daily Cost-Productivity Table")
+        lines.append("")
+        lines.append("| Date | Cost | Cache | Non-Cache | Beads Closed | Cost/Bead | Active Hours | Beads/$ |")
+        lines.append("|------|------|-------|-----------|--------------|-----------|--------------|---------|")
+
+        for rec in cp["qualifying_records"]:
+            cpb = f"${rec['cost_per_bead']:.2f}" if rec["cost_per_bead"] is not None else "-"
+            bpd = f"{rec['beads_per_dollar']:.2f}" if rec["beads_per_dollar"] is not None else "-"
+            lines.append(
+                f"| {rec['date']} | ${rec['cost']:.2f} | ${rec['cache_cost']:.2f} | "
+                f"${rec['non_cache_cost']:.2f} | {rec['beads_closed']} | "
+                f"{cpb} | {rec['active_hours']:.1f} | {bpd} |"
+            )
+
+        # Overall row
+        ov = cp["overall"]
+        ov_cpb = f"${ov['cost_per_bead']:.2f}" if ov["cost_per_bead"] is not None else "-"
+        ov_bpd = f"{ov['beads_per_dollar']:.2f}" if ov["beads_per_dollar"] is not None else "-"
+        total_active_hrs = sum(r["active_hours"] for r in cp["qualifying_records"])
+        lines.append(
+            f"| **Overall** | **${ov['total_cost']:.2f}** | **${ov['total_cache_cost']:.2f}** | "
+            f"**${ov['total_non_cache_cost']:.2f}** | **{ov['total_closures']}** | "
+            f"**{ov_cpb}** | **{total_active_hrs:.1f}** | **{ov_bpd}** |"
+        )
+        lines.append("")
+
+        # Excluded dates
+        if cp["excluded_records"]:
+            lines.append(f"**Excluded dates** (active_hours < 1.0): "
+                         f"{', '.join(r['date'] for r in cp['excluded_records'])} "
+                         f"({len(cp['excluded_records'])} dates, "
+                         f"{sum(r['beads_closed'] for r in cp['excluded_records'])} beads closed)")
+            lines.append("")
+
+        # Pearson correlation
+        lines.append("### Correlation Analysis")
+        lines.append("")
+        if cp["pearson_r"] is not None:
+            lines.append(
+                f"Pearson correlation (daily cost vs beads closed): "
+                f"**r = {cp['pearson_r']:.4f}** (N={cp['pearson_n']})"
+            )
+            lines.append("")
+            lines.append(
+                f"> **Caveat:** N={cp['pearson_n']} is a small sample. "
+                f"This correlation will become meaningful as more data accumulates. "
+                f"With {cp['pearson_n']} data points and {cp['pearson_n'] - 2} degrees of freedom, "
+                f"a single outlier can dominate the result."
+            )
+        else:
+            lines.append(
+                f"Pearson correlation: not computed (need >= 3 qualifying dates with "
+                f"both cost > 0 and closures > 0; have N={cp['pearson_n']})"
+            )
+        lines.append("")
+
+        # Trend direction
+        lines.append(f"**Trend:** {cp['trend_direction']}")
+        lines.append("")
+    else:
+        lines.append("*No cost-productivity data available.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
