@@ -1307,15 +1307,21 @@ def extract_compaction_costs(filepath, session_id):
        to compute the compaction request's token cost.
     2. Find the first productive tool call (Edit/Write/Agent/Task) after the
        compaction and measure the reorientation gap.
+    3. Compute active reorientation time by applying idle gap detection
+       (compute_active_idle with IDLE_THRESHOLD_SECONDS) to filter overnight
+       gaps from the reorientation window.
 
     Returns:
-        list of dicts with: session, timestamp, token_cost, reorientation_minutes,
+        list of dicts with: session, timestamp, token_cost,
+        reorientation_minutes (raw wall-clock),
+        reorientation_minutes_active (idle gaps subtracted),
         model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens
     """
     results = []
 
     # Two-pass approach: first pass collects all entries with timestamps
     entries = []
+    entry_timestamps = []  # parallel list: parsed timestamp per entry (or None)
     with open(filepath, "r") as f:
         for line in f:
             line = line.strip()
@@ -1326,13 +1332,16 @@ def extract_compaction_costs(filepath, session_id):
             except json.JSONDecodeError:
                 continue
             entries.append(entry)
+            entry_timestamps.append(parse_timestamp(entry.get("timestamp")))
+
+    # Build sorted list of all valid timestamps for compute_active_idle
+    all_timestamps_sorted = sorted(ts for ts in entry_timestamps if ts is not None)
 
     # Walk through entries to find compaction events
     last_assistant_usage = None  # (timestamp, cost, model, usage_dict)
     for i, entry in enumerate(entries):
         entry_type = entry.get("type")
-        ts_str = entry.get("timestamp")
-        ts = parse_timestamp(ts_str)
+        ts = entry_timestamps[i]
 
         # Track last assistant entry with usage
         if entry_type == "assistant":
@@ -1372,6 +1381,8 @@ def extract_compaction_costs(filepath, session_id):
 
             # Find first productive tool call after compaction
             reorientation_minutes = None
+            reorientation_minutes_active = None
+            productive_ts = None
             for j in range(i + 1, len(entries)):
                 future_entry = entries[j]
                 if future_entry.get("type") != "assistant":
@@ -1380,8 +1391,7 @@ def extract_compaction_costs(filepath, session_id):
                 future_content = future_msg.get("content", [])
                 if not isinstance(future_content, list):
                     continue
-                future_ts_str = future_entry.get("timestamp")
-                future_ts = parse_timestamp(future_ts_str)
+                future_ts = entry_timestamps[j]
                 if not future_ts:
                     continue
 
@@ -1398,15 +1408,27 @@ def extract_compaction_costs(filepath, session_id):
                         break
 
                 if found_productive:
+                    productive_ts = future_ts
                     gap = (future_ts - compaction_ts).total_seconds() / 60.0
                     reorientation_minutes = round(gap, 2)
                     break
+
+            # Compute active reorientation time (subtract idle gaps >5min)
+            if reorientation_minutes is not None and productive_ts is not None:
+                active_idle = compute_active_idle(
+                    all_timestamps_sorted, compaction_ts, productive_ts
+                )
+                reorientation_minutes_active = active_idle["active_minutes"]
+            elif reorientation_minutes is not None:
+                # No productive tool found but we have raw time — active = raw
+                reorientation_minutes_active = reorientation_minutes
 
             results.append({
                 "session": session_id,
                 "timestamp": compaction_ts.isoformat(),
                 "token_cost": round(token_cost, 4),
                 "reorientation_minutes": reorientation_minutes,
+                "reorientation_minutes_active": reorientation_minutes_active,
                 "model": model_name,
                 "input_tokens": input_tok,
                 "output_tokens": output_tok,
@@ -3318,6 +3340,11 @@ def main():
                 for cc in all_compaction_costs
                 if cc["reorientation_minutes"] is not None
             ]
+            reorient_times_active = [
+                cc["reorientation_minutes_active"]
+                for cc in all_compaction_costs
+                if cc["reorientation_minutes_active"] is not None
+            ]
             compaction_cost_data = {
                 "event_count": len(all_compaction_costs),
                 "total_cost_usd": round(sum(costs), 4),
@@ -3338,6 +3365,19 @@ def main():
                 "total_reorientation_minutes": round(
                     sum(reorient_times), 2
                 ) if reorient_times else None,
+                # Active reorientation (idle gaps >5min subtracted)
+                "median_reorientation_active_minutes": round(
+                    statistics.median(reorient_times_active), 2
+                ) if reorient_times_active else None,
+                "mean_reorientation_active_minutes": round(
+                    statistics.mean(reorient_times_active), 2
+                ) if reorient_times_active else None,
+                "max_reorientation_active_minutes": round(
+                    max(reorient_times_active), 2
+                ) if reorient_times_active else None,
+                "total_reorientation_active_minutes": round(
+                    sum(reorient_times_active), 2
+                ) if reorient_times_active else None,
                 "sessions_with_compaction": len(set(
                     cc["session"] for cc in all_compaction_costs
                 )),
@@ -5045,26 +5085,33 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             lines.append("")
             lines.append(
                 "Time from compaction to first productive tool call "
-                "(Edit/Write/Agent/Task)."
+                "(Edit/Write/Agent/Task). **Raw** = wall-clock gap. "
+                "**Active** = idle gaps >5 min subtracted (filters "
+                "overnight/AFK gaps from reorientation window)."
             )
             lines.append("")
-            lines.append("| Metric | Value |")
-            lines.append("|--------|-------|")
+            lines.append("| Metric | Raw | Active |")
+            lines.append("|--------|-----|--------|")
             lines.append(
                 f"| Events with productive follow-up | "
+                f"{cd['reorientation_event_count']}/{cd['event_count']} | "
                 f"{cd['reorientation_event_count']}/{cd['event_count']} |"
             )
             lines.append(
-                f"| Median | {cd['median_reorientation_minutes']} min |"
+                f"| Median | {cd['median_reorientation_minutes']} min | "
+                f"{cd['median_reorientation_active_minutes']} min |"
             )
             lines.append(
-                f"| Mean | {cd['mean_reorientation_minutes']} min |"
+                f"| Mean | {cd['mean_reorientation_minutes']} min | "
+                f"{cd['mean_reorientation_active_minutes']} min |"
             )
             lines.append(
-                f"| Max | {cd['max_reorientation_minutes']} min |"
+                f"| Max | {cd['max_reorientation_minutes']} min | "
+                f"{cd['max_reorientation_active_minutes']} min |"
             )
             lines.append(
-                f"| Total | {cd['total_reorientation_minutes']} min |"
+                f"| Total | {cd['total_reorientation_minutes']} min | "
+                f"{cd['total_reorientation_active_minutes']} min |"
             )
             lines.append("")
         else:
@@ -5078,23 +5125,28 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             lines.append("### Per-Event Detail")
             lines.append("")
             lines.append(
-                "| Session | Timestamp | Cost | Reorientation | Model |"
+                "| Session | Timestamp | Cost | Reorientation (Raw) | Reorientation (Active) | Model |"
             )
             lines.append(
-                "|---------|-----------|------|---------------|-------|"
+                "|---------|-----------|------|---------------------|------------------------|-------|"
             )
             for cc in sorted(compaction_cost_details, key=lambda x: x["timestamp"]):
                 session_short = cc["session"][-8:] if len(cc["session"]) > 8 else cc["session"]
                 ts_short = cc["timestamp"][:19] if len(cc["timestamp"]) > 19 else cc["timestamp"]
-                reorient = (
+                reorient_raw = (
                     f"{cc['reorientation_minutes']} min"
                     if cc["reorientation_minutes"] is not None
+                    else "N/A"
+                )
+                reorient_active = (
+                    f"{cc['reorientation_minutes_active']} min"
+                    if cc.get("reorientation_minutes_active") is not None
                     else "N/A"
                 )
                 model_short = cc["model"].split("-")[-1] if cc["model"] else "-"
                 lines.append(
                     f"| ...{session_short} | {ts_short} | "
-                    f"${cc['token_cost']:.4f} | {reorient} | {model_short} |"
+                    f"${cc['token_cost']:.4f} | {reorient_raw} | {reorient_active} | {model_short} |"
                 )
             lines.append("")
     else:
