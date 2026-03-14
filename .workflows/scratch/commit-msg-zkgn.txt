@@ -1,0 +1,18 @@
+feat(session-analysis): re-estimate Sonnet savings with actual cache data (3zr-P6-S9)
+
+Add compute_sonnet_migration_analysis() with two sub-functions:
+- _per_phase_projections(): theoretical upper bound if all Opus at Sonnet rates
+- _per_tier_projections(): achievable savings via subagent routing only
+
+Key findings:
+- Theoretical: 40.0% savings ($786 of $1,966) if all Opus tokens at Sonnet rates
+- Achievable: $1.08 (0.05%) via subagent routing — dispatches are tiny vs orchestrator
+- Orchestrator dominates cost; subagent routing alone is negligible for savings
+- Opus 4.6 to Sonnet rate ratio is 1.67x (not 7.4x as baseline assumed with Opus 4)
+- 99.8% of total cost is Opus, only 0.2% is already-Sonnet agents
+
+Section 30 added to summary.md with per-phase table, per-tier table with
+complexity/output_type groupings, and baseline comparison vs xu2/sze8 estimates.
+Emits 24 sonnet_savings_estimate records to raw-observations.jsonl.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>

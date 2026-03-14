@@ -2153,6 +2153,375 @@ def compute_effort_validation(closed_bead_estimates, bead_attribution_windowed):
     }
 
 
+# --- Agents already dispatched on Sonnet (exclude from migration savings) ---
+SONNET_AGENTS = {
+    "best-practices-researcher",
+    "repo-research-analyst",
+    "context-researcher",
+    "framework-docs-researcher",
+    "learnings-researcher",
+    "git-history-analyzer",
+    "red-team-relay",
+}
+
+# Complexity tiers eligible for migration (not "judgment")
+MOVABLE_COMPLEXITY_TIERS = {"mechanical", "analytical"}
+
+
+def compute_sonnet_migration_analysis(cost_by_token_type, stats_entries,
+                                       effective_rate_per_token):
+    """Compute projected Sonnet migration savings for Opus dispatches.
+
+    Two sub-analyses:
+    1. Per-phase: project cache_read cost at Sonnet rates (ratio depends on model gen)
+    2. Per-tier: group stats YAML by complexity+output_type, project movable Opus
+       dispatches at Sonnet rates
+
+    Frames results as quota freed (user is on Max 20x plan), with dollar amounts
+    for completeness.
+
+    Args:
+        cost_by_token_type: output of compute_phase_cost_by_token_type()
+        stats_entries: list of stats YAML entry dicts
+        effective_rate_per_token: cache-inclusive effective rate ($/token)
+
+    Returns:
+        dict with per_phase, per_tier, and summary projections
+    """
+    phase_projections = _per_phase_projections(cost_by_token_type)
+    tier_projections = _per_tier_projections(stats_entries, effective_rate_per_token)
+
+    # Compute overall totals
+    total_current_opus = sum(
+        p["current_opus_cost"] for p in phase_projections.values()
+    )
+    total_projected_sonnet = sum(
+        p["projected_sonnet_cost"] for p in phase_projections.values()
+    )
+    total_savings = total_current_opus - total_projected_sonnet
+    total_global = cost_by_token_type["global_totals"]["total_cost"]
+    savings_pct = (total_savings / total_global * 100) if total_global > 0 else 0.0
+
+    # Tier-level totals (movable only)
+    tier_total_current = sum(
+        t["opus_cost"] for t in tier_projections.values()
+        if t.get("movable")
+    )
+    tier_total_projected = sum(
+        t["projected_sonnet_cost"] for t in tier_projections.values()
+        if t.get("movable")
+    )
+    tier_savings = tier_total_current - tier_total_projected
+
+    # Orchestrator cost estimate (non-workflow phase is orchestrator + non-workflow work)
+    non_wf = cost_by_token_type["by_phase"].get("non-workflow", _empty_cost_breakdown())
+    orch_pct = (non_wf["total_cost"] / total_global * 100) if total_global > 0 else 0.0
+
+    records = []
+    # Per-phase records
+    for phase, proj in phase_projections.items():
+        records.append({
+            "record_type": "sonnet_savings_estimate",
+            "scope": "phase",
+            "phase": phase,
+            "current_opus_cost": round(proj["current_opus_cost"], 4),
+            "projected_sonnet_cost": round(proj["projected_sonnet_cost"], 4),
+            "savings": round(proj["savings"], 4),
+            "quota_freed_pct": round(proj["quota_freed_pct"], 2),
+        })
+    # Per-tier records
+    for tier_key, proj in tier_projections.items():
+        records.append({
+            "record_type": "sonnet_savings_estimate",
+            "scope": "tier",
+            "tier": tier_key,
+            "movable": proj.get("movable", False),
+            "opus_dispatches": proj["opus_dispatches"],
+            "sonnet_dispatches": proj["sonnet_dispatches"],
+            "opus_tokens": proj["opus_tokens"],
+            "opus_cost": round(proj["opus_cost"], 4),
+            "projected_sonnet_cost": round(proj["projected_sonnet_cost"], 4),
+            "savings": round(proj["savings"], 4),
+        })
+    # Summary record
+    records.append({
+        "record_type": "sonnet_savings_estimate",
+        "scope": "summary",
+        "total_global_cost": round(total_global, 4),
+        "total_current_opus_dispatch_cost": round(total_current_opus, 4),
+        "total_projected_sonnet_cost": round(total_projected_sonnet, 4),
+        "total_savings": round(total_savings, 4),
+        "savings_pct_of_global": round(savings_pct, 2),
+        "orchestrator_pct": round(orch_pct, 2),
+        "tier_movable_savings": round(tier_savings, 4),
+    })
+
+    return {
+        "per_phase": phase_projections,
+        "per_tier": tier_projections,
+        "total_global_cost": total_global,
+        "total_current_opus_dispatch_cost": total_current_opus,
+        "total_projected_sonnet_cost": total_projected_sonnet,
+        "total_savings": total_savings,
+        "savings_pct": savings_pct,
+        "orchestrator_pct": orch_pct,
+        "tier_movable_current": tier_total_current,
+        "tier_movable_projected": tier_total_projected,
+        "tier_movable_savings": tier_savings,
+        "records": records,
+    }
+
+
+def _per_phase_projections(cost_by_token_type):
+    """Project per-phase savings if Opus cache_read tokens were charged at Sonnet rates.
+
+    For each model in by_model, computes the Opus-to-Sonnet cache_read ratio using
+    get_model_pricing() (not hardcoded). Then applies a weighted ratio per phase
+    based on the model mix.
+
+    Since cost_by_token_type doesn't have per-phase per-model breakdowns, we use
+    the global model mix ratio as an approximation.
+
+    Returns:
+        dict of phase -> {current_opus_cost, projected_sonnet_cost, savings, quota_freed_pct}
+    """
+    # Compute global weighted average cache_read ratio across Opus models
+    # Ratio = Opus_cache_read_rate / Sonnet_equivalent_cache_read_rate
+    by_model = cost_by_token_type.get("by_model", {})
+
+    # For each Opus model, compute the ratio of its cache_read rate to equivalent Sonnet
+    # Opus 4.6 ($0.50) -> Sonnet 4.6 ($0.30) = ratio 1.667
+    # Opus 4 ($1.50) -> Sonnet 4 ($0.30) = ratio 5.0
+    total_opus_cache_read_cost = 0.0
+    total_projected_sonnet_cache_read = 0.0
+
+    for model_prefix, costs in by_model.items():
+        if not model_prefix.startswith("claude-opus"):
+            continue  # Only project Opus models
+
+        opus_rates = get_model_pricing(model_prefix)
+        opus_cache_read_rate = opus_rates[2]  # $/MTok
+
+        # Find equivalent Sonnet model
+        sonnet_prefix = model_prefix.replace("claude-opus", "claude-sonnet")
+        sonnet_rates = get_model_pricing(sonnet_prefix)
+        sonnet_cache_read_rate = sonnet_rates[2]
+
+        # If unknown Sonnet model, use Sonnet 4.6 as default
+        if sonnet_cache_read_rate == 0.0:
+            sonnet_cache_read_rate = get_model_pricing("claude-sonnet-4-6")[2]
+
+        opus_cr_cost = costs["cache_read_cost"]
+        total_opus_cache_read_cost += opus_cr_cost
+
+        if opus_cache_read_rate > 0:
+            # Convert: projected = actual_cost * (sonnet_rate / opus_rate)
+            ratio = sonnet_cache_read_rate / opus_cache_read_rate
+            total_projected_sonnet_cache_read += opus_cr_cost * ratio
+
+    # Also compute for non-cache token types (input, output, cache_creation)
+    total_opus_non_cr_cost = 0.0
+    total_projected_sonnet_non_cr = 0.0
+
+    for model_prefix, costs in by_model.items():
+        if not model_prefix.startswith("claude-opus"):
+            continue
+
+        opus_rates = get_model_pricing(model_prefix)
+        sonnet_prefix = model_prefix.replace("claude-opus", "claude-sonnet")
+        sonnet_rates = get_model_pricing(sonnet_prefix)
+        if sonnet_rates == (0.0, 0.0, 0.0, 0.0):
+            sonnet_rates = get_model_pricing("claude-sonnet-4-6")
+
+        # Input tokens: ratio = sonnet_input / opus_input
+        for idx, key in [(0, "input_cost"), (1, "cache_creation_cost"), (3, "output_cost")]:
+            opus_cost = costs[key]
+            total_opus_non_cr_cost += opus_cost
+            if opus_rates[idx] > 0:
+                ratio = sonnet_rates[idx] / opus_rates[idx]
+                total_projected_sonnet_non_cr += opus_cost * ratio
+
+    # Global weighted ratio for cache_read specifically
+    global_cr_ratio = (
+        total_projected_sonnet_cache_read / total_opus_cache_read_cost
+        if total_opus_cache_read_cost > 0 else 0.6  # fallback: $0.30/$0.50
+    )
+
+    # Global weighted ratio for all token types combined
+    total_opus_all = total_opus_cache_read_cost + total_opus_non_cr_cost
+    total_projected_all = total_projected_sonnet_cache_read + total_projected_sonnet_non_cr
+    global_all_ratio = (
+        total_projected_all / total_opus_all
+        if total_opus_all > 0 else 0.6
+    )
+
+    global_total = cost_by_token_type["global_totals"]["total_cost"]
+
+    # Apply to each phase
+    projections = {}
+    for phase, bd in cost_by_token_type["by_phase"].items():
+        # Estimate Opus portion of this phase's cost
+        # (Sonnet costs stay the same; only Opus costs get projected)
+        # We approximate: all cost in this phase uses the global model mix ratio
+        current_cost = bd["total_cost"]
+
+        # For phases, project all Opus cost at Sonnet rates using global weighted ratio
+        # Sonnet cost already in the phase stays unchanged
+        projected_sonnet_cost = current_cost * global_all_ratio
+        savings = current_cost - projected_sonnet_cost
+        quota_freed_pct = (savings / global_total * 100) if global_total > 0 else 0.0
+
+        projections[phase] = {
+            "current_opus_cost": round(current_cost, 4),
+            "projected_sonnet_cost": round(projected_sonnet_cost, 4),
+            "savings": round(savings, 4),
+            "quota_freed_pct": round(quota_freed_pct, 2),
+            "cache_read_cost": round(bd["cache_read_cost"], 4),
+        }
+
+    return projections
+
+
+def _per_tier_projections(stats_entries, effective_rate_per_token):
+    """Project per-complexity-tier savings from migrating Opus dispatches to Sonnet.
+
+    Groups stats YAML entries by complexity tier. For each tier, counts Opus vs
+    Sonnet dispatches, tokens, and computes projected Sonnet cost.
+
+    Excludes agents already on Sonnet (SONNET_AGENTS) from savings opportunities.
+    Marks tiers as "movable" if complexity is mechanical or analytical.
+
+    Args:
+        stats_entries: list of stats YAML entry dicts
+        effective_rate_per_token: cache-inclusive effective rate ($/token)
+
+    Returns:
+        dict of tier_key -> {opus_dispatches, sonnet_dispatches, opus_tokens,
+                             opus_cost, projected_sonnet_cost, savings, movable, ...}
+    """
+    # Group by (complexity, output_type)
+    groups = defaultdict(lambda: {
+        "opus_dispatches": 0,
+        "sonnet_dispatches": 0,
+        "opus_tokens": 0,
+        "sonnet_tokens": 0,
+        "opus_duration_ms": 0,
+        "sonnet_duration_ms": 0,
+        "already_sonnet_agents": 0,
+    })
+
+    for entry in stats_entries:
+        complexity = entry.get("complexity") or "unclassified"
+        output_type = entry.get("output_type") or "unclassified"
+        if complexity == "null":
+            complexity = "unclassified"
+        if output_type == "null":
+            output_type = "unclassified"
+
+        agent = entry.get("agent", "unknown")
+        model_raw = entry.get("model", "")
+        tokens = entry.get("tokens") or 0
+        duration_ms = entry.get("duration_ms") or 0
+
+        if duration_ms <= 0:
+            continue
+
+        tier_key = f"{complexity}|{output_type}"
+        g = groups[tier_key]
+
+        # Resolve model to determine if Opus or Sonnet
+        resolved = resolve_stats_model(model_raw) if model_raw else None
+        is_sonnet = resolved and "sonnet" in resolved.lower() if resolved else False
+        is_already_sonnet_agent = agent in SONNET_AGENTS
+
+        if is_sonnet:
+            g["sonnet_dispatches"] += 1
+            g["sonnet_tokens"] += tokens
+            g["sonnet_duration_ms"] += duration_ms
+            if is_already_sonnet_agent:
+                g["already_sonnet_agents"] += 1
+        else:
+            g["opus_dispatches"] += 1
+            g["opus_tokens"] += tokens
+            g["opus_duration_ms"] += duration_ms
+
+    # Compute costs and projections
+    # For stats YAML entries, we use the effective_rate_per_token (cache-inclusive)
+    # to estimate Opus cost, then compute Sonnet equivalent using the rate ratio.
+    # The effective rate is ~cache-weighted, so for Sonnet projection we need the
+    # ratio of Sonnet effective rate to Opus effective rate.
+    #
+    # Opus 4.6 rates: input $5, cache_write $6.25, cache_read $0.50, output $25
+    # Sonnet 4.6 rates: input $3, cache_write $3.75, cache_read $0.30, output $15
+    # Since cache_read dominates (~94% of cost), the effective ratio is approximately
+    # sonnet_cache_read / opus_cache_read = 0.30/0.50 = 0.60
+    # But we compute it properly from the full rate structure.
+
+    opus_46_rates = get_model_pricing("claude-opus-4-6")
+    sonnet_46_rates = get_model_pricing("claude-sonnet-4-6")
+
+    # Weighted average: assume 94% cache_read, 2% input, 2% cache_write, 2% output
+    # (from S3 data showing 93.9% cache)
+    # More precisely: use the effective_rate ratio computed from actual model mix
+    # For simplicity and accuracy, compute per-token-type ratios:
+    if opus_46_rates[0] > 0:
+        input_ratio = sonnet_46_rates[0] / opus_46_rates[0]    # 3/5 = 0.60
+    else:
+        input_ratio = 0.6
+    if opus_46_rates[1] > 0:
+        cw_ratio = sonnet_46_rates[1] / opus_46_rates[1]       # 3.75/6.25 = 0.60
+    else:
+        cw_ratio = 0.6
+    if opus_46_rates[2] > 0:
+        cr_ratio = sonnet_46_rates[2] / opus_46_rates[2]       # 0.30/0.50 = 0.60
+    else:
+        cr_ratio = 0.6
+    if opus_46_rates[3] > 0:
+        output_ratio = sonnet_46_rates[3] / opus_46_rates[3]   # 15/25 = 0.60
+    else:
+        output_ratio = 0.6
+
+    # For Opus 4.6, all ratios are 0.60 (Sonnet is 60% of Opus across all token types)
+    # For Opus 4, ratios would be: 3/15=0.20, 3.75/18.75=0.20, 0.30/1.50=0.20, 15/75=0.20
+    # Since most dispatches are Opus 4.6, use 0.60 as the effective migration ratio.
+    # This is consistent with the cr_ratio which dominates due to 94% cache.
+    effective_migration_ratio = cr_ratio  # 0.60 for Opus 4.6 dominant workload
+
+    projections = {}
+    for tier_key, g in sorted(groups.items()):
+        complexity = tier_key.split("|")[0]
+        movable = complexity in MOVABLE_COMPLEXITY_TIERS
+
+        opus_cost = compute_step_cost(g["opus_tokens"], effective_rate_per_token)
+        sonnet_cost = compute_step_cost(g["sonnet_tokens"], effective_rate_per_token)
+
+        # Project: if Opus dispatches moved to Sonnet, cost = opus_cost * migration_ratio
+        projected_sonnet_cost = opus_cost * effective_migration_ratio
+        savings = opus_cost - projected_sonnet_cost if movable else 0.0
+
+        total_dispatches = g["opus_dispatches"] + g["sonnet_dispatches"]
+
+        projections[tier_key] = {
+            "complexity": complexity,
+            "output_type": tier_key.split("|")[1],
+            "opus_dispatches": g["opus_dispatches"],
+            "sonnet_dispatches": g["sonnet_dispatches"],
+            "total_dispatches": total_dispatches,
+            "already_sonnet_agents": g["already_sonnet_agents"],
+            "opus_tokens": g["opus_tokens"],
+            "sonnet_tokens": g["sonnet_tokens"],
+            "opus_cost": round(opus_cost, 4),
+            "sonnet_cost_current": round(sonnet_cost, 4),
+            "projected_sonnet_cost": round(projected_sonnet_cost, 4),
+            "savings": round(savings, 4),
+            "movable": movable,
+            "opus_duration_min": round(g["opus_duration_ms"] / 60000.0, 2),
+            "sonnet_duration_min": round(g["sonnet_duration_ms"] / 60000.0, 2),
+        }
+
+    return projections
+
+
 def detect_concurrent_sessions(session_ranges):
     """Detect overlapping session timestamp ranges.
 
@@ -4471,6 +4840,20 @@ def main():
         else:
             print("  No beads available for effort validation", file=sys.stderr)
 
+        # --- P6-S9: Sonnet migration analysis ---
+        print("Computing Sonnet migration analysis...", file=sys.stderr)
+        sonnet_migration_data = compute_sonnet_migration_analysis(
+            cost_by_token_type, stats_entries, effective_rate_per_token
+        )
+        for rec in sonnet_migration_data["records"]:
+            raw_out.write(json.dumps(rec) + "\n")
+        print(f"  Sonnet migration: savings ${sonnet_migration_data['total_savings']:.2f} "
+              f"({sonnet_migration_data['savings_pct']:.1f}% of global cost), "
+              f"orchestrator {sonnet_migration_data['orchestrator_pct']:.1f}% of total",
+              file=sys.stderr)
+        print(f"  Tier-level movable savings: ${sonnet_migration_data['tier_movable_savings']:.2f}",
+              file=sys.stderr)
+
         # --- P5-S5: Compaction cost ---
         print(f"Computing compaction costs ({len(all_compaction_costs)} events)...",
               file=sys.stderr)
@@ -4791,6 +5174,7 @@ def main():
         cost_by_token_type=cost_by_token_type,
         cost_productivity_data=cost_productivity_data,
         effort_validation_data=effort_validation_data,
+        sonnet_migration_data=sonnet_migration_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -4810,7 +5194,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      hook_audit_data=None,
                      cost_by_token_type=None,
                      cost_productivity_data=None,
-                     effort_validation_data=None):
+                     effort_validation_data=None,
+                     sonnet_migration_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -7110,6 +7495,183 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append("")
     else:
         lines.append("*No cost-productivity data available.*")
+        lines.append("")
+
+    # =========================================
+    # 30. SONNET MIGRATION ANALYSIS (P6-S9)
+    # =========================================
+    lines.append("## 30. Sonnet Migration Analysis")
+    lines.append("")
+    lines.append(
+        "Projects the quota and cost impact of migrating mechanical and analytical "
+        "Opus dispatches to Sonnet. On Max 20x plan, this analysis focuses on "
+        "Opus quota freed for judgment work rather than dollar savings alone."
+    )
+    lines.append("")
+    lines.append(
+        "> **Assumption:** Sonnet produces equivalent quality for mechanical/analytical work. "
+        "Quality validation is a separate concern."
+    )
+    lines.append("")
+    lines.append(
+        "> **Constraint:** Orchestrator sessions (non-workflow) account for the majority "
+        "of Opus cost and are untouchable with subagent routing."
+    )
+    lines.append("")
+
+    if sonnet_migration_data:
+        sm = sonnet_migration_data
+
+        # Lead with quota impact headline — two views
+        lines.append(
+            f"**Theoretical upper bound:** if ALL Opus tokens were at Sonnet rates, "
+            f"saves {sm['savings_pct']:.1f}% of total spend "
+            f"(${sm['total_savings']:.2f} of ${sm['total_global_cost']:.2f}). "
+            f"This is unreachable — the orchestrator session (main Claude Code process) "
+            f"must remain on Opus."
+        )
+        lines.append("")
+        tier_sav_pct = (
+            sm['tier_movable_savings'] / sm['total_global_cost'] * 100
+            if sm['total_global_cost'] > 0 else 0.0
+        )
+        lines.append(
+            f"**Achievable via subagent routing:** moving mechanical + analytical "
+            f"*dispatched* subagents to Sonnet saves ${sm['tier_movable_savings']:.2f} "
+            f"({tier_sav_pct:.2f}% of total). This is the actionable number."
+        )
+        lines.append("")
+        lines.append(
+            f"Orchestrator (non-workflow) is {sm['orchestrator_pct']:.1f}% of total cost. "
+            f"The orchestrator runs across all phases and accounts for the majority "
+            f"of Opus cost — it is untouchable with subagent routing."
+        )
+        lines.append("")
+
+        # --- Per-phase projections ---
+        lines.append("### Per-Phase Projections (theoretical upper bound)")
+        lines.append("")
+        lines.append(
+            "Projects all cost in each phase at Sonnet rates. This is an upper bound "
+            "because each phase includes orchestrator cost that cannot be migrated."
+        )
+        lines.append("")
+        lines.append(
+            "| Phase | Current Cost | Projected Sonnet | Savings | Quota Freed % |"
+        )
+        lines.append(
+            "|-------|-------------|-----------------|---------|---------------|"
+        )
+        # Sort by current cost descending
+        sorted_phases = sorted(
+            sm["per_phase"].items(),
+            key=lambda x: x[1]["current_opus_cost"],
+            reverse=True,
+        )
+        for phase, proj in sorted_phases:
+            lines.append(
+                f"| {phase} | ${proj['current_opus_cost']:.2f} | "
+                f"${proj['projected_sonnet_cost']:.2f} | "
+                f"${proj['savings']:.2f} | {proj['quota_freed_pct']:.1f}% |"
+            )
+        # Totals row
+        lines.append(
+            f"| **Total** | **${sm['total_current_opus_dispatch_cost']:.2f}** | "
+            f"**${sm['total_projected_sonnet_cost']:.2f}** | "
+            f"**${sm['total_savings']:.2f}** | **{sm['savings_pct']:.1f}%** |"
+        )
+        lines.append("")
+        lines.append(
+            "*Note: per-phase projection applies global Opus-to-Sonnet rate ratio "
+            "uniformly. Actual savings depend on model mix within each phase.*"
+        )
+        lines.append("")
+
+        # --- Per-tier projections ---
+        lines.append("### Per-Complexity-Tier Projections (achievable via subagent routing)")
+        lines.append("")
+        lines.append(
+            "Groups stats YAML dispatches by complexity tier and output type. "
+            "Only mechanical and analytical tiers are 'movable' — judgment stays on Opus. "
+            "Agents already on Sonnet (research agents, red-team-relay) are excluded "
+            "from savings opportunities. Cost uses cache-inclusive effective rate from "
+            "stats YAML token counts (dispatch-only, excludes orchestrator)."
+        )
+        lines.append("")
+        lines.append(
+            "| Complexity | Output Type | Opus N | Sonnet N | Opus Tokens | "
+            "Opus Cost | Projected | Savings | Movable |"
+        )
+        lines.append(
+            "|------------|-------------|--------|----------|-------------|"
+            "----------|-----------|---------|---------|"
+        )
+        sorted_tiers = sorted(
+            sm["per_tier"].items(),
+            key=lambda x: x[1]["opus_cost"],
+            reverse=True,
+        )
+        tier_movable_total_opus = 0.0
+        tier_movable_total_proj = 0.0
+        tier_movable_total_savings = 0.0
+        for tier_key, proj in sorted_tiers:
+            movable_str = "yes" if proj["movable"] else "no"
+            lines.append(
+                f"| {proj['complexity']} | {proj['output_type']} | "
+                f"{proj['opus_dispatches']} | {proj['sonnet_dispatches']} | "
+                f"{proj['opus_tokens']:,} | ${proj['opus_cost']:.2f} | "
+                f"${proj['projected_sonnet_cost']:.2f} | "
+                f"${proj['savings']:.2f} | {movable_str} |"
+            )
+            if proj["movable"]:
+                tier_movable_total_opus += proj["opus_cost"]
+                tier_movable_total_proj += proj["projected_sonnet_cost"]
+                tier_movable_total_savings += proj["savings"]
+        lines.append(
+            f"| **Movable Total** | | | | | "
+            f"**${tier_movable_total_opus:.2f}** | "
+            f"**${tier_movable_total_proj:.2f}** | "
+            f"**${tier_movable_total_savings:.2f}** | |"
+        )
+        lines.append("")
+
+        # --- Baseline comparison ---
+        lines.append("### Baseline Comparison")
+        lines.append("")
+        lines.append(
+            "The original rough estimate (from xu2/sze8 bead notes) projected "
+            "10-15% savings. That estimate was computed with incorrect Opus 4 pricing "
+            "($1.50 cache_read at 7.4x ratio) before the P0a pricing correction."
+        )
+        lines.append("")
+        lines.append(
+            f"| Metric | Baseline Estimate | Actual Projection |"
+        )
+        lines.append(
+            f"|--------|-------------------|-------------------|"
+        )
+        lines.append(
+            f"| Theoretical upper bound | 10-15% | {sm['savings_pct']:.1f}% (all Opus at Sonnet rates) |"
+        )
+        lines.append(
+            f"| Achievable via routing | - | ${sm['tier_movable_savings']:.2f} ({tier_sav_pct:.2f}%) |"
+        )
+        lines.append(
+            f"| Opus-to-Sonnet rate ratio | 7.4x (wrong, Opus 4) | ~1.67x (Opus 4.6) |"
+        )
+        lines.append("")
+        lines.append(
+            f"**Key insight:** the 10-15% baseline assumed Opus 4 pricing with a 7.4x "
+            f"cache_read ratio. With Opus 4.6 dominant (1.67x ratio), the per-token "
+            f"savings are much smaller — but applied to 99.8% Opus workload, the "
+            f"theoretical ceiling is actually higher ({sm['savings_pct']:.1f}%). However, "
+            f"the achievable savings via subagent routing are negligible "
+            f"(${sm['tier_movable_savings']:.2f}) because dispatched subagents consume "
+            f"only a tiny fraction of total tokens. The orchestrator session dominates."
+        )
+        lines.append("")
+    else:
+        lines.append("*No Sonnet migration data available.*")
         lines.append("")
 
     # =========================================
