@@ -1,8 +1,8 @@
 # Project Context
 
 ## Overview
-- Plugin: compound-workflows v3.1.7 (plugins/compound-workflows/)
-- 27 agents, 29 skills, 8 commands (thin aliases)
+- Plugin: compound-workflows v3.1.8 (plugins/compound-workflows/)
+- 26 agents, 29 skills, 8 commands (thin aliases)
 - Workflow skills under `/do:*` (shorthand) or `/compound-workflows:do:*` (full). Legacy `/compound:*` aliases redirect during transition.
 - Forked from Every's compound-engineering (February 2026), fully self-contained
 - GitHub repo: adamfeldman/compound-workflows (public)
@@ -153,7 +153,7 @@
 - **Mine session logs for empirical timing data (bead 3zr)** — Closed. Phase 4+5 complete. 9 phase 5 steps executed: per-request cost, stats YAML mining, AUQ by workflow, estimation segmentation, compaction cost, velocity trend, permission prompt estimate, QA retry, heuristic tightening.
 - **Reduce confirmation prompts (bead 1hu4)** — P2. 238 confirmation prompts, 20.8 hrs wait. Depends on phase 5 data. Related: 42s.
 - **Live estimation display in workflows (bead t7sd)** — P3. Deferred from 3zr phase 5 — requires plugin skill changes.
-- **Git index isolation (bead s7qj)** — P2 bug. Brainstorm complete (`docs/brainstorms/2026-03-13-git-index-isolation-brainstorm.md`). 3 rounds of red team drove 3 pivots: lock-based wrapper → `git commit --only` → `GIT_INDEX_FILE`. Red team v3 expanded scope to include working-tree isolation (not just index). Next: analyze session logs for simultaneous file writes (not just overlapping session windows) to decide whether worktrees are needed, then `/do:plan`.
+- **Git index isolation (bead s7qj)** — P0 bug. Plan + 3 deepen-plan runs complete. Plan at `docs/plans/2026-03-14-fix-worktree-session-isolation-plan.md`. Design: worktree-per-session via EnterWorktree/ExitWorktree, merge at session end, safe-commit.sh for opt-out path, file-intersection warning, bead IDs in merge messages. 3 red team rounds (plan + deepen runs 1+3). Blocking tests A2/A3 (model compliance with hook instructions) verify during implementation. Next: `/do:work` with A2/A3 pause points.
 - **Brainstorm should dispatch web search (bead 4je7)** — P1. Brainstorm skill Phase 1.1 only does internal research (repo + context). No web search happens until deepen-plan, which is too late. Lesson from s7qj brainstorm.
 - **Brainstorm should front-load interactive work (bead xcaj)** — P3. Test things empirically during brainstorm instead of deferring to planning. Cleanup: remove `.claude/memory/feedback_brainstorm-frontload-interactive.md` once built into skill.
 - **New beads this session (prior):** n711 (shellcheck QA, P2), 4i61 (GitHub Issues integration, P3), ahoj (cross-repo memory, P3), g1vy (GitHub repo setup, P3), 3e9r (bake hot cache into plugin, P2)
