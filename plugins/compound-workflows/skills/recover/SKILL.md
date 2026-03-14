@@ -469,6 +469,111 @@ Update memory files with these?"
 
 If no memory-worthy content is detected, skip this phase silently. Do not ask the user about it.
 
+## Phase 6: Worktree Recovery
+
+After JSONL-based session recovery, check for orphaned session worktrees that may contain uncommitted or unmerged work from prior sessions.
+
+### Step 6.1: Detect default branch
+
+```bash
+git symbolic-ref refs/remotes/origin/HEAD | sed 's@^refs/remotes/origin/@@'
+```
+
+Read the output as `DEFAULT_BRANCH`. If the command fails (no remote HEAD configured), use `main` as the fallback.
+
+### Step 6.2: Discover session worktrees
+
+```bash
+git worktree list
+```
+
+Parse the output. Filter for entries whose path contains `.claude/worktrees/`. Exclude the current working directory if it is already a session worktree. Track the remaining entries as orphaned session worktrees.
+
+If no session worktrees are found (other than possibly the current CWD), skip to Step 6.4 (Orphan Branch Detection).
+
+If more than 5 session worktrees are found, announce: "N session worktrees found. Showing first 5 — consider manual cleanup for the rest." Process only the first 5.
+
+### Step 6.3: Process each worktree
+
+For each session worktree (one at a time), gather information:
+
+```bash
+git -C <path> branch --show-current
+```
+
+```bash
+git -C <path> status --short | wc -l
+```
+
+```bash
+git log <DEFAULT_BRANCH>..<branch> --oneline | wc -l
+```
+
+For last modified time, use `stat -f '%Sm' <path>` on macOS or `stat -c '%y' <path>` on Linux. Run `uname` first if the platform is unknown.
+
+Present each worktree to the user via **AskUserQuestion**:
+
+"Found session worktree `<name>` (branch: `<branch>`, N uncommitted files, M unmerged commits, last active: <date>). What would you like to do?"
+
+Options:
+- **Merge** — "Run `/do:merge <branch>` to merge into `<DEFAULT_BRANCH>`." Output the exact command string for the user to copy-paste. Do not invoke it programmatically.
+- **Inspect** — Show `git -C <path> status` and `git -C <path> log --oneline -5` output, then re-present the same AskUserQuestion with the same options.
+- **Discard** — Confirm first: "This will delete all uncommitted work in this worktree. Proceed?" If the user confirms, run `git worktree remove <path> --force` and `git branch -D <branch>`.
+- **Skip** — Leave for later. Move to the next worktree.
+
+### Step 6.4: Orphan Branch Detection
+
+Check for branches matching the session worktree naming pattern that have no corresponding worktree directory. These may contain committed data that was never merged back.
+
+```bash
+git branch --list 'worktree-*'
+```
+
+```bash
+git worktree list
+```
+
+Compare the two outputs: any branch in the `worktree-*` list that does NOT have a corresponding live worktree is an orphan branch. For each orphan branch found:
+
+```bash
+git log <DEFAULT_BRANCH>..<orphan-branch> --oneline | wc -l
+```
+
+If orphan branches with unmerged commits exist, present them via **AskUserQuestion**:
+
+"Found N orphan branch(es) with no corresponding worktree (likely from crashed sessions):
+- `<branch>`: M unmerged commits
+[repeat for each]
+
+These branches contain committed work that was never merged. What would you like to do?"
+
+Options:
+- **Merge** — "Run `/do:merge <branch>` for each branch." Output the exact command strings.
+- **Delete** — Confirm first: "This will permanently delete these branches and their unmerged commits. Proceed?" If confirmed, run `git branch -D <branch>` for each.
+- **Skip** — Leave for later.
+
+### Step 6.5: Include in recovery manifest
+
+Add a `## Worktrees` section to the `state-snapshot.md` file (Phase 4, File 3) with:
+
+```markdown
+## Worktrees
+
+### Session Worktrees
+[List of session worktrees found in .claude/worktrees/, with branch, uncommitted file count, unmerged commit count, and action taken (merged/discarded/skipped), or:]
+"No session worktrees found."
+
+### Orphan Branches
+[List of worktree-* branches with no corresponding worktree directory, with unmerged commit count and action taken, or:]
+"No orphan branches found."
+```
+
+Also add a worktree summary line to `summary.md` (Phase 4, File 1) in the External State section:
+
+```
+- **Worktrees:** [N session worktrees (M merged, K discarded, J skipped), P orphan branches | no session worktrees found]
+```
+
 ## Edge Cases
 
 Handle these throughout execution:

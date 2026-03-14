@@ -542,6 +542,98 @@ Build the permissions report line:
 - "**Restart Claude Code for hooks to take effect.**"
 - If `JQ=missing`: "jq not found — the hook requires jq for JSON parsing. Install jq (`brew install jq` / `apt install jq`) before restarting."
 
+### 7i: Install Session Worktree Hook
+
+**CRITICAL: This step MUST run at orchestrator level. Do NOT delegate to a subagent.** Subagents cannot write to `.claude/` directory (platform-level security boundary — writes silently fail).
+
+Install the session-worktree hook from the plugin template. This follows the same pattern as auto-approve.sh installation (Step 7b).
+
+Use the PLUGIN_ROOT value from init-values.sh output:
+
+```bash
+WORKTREE_TEMPLATE="<PLUGIN_ROOT>/templates/session-worktree.sh"
+[[ -f "$WORKTREE_TEMPLATE" ]] && echo "WORKTREE_TEMPLATE=found" || echo "WORKTREE_TEMPLATE=missing"
+```
+
+**If template is missing:** Skip silently — the template may not exist in older plugin versions.
+
+**If template is found:**
+
+Ensure the hooks directory exists:
+
+```bash
+mkdir -p .claude/hooks
+```
+
+**Version comparison (idempotent):**
+
+```bash
+[ -f .claude/hooks/session-worktree.sh ] && echo "WORKTREE_HOOK_EXISTS=true" || echo "WORKTREE_HOOK_EXISTS=false"
+```
+
+If the hook exists, run `sed -n '2s/^# session-worktree v//p' .claude/hooks/session-worktree.sh` and read the output as INSTALLED_WORKTREE_VERSION.
+
+Run `sed -n '2s/^# session-worktree v//p' <WORKTREE_TEMPLATE>` and read the output as TEMPLATE_WORKTREE_VERSION.
+
+- **If no installed hook:** Copy the template and set executable:
+  ```bash
+  cp "$WORKTREE_TEMPLATE" .claude/hooks/session-worktree.sh
+  chmod +x .claude/hooks/session-worktree.sh
+  ```
+  Record: `WORKTREE_HOOK_STATUS=installed`
+
+- **If installed version is older than template version:** Replace and report:
+  ```bash
+  cp "$WORKTREE_TEMPLATE" .claude/hooks/session-worktree.sh
+  chmod +x .claude/hooks/session-worktree.sh
+  ```
+  Record: `WORKTREE_HOOK_STATUS=updated` (from v$INSTALLED_WORKTREE_VERSION to v$TEMPLATE_WORKTREE_VERSION)
+
+- **If versions match:** Skip (idempotent). Record: `WORKTREE_HOOK_STATUS=current`
+
+### 7j: Register SessionStart Hook in settings.json
+
+**CRITICAL: This step MUST run at orchestrator level. Do NOT delegate to a subagent.** Subagents cannot write to `.claude/` directory.
+
+Read the existing `.claude/settings.json`:
+
+```bash
+cat .claude/settings.json
+```
+
+Check if `SessionStart` hook array already contains an entry with `command` matching `session-worktree.sh`. If already registered, skip (idempotent).
+
+If missing, merge the following `SessionStart` hook entry into the existing settings using the same `jq` merge pattern as Step 7c (PreToolUse registration):
+
+```json
+"SessionStart": [{
+  "matcher": "",
+  "hooks": [{"type": "command", "command": "bash .claude/hooks/session-worktree.sh"}]
+}]
+```
+
+**Merge rules:**
+- If `SessionStart` array already exists with other hooks, append this entry to the array (don't clobber existing SessionStart hooks)
+- If `SessionStart` does not exist, create the array with this entry
+- Preserve all existing hooks (PreToolUse, PostToolUse, etc.) exactly as-is
+- Use `jq` for safe JSON manipulation
+
+Write the merged result back to `.claude/settings.json`. Validate it is well-formed JSON.
+
+Record: `SESSION_HOOK_STATUS=registered` or `SESSION_HOOK_STATUS=already_present`
+
+### 7k: Add .claude/worktrees/ to .gitignore
+
+**CRITICAL: This step MUST run at orchestrator level. Do NOT delegate to a subagent.** Subagents cannot reliably write to `.gitignore` in the project root.
+
+Check if `.claude/worktrees/` is already in `.gitignore` (use escaped dot to avoid false positives from unescaped `.` matching any character):
+
+```bash
+grep -q '\.claude/worktrees/' .gitignore && echo "WORKTREE_GITIGNORE=present" || echo "WORKTREE_GITIGNORE=missing"
+```
+
+If missing: append `.claude/worktrees/` to `.gitignore` using the **Edit tool**. Silent addition, no user prompt.
+
 ## Step 8: Write Config Files
 
 Write two config files — one shared (committed), one personal (gitignored).
@@ -610,6 +702,9 @@ compact_cost_summary: true
 compact_auto_commit: false
 compact_compound_check: true
 compact_push: true
+# Session worktree isolation (concurrent session safety)
+# Set to false to disable worktree-per-session — sessions work directly on main
+session_worktree: true
 ```
 
 Fill in based on detected environment. Red team provider preferences are NOT stored — they're detected at runtime each session (CLI availability varies by machine and may change). Stats toggles default to `true` — capture and classification are enabled unless explicitly disabled.
@@ -664,6 +759,32 @@ When you detect session-end language ("done for today", "wrapping up for the day
 - If the user says "stop suggesting /abandon", stop immediately for the remainder of the session
 ```
 
+#### Session Worktree Isolation Block (conditional)
+
+**Gate:** Only add this block if `session_worktree` in `compound-workflows.local.md` is NOT `false`. If the key is missing (not yet configured), include the block (default is `true`).
+
+**Idempotent:** Check if the AGENTS.md already contains `## Session Worktree Isolation` — if present, skip.
+
+If the block should be added, append the following after the routing section (after the Session-End Detection suppression rules):
+
+```markdown
+## Session Worktree Isolation
+
+When the SessionStart hook instructs you to call `EnterWorktree`, do so BEFORE any
+other action — before reading files, running commands, or processing other tasks.
+This isolates your session's git index and working tree from concurrent sessions.
+
+- Call `EnterWorktree` as your FIRST action at session start (hook will prompt you)
+- If you know the primary bead or task, use a descriptive name: `EnterWorktree(name: "s7qj-worktree-isolation")` — makes merge commit messages more informative in git log
+- User can say "stay on main" / "skip worktree" to opt out for the session
+- At session end, `/do:compact-prep` handles the merge back to the default branch
+- When compact-prep or abandon instructs you to call `ExitWorktree`, comply — this is a programmatic exit, not a proactive one
+- If you're already in a worktree (post-compact resume), continue working there
+- Any git operations before EnterWorktree happen on the default branch — the contamination scenario this exists to prevent
+
+**Beads database (.beads/) is shared across all sessions.** Worktree isolation covers git state only. Bead operations are concurrency-safe at the SQL level (Dolt) but not coordination-safe at the business logic level.
+```
+
 ### 8d: Migration Check
 
 Before writing, check if either config file already exists:
@@ -681,9 +802,9 @@ bash ${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh
 
 Read the stdout for `STATS_KEYS_ADDED=true` status.
 
-**Compact-prep config key migration:** If `compound-workflows.local.md` exists, check for each of the 5 compact config keys independently and append any that are missing with their defaults. Keys may be partially present (e.g., user added some manually). Handle each key independently:
+**Config key migration:** If `compound-workflows.local.md` exists, check for each of the 6 config keys below independently and append any that are missing with their defaults. Keys may be partially present (e.g., user added some manually). Handle each key independently:
 
-**Migration procedure:** Read `compound-workflows.local.md` (create with `touch` if it does not exist). For each of the 5 compact config keys below, check whether the key is already present (`grep -q`). For any missing key, use the **Edit tool** to append it at the end of the file with its default value.
+**Migration procedure:** Read `compound-workflows.local.md` (create with `touch` if it does not exist). For each of the 6 config keys below, check whether the key is already present (`grep -q`). For any missing key, use the **Edit tool** to append it at the end of the file with its default value.
 
 | Key | Default |
 |-----|---------|
@@ -692,6 +813,7 @@ Read the stdout for `STATS_KEYS_ADDED=true` status.
 | `compact_auto_commit` | `false` |
 | `compact_compound_check` | `true` |
 | `compact_push` | `true` |
+| `session_worktree` | `true` |
 
 Handle each key independently — partial presence is expected during migration.
 
@@ -806,6 +928,9 @@ Permissions:     Hook: .claude/hooks/auto-approve.sh [installed | updated | curr
                  [jq not found — install before restarting | jq available]
 Bash rules:      [enabled — rules added to CLAUDE.md | already present | skipped]
                  [+ which, echo, mkdir static rules | Permissive covers these | declined]
+Worktree:        Hook: .claude/hooks/session-worktree.sh [installed | updated | current | skipped]
+                 SessionStart hook: [registered | already present]
+                 session_worktree: true (edit compound-workflows.local.md to disable)
 
 Ready to go:
   /do:brainstorm  — explore an idea
