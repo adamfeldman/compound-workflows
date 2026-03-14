@@ -1947,6 +1947,212 @@ def compute_estimation_segments(closed_bead_estimates, bead_attribution_windowed
     }
 
 
+def classify_bead_effort(session_count, estimated_minutes, actual_minutes=None):
+    """Classify a bead into an effort tier based on session count and estimate size.
+
+    Criteria:
+        routine: single-session AND <15 min estimate
+        involved: single-session AND 15-60 min estimate
+        exploratory: multi-session (2-3 sessions) OR >60 min estimate
+        pioneering: multi-session (4+ sessions) AND >120 min actual time (both required)
+
+    Args:
+        session_count: number of sessions the bead was worked on
+        estimated_minutes: the original estimate in minutes
+        actual_minutes: actual active minutes (needed for pioneering check)
+
+    Returns:
+        effort tier string
+    """
+    # Pioneering: 4+ sessions AND >120 min actual (both thresholds required)
+    if session_count >= 4 and actual_minutes is not None and actual_minutes > 120:
+        return "pioneering"
+    # Exploratory: multi-session (2-3) OR >60 min estimate
+    if session_count >= 2 or estimated_minutes > 60:
+        return "exploratory"
+    # Involved: single-session AND 15-60 min estimate
+    if estimated_minutes >= 15:
+        return "involved"
+    # Routine: single-session AND <15 min estimate
+    return "routine"
+
+
+def compute_effort_validation(closed_bead_estimates, bead_attribution_windowed):
+    """Validate effort dimension: does it predict estimation blowups better than type or session count alone?
+
+    Computes estimation accuracy segmented by effort tier, then compares predictive power
+    (mean absolute error) against type-based and session-count-based segmentation.
+
+    Validation threshold: effort tiers must reduce mean estimation error by at least 25%
+    vs session-count alone.
+
+    Args:
+        closed_bead_estimates: dict bead_id -> {title, estimated_minutes, issue_type, priority, impact_score}
+        bead_attribution_windowed: dict bead_id -> {sessions, total_active_minutes, ...}
+
+    Returns:
+        dict with effort validation results, or None if insufficient data
+    """
+    # Build per-bead records with effort classification
+    bead_records = []
+    for bid, est_data in closed_bead_estimates.items():
+        if bid not in bead_attribution_windowed:
+            continue
+        bw = bead_attribution_windowed[bid]
+        estimated = est_data["estimated_minutes"]
+        if estimated <= 0:
+            continue
+        actual = bw["total_active_minutes"]
+        ratio = actual / estimated
+        session_count = len(bw["sessions"])
+        effort_tier = classify_bead_effort(session_count, estimated, actual)
+
+        bead_records.append({
+            "bead_id": bid,
+            "title": est_data["title"],
+            "issue_type": est_data.get("issue_type") or "unknown",
+            "estimated_minutes": estimated,
+            "actual_minutes": round(actual, 1),
+            "ratio": round(ratio, 2),
+            "abs_error": abs(actual - estimated),
+            "session_count": session_count,
+            "effort_tier": effort_tier,
+        })
+
+    if not bead_records:
+        return None
+
+    # Helper: compute segment stats from a list of records
+    def segment_stats(records):
+        if not records:
+            return {"n": 0}
+        ratios = [r["ratio"] for r in records]
+        abs_errors = [r["abs_error"] for r in records]
+        return {
+            "n": len(records),
+            "median_ratio": round(statistics.median(ratios), 2),
+            "mean_ratio": round(statistics.mean(ratios), 2),
+            "min_ratio": round(min(ratios), 2),
+            "max_ratio": round(max(ratios), 2),
+            "under_estimated": sum(1 for r in ratios if r > 1.0),
+            "over_estimated": sum(1 for r in ratios if r < 1.0),
+            "mean_abs_error": round(statistics.mean(abs_errors), 2),
+            "median_abs_error": round(statistics.median(abs_errors), 2),
+        }
+
+    # --- Segment by effort tier ---
+    by_effort = defaultdict(list)
+    for rec in bead_records:
+        by_effort[rec["effort_tier"]].append(rec)
+
+    effort_order = ["routine", "involved", "exploratory", "pioneering"]
+    effort_segments = {
+        tier: segment_stats(by_effort.get(tier, []))
+        for tier in effort_order
+        if tier in by_effort
+    }
+
+    # --- Compute mean absolute error for each segmentation approach ---
+    # We compare: within-segment MAE (weighted by segment size)
+    # Lower = better predictive power
+
+    # 1. Effort-tier segmentation MAE
+    effort_weighted_mae = 0.0
+    for tier, recs in by_effort.items():
+        if not recs:
+            continue
+        segment_mean_actual = statistics.mean([r["actual_minutes"] for r in recs])
+        segment_errors = [abs(r["actual_minutes"] - segment_mean_actual) for r in recs]
+        effort_weighted_mae += sum(segment_errors)
+    effort_weighted_mae /= len(bead_records) if bead_records else 1
+
+    # 2. Session-count segmentation MAE (single vs multi)
+    by_session = defaultdict(list)
+    for rec in bead_records:
+        label = "multi" if rec["session_count"] > 1 else "single"
+        by_session[label].append(rec)
+
+    session_weighted_mae = 0.0
+    for label, recs in by_session.items():
+        if not recs:
+            continue
+        segment_mean_actual = statistics.mean([r["actual_minutes"] for r in recs])
+        segment_errors = [abs(r["actual_minutes"] - segment_mean_actual) for r in recs]
+        session_weighted_mae += sum(segment_errors)
+    session_weighted_mae /= len(bead_records) if bead_records else 1
+
+    session_segments = {
+        label: segment_stats(recs) for label, recs in sorted(by_session.items())
+    }
+
+    # 3. Type-based segmentation MAE
+    by_type = defaultdict(list)
+    for rec in bead_records:
+        by_type[rec["issue_type"]].append(rec)
+
+    type_weighted_mae = 0.0
+    for itype, recs in by_type.items():
+        if not recs:
+            continue
+        segment_mean_actual = statistics.mean([r["actual_minutes"] for r in recs])
+        segment_errors = [abs(r["actual_minutes"] - segment_mean_actual) for r in recs]
+        type_weighted_mae += sum(segment_errors)
+    type_weighted_mae /= len(bead_records) if bead_records else 1
+
+    type_segments = {
+        itype: segment_stats(recs) for itype, recs in sorted(by_type.items())
+    }
+
+    # --- Validation: does effort reduce MAE by >= 25% vs session-count? ---
+    if session_weighted_mae > 0:
+        improvement_vs_session = (session_weighted_mae - effort_weighted_mae) / session_weighted_mae
+    else:
+        improvement_vs_session = 0.0
+
+    if type_weighted_mae > 0:
+        improvement_vs_type = (type_weighted_mae - effort_weighted_mae) / type_weighted_mae
+    else:
+        improvement_vs_type = 0.0
+
+    validates = improvement_vs_session >= 0.25
+
+    # --- Print recommended bd update commands if validated ---
+    if validates:
+        print("\n  === EFFORT TIER VALIDATED (>= 25% improvement) ===", file=sys.stderr)
+        print("  Recommended bd update commands for effort tier metadata:", file=sys.stderr)
+        for rec in bead_records:
+            bid = rec["bead_id"]
+            tier = rec["effort_tier"]
+            print(
+                f'  bd update compound-workflows-marketplace-{bid} '
+                f'--metadata \'{{"effort_tier": "{tier}"}}\'',
+                file=sys.stderr,
+            )
+        print("", file=sys.stderr)
+    else:
+        print(f"\n  === EFFORT TIER DID NOT VALIDATE ===", file=sys.stderr)
+        print(f"  Improvement vs session-count: {improvement_vs_session:.1%} (need >= 25%)", file=sys.stderr)
+        print(f"  Skip rollout (Step 11) without further deliberation.\n", file=sys.stderr)
+
+    return {
+        "bead_count": len(bead_records),
+        "records": bead_records,
+        "effort_segments": effort_segments,
+        "session_segments": session_segments,
+        "type_segments": type_segments,
+        "effort_mae": round(effort_weighted_mae, 2),
+        "session_mae": round(session_weighted_mae, 2),
+        "type_mae": round(type_weighted_mae, 2),
+        "improvement_vs_session": round(improvement_vs_session, 4),
+        "improvement_vs_type": round(improvement_vs_type, 4),
+        "validates": validates,
+        "tier_distribution": {
+            tier: len(by_effort.get(tier, []))
+            for tier in effort_order
+        },
+    }
+
+
 def detect_concurrent_sessions(session_ranges):
     """Detect overlapping session timestamp ranges.
 
@@ -4229,6 +4435,42 @@ def main():
             estimation_segment_data = None
             print("  No beads with both estimates and windowed attribution", file=sys.stderr)
 
+        # --- P6-S8: Effort dimension validation ---
+        print("Computing effort dimension validation...", file=sys.stderr)
+        effort_validation_data = compute_effort_validation(
+            closed_bead_estimates, bead_attribution_windowed
+        )
+        if effort_validation_data:
+            effort_record = {
+                "record_type": "effort_validation",
+                "bead_count": effort_validation_data["bead_count"],
+                "validates": effort_validation_data["validates"],
+                "improvement_vs_session": effort_validation_data["improvement_vs_session"],
+                "improvement_vs_type": effort_validation_data["improvement_vs_type"],
+                "effort_mae": effort_validation_data["effort_mae"],
+                "session_mae": effort_validation_data["session_mae"],
+                "type_mae": effort_validation_data["type_mae"],
+                "tier_distribution": effort_validation_data["tier_distribution"],
+            }
+            raw_out.write(json.dumps(effort_record) + "\n")
+            # Emit per-bead effort records
+            for rec in effort_validation_data["records"]:
+                bead_effort_record = {
+                    "record_type": "effort_validation_detail",
+                    "bead_id": rec["bead_id"],
+                    "effort_tier": rec["effort_tier"],
+                    "estimated_minutes": rec["estimated_minutes"],
+                    "actual_minutes": rec["actual_minutes"],
+                    "ratio": rec["ratio"],
+                    "session_count": rec["session_count"],
+                }
+                raw_out.write(json.dumps(bead_effort_record) + "\n")
+            print(f"  Effort validation: validates={effort_validation_data['validates']}, "
+                  f"improvement={effort_validation_data['improvement_vs_session']:.1%} vs session-count",
+                  file=sys.stderr)
+        else:
+            print("  No beads available for effort validation", file=sys.stderr)
+
         # --- P5-S5: Compaction cost ---
         print(f"Computing compaction costs ({len(all_compaction_costs)} events)...",
               file=sys.stderr)
@@ -4548,6 +4790,7 @@ def main():
         hook_audit_data,
         cost_by_token_type=cost_by_token_type,
         cost_productivity_data=cost_productivity_data,
+        effort_validation_data=effort_validation_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -4566,7 +4809,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      qa_retry_data=None,
                      hook_audit_data=None,
                      cost_by_token_type=None,
-                     cost_productivity_data=None):
+                     cost_productivity_data=None,
+                     effort_validation_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -6866,6 +7110,137 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append("")
     else:
         lines.append("*No cost-productivity data available.*")
+        lines.append("")
+
+    # =========================================
+    # 31. ESTIMATION ACCURACY BY EFFORT (P6-S8)
+    # =========================================
+    lines.append("## 31. Estimation Accuracy by Effort")
+    lines.append("")
+    lines.append(
+        "Effort tier classification based on session count and estimate size. "
+        "Validates whether effort tiers predict estimation blowups better than "
+        "session count or type alone. Validation threshold: effort tiers must "
+        "reduce mean estimation error by at least 25% vs session-count alone."
+    )
+    lines.append("")
+
+    if effort_validation_data:
+        ev = effort_validation_data
+
+        # Validation result banner
+        if ev["validates"]:
+            lines.append(
+                f"**VALIDATED** -- Effort tiers reduce MAE by "
+                f"{ev['improvement_vs_session']:.1%} vs session-count segmentation "
+                f"(threshold: 25%)."
+            )
+        else:
+            lines.append(
+                f"**DID NOT VALIDATE** -- Effort tiers reduce MAE by only "
+                f"{ev['improvement_vs_session']:.1%} vs session-count segmentation "
+                f"(threshold: 25%). Step 11 rollout skipped."
+            )
+        lines.append("")
+
+        # Tier distribution
+        lines.append("### Effort Tier Distribution")
+        lines.append("")
+        lines.append("| Tier | Criteria | Count |")
+        lines.append("|------|----------|-------|")
+        tier_criteria = {
+            "routine": "1 session, <15 min estimate",
+            "involved": "1 session, 15-60 min estimate",
+            "exploratory": "2-3 sessions OR >60 min estimate",
+            "pioneering": "4+ sessions AND >120 min actual",
+        }
+        for tier in ["routine", "involved", "exploratory", "pioneering"]:
+            count = ev["tier_distribution"].get(tier, 0)
+            lines.append(f"| {tier} | {tier_criteria[tier]} | {count} |")
+        lines.append(f"| **Total** | | **{ev['bead_count']}** |")
+        lines.append("")
+
+        # Accuracy by effort tier
+        lines.append("### Accuracy by Effort Tier")
+        lines.append("")
+        lines.append(
+            "| Effort Tier | N | Median | Mean | Min | Max | Under-est | Over-est |"
+        )
+        lines.append(
+            "|-------------|---|--------|------|-----|-----|-----------|----------|"
+        )
+        for tier in ["routine", "involved", "exploratory", "pioneering"]:
+            stats = ev["effort_segments"].get(tier)
+            if stats and stats["n"] > 0:
+                lines.append(
+                    f"| {tier} | {stats['n']} | "
+                    f"{stats['median_ratio']}x | {stats['mean_ratio']}x | "
+                    f"{stats['min_ratio']}x | {stats['max_ratio']}x | "
+                    f"{stats['under_estimated']} | {stats['over_estimated']} |"
+                )
+        lines.append("")
+
+        # Comparison with other segmentations
+        lines.append("### Segmentation Comparison (Mean Absolute Error)")
+        lines.append("")
+        lines.append(
+            "Lower MAE = better predictive power. Within-segment MAE measures "
+            "how well each segmentation approach groups beads with similar actual times."
+        )
+        lines.append("")
+        lines.append("| Segmentation | MAE (min) | Improvement vs Session-Count |")
+        lines.append("|-------------|-----------|------------------------------|")
+        lines.append(f"| Session-count (baseline) | {ev['session_mae']} | - |")
+        if ev['type_mae'] > 0 and ev['session_mae'] > 0:
+            type_imp = (ev['session_mae'] - ev['type_mae']) / ev['session_mae']
+            lines.append(
+                f"| Issue type | {ev['type_mae']} | {type_imp:+.1%} |"
+            )
+        else:
+            lines.append(f"| Issue type | {ev['type_mae']} | - |")
+        lines.append(
+            f"| **Effort tier** | **{ev['effort_mae']}** | "
+            f"**{ev['improvement_vs_session']:+.1%}** |"
+        )
+        lines.append("")
+
+        # Session-count segments for comparison
+        lines.append("### By Session Count (comparison)")
+        lines.append("")
+        lines.append(
+            "| Sessions | N | Median | Mean | Under-est | Over-est |"
+        )
+        lines.append(
+            "|----------|---|--------|------|-----------|----------|"
+        )
+        for label, stats in sorted(ev["session_segments"].items()):
+            if stats["n"] > 0:
+                lines.append(
+                    f"| {label} | {stats['n']} | "
+                    f"{stats['median_ratio']}x | {stats['mean_ratio']}x | "
+                    f"{stats['under_estimated']} | {stats['over_estimated']} |"
+                )
+        lines.append("")
+
+        # Type segments for comparison
+        lines.append("### By Issue Type (comparison)")
+        lines.append("")
+        lines.append(
+            "| Type | N | Median | Mean | Under-est | Over-est |"
+        )
+        lines.append(
+            "|------|---|--------|------|-----------|----------|"
+        )
+        for itype, stats in sorted(ev["type_segments"].items()):
+            if stats["n"] > 0:
+                lines.append(
+                    f"| {itype} | {stats['n']} | "
+                    f"{stats['median_ratio']}x | {stats['mean_ratio']}x | "
+                    f"{stats['under_estimated']} | {stats['over_estimated']} |"
+                )
+        lines.append("")
+    else:
+        lines.append("*No effort validation data available.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
