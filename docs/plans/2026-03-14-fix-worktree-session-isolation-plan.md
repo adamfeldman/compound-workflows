@@ -38,6 +38,8 @@ session_worktree: true
 
 ## Implementation Steps
 
+**Implementation order constraint:** Create `skills/do-merge/SKILL.md` (Step 6) BEFORE modifying compact-prep/recover/AGENTS.md to reference `/do:merge`. Otherwise `stale-references.sh` fires SERIOUS on intermediate commits. Recommended order: Step 6 → Step 1-5 → Step 7-10.
+
 ### Step 1: SessionStart Hook Script
 
 Create `.claude/hooks/session-worktree.sh`.
@@ -50,7 +52,10 @@ Create `.claude/hooks/session-worktree.sh`.
    if [[ ! -f "$CONFIG" ]]; then
      exit 0  # No config = feature not set up, silent skip
    fi
-   VALUE=$(grep -m1 '^session_worktree:' "$CONFIG" | sed 's/#.*//' | awk -F: '{print $2}' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+   VALUE=$(grep -m1 '^session_worktree:' "$CONFIG" | sed 's/#.*//' | awk -F: '{print $2}' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]' || true)
+   # Detect default branch for orphan commit counts
+   DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || true)
+   DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
    if [[ "$VALUE" == "false" ]]; then
      # Feature disabled — still check for orphaned worktrees (prevent silent orphaning)
      # ... orphan check only, then exit 0
@@ -80,17 +85,6 @@ Create `.claude/hooks/session-worktree.sh`.
 
 **Hook does NOT:** call EnterWorktree (can't — subprocess limitation), change CWD, or block the session.
 
-#### Deepen-Plan Findings (Run 1) — Step 1
-
-**Serious:**
-- Config parsing is underspecified for a bash script. The plan says "read `session_worktree`" but does not specify extraction method, comment handling, or malformed value behavior. Implementation must use explicit grep/awk extraction with allowlist matching (`true`/`false`), strip trailing comments, and default to `true` (safe direction) for any non-`false` value including missing/malformed. [security-sentinel S1, context-researcher]
-
-**Recommendations:**
-- Specify the parsing contract in the plan. Safe pattern: `grep -m1 '^session_worktree:' | sed 's/#.*//' | awk -F: '{print $2}' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]'` -- only explicit `false` disables. [security-sentinel]
-- Add orphan detection cap: if >10 worktrees in `.claude/worktrees/`, show count only and skip per-orphan detail gathering. Caps worst-case hook latency. 3 lines of bash. [performance-oracle O1]
-- Ensure hook script follows existing header conventions: `#!/usr/bin/env bash`, purpose comment block, `set -euo pipefail`. [pattern-recognition-specialist]
-- When `session_worktree: false`, still check for orphaned worktrees and emit a one-time warning if any exist -- prevents silent orphaning when user disables the feature after creating worktrees. [security-sentinel S4]
-
 ### Step 2: Register SessionStart Hook
 
 Add to `.claude/settings.json`:
@@ -106,12 +100,6 @@ Add to `.claude/settings.json`:
   }
 }
 ```
-
-#### Deepen-Plan Findings (Run 1) — Steps 1+2
-
-**Recommendations:**
-- Consider merging Steps 1 and 2 into a single step -- creating a hook script without registering it is never a separable unit of work. [code-simplicity-reviewer]
-- Add `.gitignore` entry for `.claude/worktrees/` as an explicit sub-step here (or as Step 0). Currently listed in Files Changed but has no numbered implementation step. [architecture-strategist F1]
 
 ### Step 3: AGENTS.md Worktree Instructions
 
@@ -131,12 +119,6 @@ This isolates your session's git index and working tree from concurrent sessions
 - If you're already in a worktree (post-compact resume), continue working there
 - Any git operations before EnterWorktree happen on the default branch — the contamination scenario this exists to prevent
 ```
-
-#### Deepen-Plan Findings (Run 1) — Step 3
-
-**Recommendations:**
-- Note the `.worktrees/` (bd-managed, for /do:work) vs `.claude/worktrees/` (EnterWorktree-managed, for session isolation) namespace distinction explicitly in the AGENTS.md section. Prevents future confusion. [git-history-analyzer]
-- Verify that Task subagents do NOT trigger SessionStart hooks. If they do, the hook's CWD-in-worktree check (step 2) should short-circuit correctly, but add T16 to test matrix to confirm. [agent-native-reviewer Warning 5]
 
 ### Step 4: Merge Script
 
@@ -192,13 +174,6 @@ bash session-merge.sh <worktree-branch-name>
 
 **Location:** `plugins/compound-workflows/scripts/session-merge.sh` — auto-approves via `bash <path>` static rule.
 
-#### Deepen-Plan Findings (Run 1) — Step 4
-
-**Recommendations:**
-- Add a stderr warning before the `-D` fallback so force-deletes are visible: `echo "Warning: git branch -d failed after successful merge. Force-deleting." >&2`. Makes the fallback auditable rather than silent. [security-sentinel S3]
-- Verify during implementation that `bash plugins/compound-workflows/scripts/session-merge.sh worktree-abc` auto-approves without prompting. The auto-approve hook's path validation uses `realpath` -- ensure the relative path resolves correctly from the main repo CWD (after ExitWorktree). [security-sentinel O1]
-- Add `session-merge.sh` to `plugins/compound-workflows/CLAUDE.md` scripts directory listing. [repo-research-analyst, pattern-recognition-specialist]
-
 ### Step 5: Modify compact-prep/SKILL.md
 
 **Changes to the execute phase:**
@@ -225,7 +200,9 @@ Insert new Step 4.5 between Step 4 (commit compound docs) and Step 5 (version ac
 
 4. **Handle merge script result:**
    - **Exit 0 (success):** Announce "Session worktree merged and cleaned up." Proceed to Step 5.
-   - **Exit 2 (conflict):** Claude reads conflicted files, auto-resolves (keep both sides for additive markdown, attempt semantic merge for others). Present resolution summary to user: "Resolved N conflicts: [file: resolution summary]." AskUserQuestion: "Accept merge resolutions?" Options: "Accept" / "Review specific files" / "Abort merge (keep worktree)". If accepted: `git add` resolved files + `git commit --no-edit` (completes the merge with the default merge commit message — this is a merge completion, not a fresh commit, so write-tool-discipline does not apply). If aborted: run `git merge --abort` to clean up the mid-merge state, then warn user that worktree branch is unmerged.
+   - **Exit 2 (conflict):** Claude reads conflicted files, auto-resolves (keep both sides for additive markdown, attempt semantic merge for others). Present resolution summary to user: "Resolved N conflicts: [file: resolution summary]."
+     - **Normal mode:** AskUserQuestion: "Accept merge resolutions?" Options: "Accept" / "Review specific files" / "Abort merge (keep worktree)". If accepted: `git add` resolved files + `git commit --no-edit`. If aborted: run `git merge --abort` to clean up the mid-merge state, then warn user that worktree branch is unmerged.
+     - **Abandon mode:** Auto-accept additive-only resolutions (both sides kept, no content lost). For non-additive conflicts (divergent rewrites, code): run `git merge --abort`, preserve worktree branch, warn: "Non-trivial conflict during abandon — worktree preserved. Run `/do:merge` to resolve later." Do NOT block with AskUserQuestion during abandon — the user has explicitly said they're leaving.
    - **Exit 3 (retry exhaustion):** Warn: "Could not merge — another session is merging. Worktree branch `<name>` is unmerged. Merge manually with `git merge --no-ff <branch>` from main."
    - **Exit 4 (dirty main):** Warn: "Main has uncommitted changes (possibly from a concurrent session). Cannot merge safely. Worktree branch `<name>` preserved — clean up main and retry with `/do:merge`."
    - **Exit 1 (other error):** Show error, offer retry/skip/abort per compact-prep's standard per-step retry semantics.
@@ -237,16 +214,6 @@ Insert new Step 4.5 between Step 4 (commit compound docs) and Step 5 (version ac
 - **Compact-prep Steps 1-4:** No changes. They run inside the worktree (commit to worktree branch). This is correct — memory updates, commits, and compound all happen in the isolated worktree.
 - **Compact-prep Step 5 (version actions):** Now runs from main (after merge). Tags are created on main. Correct.
 - **Compact-prep Step 6 (push):** Now pushes from main (after merge). Add branch guard: `git branch --show-current` must return the default branch. If not, warn and skip push.
-
-#### Deepen-Plan Findings (Run 1) — Step 5
-
-**Recommendations:**
-- Add worktree merge status line to compact-prep Summary section (both regular and abandon modes): "Worktree: merged / conflict resolved / deferred / not in worktree / skipped (config)". Current convention: every execute step has a summary line. [architecture-strategist F9]
-- Clarify `$PLUGIN_ROOT` resolution: after ExitWorktree clears caches, the model must retain PLUGIN_ROOT from conversation context. Specify that compact-prep uses `${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh` (standard skill convention) or ensure init-values.sh has been called. [pattern-recognition-specialist]
-- Step 4.5 is NOT part of the batch prompt -- it auto-executes when in a worktree. Note this in the Batch-to-Execute Mapping table. [architecture-strategist F8]
-- Explicitly state that `/do:abandon` inherits Step 4.5 since abandon delegates to `compact-prep --abandon`. The merge step applies to abandon mode too -- pushing from a worktree branch instead of main would be incorrect. [architecture-strategist F10]
-- For the conflict resolution AskUserQuestion path: if this fires during abandon mode (user is leaving), consider auto-accepting additive-only resolutions and preserving the worktree for non-additive conflicts. The user has explicitly said they're leaving -- blocking on AskUserQuestion defeats the purpose. [agent-native-reviewer Critical 2]
-- Verify Tier 1 QA scripts work correctly when CWD is inside `.claude/worktrees/<name>/` during compact-prep Steps 1-4 (which now run in a worktree). PLUGIN_ROOT is absolute so likely fine, but untested. [architecture-strategist F14]
 
 ### Step 6: `/do:merge` Skill
 
@@ -323,15 +290,6 @@ warn: "Cannot merge from inside a worktree. Exit the worktree first."
 - SessionStart orphan warning: "To merge an orphaned worktree: `/do:merge`"
 - `/compound-workflows:recover` worktree detection: "Unmerged worktree found. Run `/do:merge` to merge."
 
-#### Deepen-Plan Findings (Run 1) — Step 6
-
-**Serious:**
-- Skill skeleton is insufficient. Plan defines purpose and frontmatter but has no phase structure, no allowed-tools, no model spec, no minimum-20-line body. The `truncation-check.sh` QA script requires >=20 lines and valid YAML frontmatter for all `do-*/SKILL.md` files. Flesh out the skill body during implementation. [context-researcher, pattern-recognition-specialist, deployment-verification-agent]
-
-**Recommendations:**
-- When a branch name argument is provided, skip AskUserQuestion entirely -- merge that branch directly. When no argument AND exactly one unmerged worktree, auto-select with announcement (no confirmation needed -- user explicitly invoked /do:merge). Reserve AskUserQuestion only for the genuinely ambiguous case: no argument AND multiple unmerged worktrees. [agent-native-reviewer Warning 3]
-- Ensure the recover skill outputs `/do:merge <specific-branch-name>` for each orphaned worktree, not just `/do:merge` without args. Reduces manual lookup friction. [agent-native-reviewer Warning 4]
-
 ### Step 7: Modify `/do:setup`
 
 Full portability setup — all components installed for any repo using the plugin, not just this repo.
@@ -361,6 +319,7 @@ Create `plugins/compound-workflows/templates/session-worktree.sh` — the hook t
 - If missing: copy from `$PLUGIN_ROOT/templates/session-worktree.sh`
 - If exists: compare versions (same pattern as auto-approve.sh Step 7b — version comment at top of script, skip if same or newer)
 - Ensure `.claude/hooks/` directory exists first (`mkdir -p`)
+- After copy: `chmod +x .claude/hooks/session-worktree.sh` (same as auto-approve.sh pattern)
 
 #### 7c. SessionStart hook registration in settings.json
 
@@ -391,9 +350,12 @@ Add the worktree isolation instructions to the canonical routing section that `/
 - Add the "Session Worktree Isolation" block (same content as Step 3) to the routing section template
 - Idempotent: check if the section already exists before adding
 
-#### 7f. Add to CLAUDE.md config key inventory
+#### 7f. Update plugin CLAUDE.md inventories
 
-Add `session_worktree` to the plugin's CLAUDE.md under `### compound-workflows.local.md` with "reads" attribution: `do-compact-prep`, `session-worktree.sh` hook, `/do:work` Phase 1.2.
+- Add `session_worktree` to the config key inventory under `### compound-workflows.local.md` with "reads" attribution: `do-compact-prep`, `session-worktree.sh` hook, `/do:work` Phase 1.2.
+- Add `session-worktree.sh` to the `templates/` directory listing.
+- Add `session-merge.sh` to the `scripts/` directory listing.
+- Add `do-merge/` to the `skills/` directory listing.
 
 **All five components (config, hook, settings, gitignore, AGENTS.md) are bundled together.** A user who runs `/do:setup` gets the full working feature, not a config key that does nothing.
 
@@ -445,11 +407,6 @@ git worktree list
 
 **Output:** Include worktree recovery results in the recover skill's final manifest (alongside JSONL recovery results).
 
-#### Deepen-Plan Findings (Run 1) — Step 9
-
-**Recommendations:**
-- No significant findings specific to Step 9. The code-simplicity-reviewer recommended cutting this step, but the user explicitly requested recover modification in v1. [code-simplicity-reviewer -- overridden by user intent]
-
 ### Step 10: Test Matrix
 
 Add test for `/do:merge`:
@@ -475,40 +432,16 @@ Verify these scenarios before shipping:
 - [ ] **T11: /do:work in session worktree** — `/do:work` detects session worktree and skips its own worktree creation, works directly in session worktree
 - [ ] **T12: Retry exhaustion** — 3 index.lock failures → warn user, leave worktree unmerged
 - [ ] **T13: Conflict resolution rejection** — User says "abort merge" → worktree preserved, user warned
-
-#### Deepen-Plan Findings (Run 1) — Test Matrix
-
-**Recommendations:**
-- Add **T16: Subagent in session worktree** -- verify Task subagents dispatched from a session worktree do NOT trigger double-enter via SessionStart hook. The hook's CWD-in-worktree check should short-circuit, but needs empirical verification. [agent-native-reviewer Warning 5]
-- Add **T17: QA scripts from worktree CWD** -- verify Tier 1 QA scripts resolve PLUGIN_ROOT correctly when session is inside `.claude/worktrees/<name>/`. [architecture-strategist F14]
+- [ ] **T16: Subagent in session worktree** — Verify Task subagents dispatched from a session worktree do NOT trigger SessionStart hook double-enter
+- [ ] **T17: QA scripts from worktree CWD** — Verify Tier 1 QA scripts resolve PLUGIN_ROOT correctly from inside `.claude/worktrees/<name>/`
 
 ## Assumptions (Verify During Implementation)
 
-**A1: ExitWorktree survives compact — VERIFIED.** Tested 2026-03-14: EnterWorktree → compact → ExitWorktree(remove) succeeded. Tool-level session state survives compaction (process lifetime, not context window). The test used `action: "remove"` while the implementation uses `action: "keep"` — both actions require the same session recognition; `keep` is the simpler operation (preserves worktree vs deleting it), so if `remove` works, `keep` certainly works. Fallback path below retained for documentation but not needed.
+**A1: ExitWorktree survives compact — VERIFIED.** Tested 2026-03-14: EnterWorktree → compact → ExitWorktree(remove) succeeded. Tool-level session state survives compaction (process lifetime, not context window). The test used `action: "remove"` while the implementation uses `action: "keep"` — both require session recognition; `keep` is simpler, so if `remove` works, `keep` certainly works.
 
 **A2: AGENTS.md overrides EnterWorktree tool description.** EnterWorktree's tool description says "ONLY when user explicitly asks." AGENTS.md is system-prompt level and should override individual tool descriptions. If the model refuses, the user can say "enter worktree" once per session (minimal friction). The AGENTS.md instruction is the primary mechanism; the hook reinforces it.
 
 **A3: AGENTS.md/skill instructions override ExitWorktree tool description.** ExitWorktree's tool description says "Do NOT call this proactively — only when the user asks." Compact-prep Step 4.5 instructs the model to call `ExitWorktree(action: "keep")` programmatically. AGENTS.md now includes "When compact-prep or abandon instructs you to call ExitWorktree, comply." Same class as A2 — if the model refuses, the fallback `cd` path recovers CWD but loses cache refresh. Test alongside A2.
-
-## Fallback for A1 (ExitWorktree post-compact failure)
-
-If testing shows ExitWorktree doesn't work after compact:
-
-1. **Sentinel file:** On EnterWorktree, write worktree branch name and main repo path to `.claude/worktrees/.session-state`:
-   ```
-   branch=worktree-post-compact-test
-   main_path=/Users/adamf/Dev/compound-workflows-marketplace
-   ```
-
-2. **Compact-prep reads sentinel** instead of relying on ExitWorktree:
-   ```bash
-   cd <main_path>  # Manual CWD change
-   git merge --no-ff <branch>  # Manual merge
-   ```
-
-3. **Cache refresh:** Without ExitWorktree's automatic cache clearing, add explicit instruction in compact-prep: "Re-read CLAUDE.md and memory files after merge."
-
-This fallback is functional but loses ExitWorktree's automatic cache refresh. The sentinel adds complexity but is deterministic (no model compliance dependency).
 
 ## Files Changed
 
@@ -532,16 +465,6 @@ This fallback is functional but loses ExitWorktree's automatic cache refresh. Th
 | `plugins/compound-workflows/.claude-plugin/plugin.json` | Version bump (3.1.7 -> 3.2.0 MINOR) |
 | `.claude-plugin/marketplace.json` | Version bump (3.1.7 -> 3.2.0 MINOR) |
 
-### Deepen-Plan Findings (Run 1) — Files Changed
-
-**Serious:**
-- Original table was missing 5 mandatory release files: CHANGELOG.md, README.md, CLAUDE.md (plugin), plugin.json, marketplace.json. These are required by AGENTS.md versioning rules ("Every change MUST update"). All 5 have been added above. This was the highest-consensus finding (flagged by 6 of 11 agents). [deployment-verification-agent, architecture-strategist, pattern-recognition-specialist, repo-research-analyst, context-researcher, git-history-analyzer]
-
-**Recommendations:**
-- Version bump type is MINOR (3.1.7 -> 3.2.0) per AGENTS.md: "MINOR: New commands, agents, skills, or significant enhancements." Adding `do-merge` is a new skill. [deployment-verification-agent]
-- Implementation order matters for QA: create `skills/do-merge/SKILL.md` FIRST, before modifying compact-prep/recover/AGENTS.md to reference `/do:merge`. Otherwise `stale-references.sh` fires SERIOUS on intermediate commits. [repo-research-analyst, deployment-verification-agent, architecture-strategist]
-- `.claude/` path writes (hooks, settings.json) must be done by the orchestrator, not dispatched to subagents -- subagents cannot write to `.claude/` directory. [learnings-researcher]
-
 ## Scope Boundaries
 
 **In scope (v1):**
@@ -560,11 +483,7 @@ This fallback is functional but loses ExitWorktree's automatic cache refresh. Th
 - Stale base mitigation (periodic `git merge main` during long sessions)
 - Merge commit message customization
 
-### Deepen-Plan Findings (Run 1) — Scope & Cross-Bead Coordination
-
-**Recommendations:**
-- Bead i9u3 (P2) plans to rename compact-prep to session-end. If i9u3 executes before s7qj, this plan's file paths for `do-compact-prep/SKILL.md` become wrong. Sequence s7qj before i9u3. [context-researcher]
-- Bead -7k6 (P3) also adds a SessionStart hook entry to `.claude/settings.json`. If both beads independently modify the SessionStart array, there's a merge conflict risk. Coordinate SessionStart hook additions. [context-researcher]
+**Cross-bead coordination:** Sequence s7qj before bead i9u3 (compact-prep rename) and coordinate with bead -7k6 (also adds SessionStart hook).
 
 ## Gap Resolutions
 
