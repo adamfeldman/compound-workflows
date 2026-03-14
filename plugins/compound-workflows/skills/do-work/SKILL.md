@@ -106,6 +106,11 @@ Parse the output: find the worktree entry whose path matches the current working
 
 **If CWD is NOT inside a session worktree**, proceed with the normal worktree detection below.
 
+**Worktree state summary (for safe-commit.sh decision in Phase 2.2):**
+- `IN_SESSION_WORKTREE=true` → set when CWD is in `.claude/worktrees/`
+- `IN_BD_WORKTREE=true` → set when already in `.worktrees/` OR after `bd worktree create`
+- Both unset → not in any worktree (opt-out or TodoWrite mode) → use safe-commit.sh
+
 #### Normal Worktree Detection
 
 Check current branch and worktree state. The STEM value from init-values.sh output contains the auto-detected branch name (slugified). For branch display, run `git branch --show-current` as a separate command:

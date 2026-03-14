@@ -16,11 +16,11 @@ Merge an unmerged session worktree branch into main. Used when compact-prep's me
 
 ### 1. Detect unmerged worktrees
 
-Run `git worktree list` and identify worktrees in `.claude/worktrees/`
-whose branches have not been merged into main:
+Run `git worktree list` and filter for entries whose path contains `.claude/worktrees/` (session worktrees only — NOT `.worktrees/` which are bd-managed). For each session worktree, check if its branch has unmerged commits:
 
     git worktree list
-    # For each .claude/worktrees/<name>, check:
+    # Filter output: only lines containing .claude/worktrees/
+    # For each matching worktree, extract branch name and check:
     git log main..<branch> --oneline | head -1
 
 Worktrees whose branch has unmerged commits (non-empty `git log` output) are candidates.
