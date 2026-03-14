@@ -623,31 +623,39 @@ def load_stats_yaml_entries():
     return entries
 
 
-def compute_stats_step_timing(stats_entries, closed_bead_estimates):
+def compute_stats_step_timing(stats_entries, closed_bead_estimates,
+                               effective_rate_per_token=0.0):
     """Compute per-command and per-step duration statistics from stats YAML entries.
 
     Groups by command (workflow type), then by step within each command.
     Computes median, P90, mean duration for each grouping.
     Also matches against bead estimates for estimate-vs-actual comparison.
+    When effective_rate_per_token > 0, computes approximate per-step costs.
 
     Args:
         stats_entries: list of dicts from load_stats_yaml_entries()
         closed_bead_estimates: dict of bead_id -> {title, estimated_minutes}
+        effective_rate_per_token: cache-inclusive effective rate ($/token) from S3
+            global cost data. When > 0, approximate cost is computed per step.
 
     Returns:
         dict with:
-        - by_command: {command: {n, durations_ms stats, steps: {step: stats}}}
-        - by_agent: {agent: {n, duration stats}}
+        - by_command: {command: {n, durations_ms stats, steps: {step: stats}, approx_cost}}
+        - by_agent: {agent: {n, duration stats, approx_cost}}
         - estimate_vs_actual: list of {bead, estimated_minutes, actual_total_ms, step_count}
+        - effective_rate_per_m: effective rate per million tokens (for display)
         - records: list of stats_step_timing record dicts for raw output
     """
     from collections import defaultdict, Counter
 
-    # Group by command
+    # Group by command — store dicts {duration_ms, tokens} for cost computation
     by_command = defaultdict(list)
     by_agent = defaultdict(list)
     by_command_step = defaultdict(lambda: defaultdict(list))
     by_bead = defaultdict(list)
+    # Token accumulators for cost computation
+    command_tokens = defaultdict(int)
+    agent_tokens = defaultdict(int)
 
     # Classification groupings (Phase 6, Step 4)
     # Each stores list of dicts with duration_ms and tokens for richer stats
@@ -676,6 +684,8 @@ def compute_stats_step_timing(stats_entries, closed_bead_estimates):
             by_command[cmd].append(duration_ms)
             by_agent[agent].append(duration_ms)
             by_command_step[cmd][step].append(duration_ms)
+            command_tokens[cmd] += tokens
+            agent_tokens[agent] += tokens
 
             # Classification groupings
             by_complexity[complexity].append({"duration_ms": duration_ms, "tokens": tokens})
@@ -703,10 +713,13 @@ def compute_stats_step_timing(stats_entries, closed_bead_estimates):
             step_minutes = [d / 60000.0 for d in step_durations]
             step_stats[step] = compute_stats(step_minutes)
 
+        cmd_cost = compute_step_cost(command_tokens[cmd], effective_rate_per_token)
         command_stats[cmd] = {
             **cmd_stat,
             "total_duration_ms": sum(durations),
             "total_duration_min": round(sum(durations) / 60000.0, 2),
+            "total_tokens": command_tokens[cmd],
+            "approx_cost": round(cmd_cost, 4),
             "steps": step_stats,
         }
 
@@ -714,7 +727,11 @@ def compute_stats_step_timing(stats_entries, closed_bead_estimates):
     agent_stats = {}
     for agent, durations in sorted(by_agent.items(), key=lambda x: len(x[1]), reverse=True):
         dur_minutes = [d / 60000.0 for d in durations]
-        agent_stats[agent] = compute_stats(dur_minutes)
+        agent_cost = compute_step_cost(agent_tokens[agent], effective_rate_per_token)
+        ag_stat = compute_stats(dur_minutes)
+        ag_stat["total_tokens"] = agent_tokens[agent]
+        ag_stat["approx_cost"] = round(agent_cost, 4)
+        agent_stats[agent] = ag_stat
 
     # Estimate vs actual from bead data
     estimate_vs_actual = []
@@ -831,6 +848,8 @@ def compute_stats_step_timing(stats_entries, closed_bead_estimates):
         "cross_tab": {f"{c}|{o}": cnt for (c, o), cnt in complexity_x_output.items()},
     })
 
+    effective_rate_per_m = effective_rate_per_token * 1_000_000 if effective_rate_per_token > 0 else 0.0
+
     return {
         "by_command": command_stats,
         "by_agent": agent_stats,
@@ -840,6 +859,7 @@ def compute_stats_step_timing(stats_entries, closed_bead_estimates):
         "cross_tab": cross_tab,
         "records": records,
         "total_entries": len(stats_entries),
+        "effective_rate_per_m": round(effective_rate_per_m, 2),
     }
 
 
@@ -899,6 +919,61 @@ assert get_model_pricing("claude-sonnet-4-6") == (3.00, 3.75, 0.30, 15.00), \
     "Sonnet 4.6 should match claude-sonnet-4-6"
 assert get_model_pricing("<synthetic>") == (0.0, 0.0, 0.0, 0.0), \
     "Synthetic model should return zero rates"
+
+# --- Stats YAML abbreviated model name mapping ---
+# Stats YAML "model" field may contain abbreviated names like "opus" or "sonnet"
+# without specifying generation. Map to full model prefixes for get_model_pricing().
+# Default to most common generation (Opus 4.6, Sonnet 4.6) per plan.
+STATS_MODEL_ABBREV_MAP = {
+    "opus": "claude-opus-4-6",
+    "sonnet": "claude-sonnet-4-6",
+    "haiku": "claude-haiku-4-5",
+}
+
+
+def resolve_stats_model(model_name):
+    """Resolve a stats YAML model name to a full model prefix for get_model_pricing().
+
+    Handles three cases:
+    1. Already a full model name (e.g., "claude-opus-4-6") — returned as-is
+    2. Abbreviated name in STATS_MODEL_ABBREV_MAP (e.g., "opus") — mapped to full prefix
+    3. Unknown — returns None and emits stderr warning
+
+    Returns:
+        Full model prefix string, or None if unknown.
+    """
+    if not model_name:
+        return None
+    # Check if it already matches a known prefix
+    rates = get_model_pricing(model_name)
+    if rates != (0.0, 0.0, 0.0, 0.0):
+        # Already a recognized full model name
+        return model_name
+    # Check abbreviation map
+    if model_name in STATS_MODEL_ABBREV_MAP:
+        return STATS_MODEL_ABBREV_MAP[model_name]
+    # Unknown
+    print(f"  WARNING: Unknown stats YAML model name '{model_name}', "
+          f"skipping cost computation for this entry", file=sys.stderr)
+    return None
+
+
+def compute_step_cost(tokens, effective_rate_per_token):
+    """Compute approximate cost for a stats YAML dispatch entry.
+
+    Uses the cache-inclusive effective rate (total_cost / total_tokens from JSONL data)
+    since stats YAML only has total I/O tokens without cache breakdown.
+
+    Args:
+        tokens: Total I/O token count from stats YAML "tokens" field
+        effective_rate_per_token: Dollars per token (cache-inclusive effective rate)
+
+    Returns:
+        Approximate cost in USD (float), or 0.0 if tokens <= 0
+    """
+    if tokens <= 0 or effective_rate_per_token <= 0:
+        return 0.0
+    return tokens * effective_rate_per_token
 
 
 def compute_request_cost(usage, model_name):
@@ -3790,10 +3865,24 @@ def main():
         }
         raw_out.write(json.dumps(cost_by_token_type_record) + "\n")
 
+        # --- P6-S5: Compute cache-inclusive effective rate for stats YAML cost ---
+        total_all_tokens = sum(project_token_totals.values())
+        if total_all_tokens > 0 and gt["total_cost"] > 0:
+            effective_rate_per_token = gt["total_cost"] / total_all_tokens
+        else:
+            effective_rate_per_token = 0.0
+        effective_rate_per_m = effective_rate_per_token * 1_000_000
+        print(f"  Cache-inclusive effective rate: ${effective_rate_per_m:.2f}/M tokens "
+              f"(${gt['total_cost']:.2f} / {total_all_tokens:,} tokens)",
+              file=sys.stderr)
+
         # --- P5-S2: Stats YAML mining ---
         print("Mining stats YAML files...", file=sys.stderr)
         stats_entries = load_stats_yaml_entries()
-        stats_timing_data = compute_stats_step_timing(stats_entries, closed_bead_estimates)
+        stats_timing_data = compute_stats_step_timing(
+            stats_entries, closed_bead_estimates,
+            effective_rate_per_token=effective_rate_per_token,
+        )
         for rec in stats_timing_data["records"]:
             raw_out.write(json.dumps(rec) + "\n")
         print(f"  Stats: {stats_timing_data['total_entries']} entries, "
@@ -5585,34 +5674,47 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append(f"**Total dispatch entries:** {st['total_entries']}")
         lines.append("")
 
+        effective_rate_per_m = st.get("effective_rate_per_m", 0)
+        if effective_rate_per_m > 0:
+            lines.append(
+                f"*Cost is approximate — stats YAML captures total I/O tokens only, "
+                f"not cache breakdown. Uses computed cache-inclusive effective rate "
+                f"(${effective_rate_per_m:.2f}/M tokens) from corrected MODEL_PRICING.*"
+            )
+            lines.append("")
+
         # Per-command duration table
         lines.append("### Duration by Workflow Command")
         lines.append("")
-        lines.append("| Command | N | Median | Mean | P90 | Min | Max | Total Min |")
-        lines.append("|---------|---|--------|------|-----|-----|-----|-----------|")
+        lines.append("| Command | N | Median | Mean | P90 | Min | Max | Total Min | Approx Cost |")
+        lines.append("|---------|---|--------|------|-----|-----|-----|-----------|-------------|")
         for cmd, stat in sorted(st["by_command"].items(), key=lambda x: x[1].get("total_duration_min", 0), reverse=True):
             p90 = stat.get("p90", "-")
+            cost = stat.get("approx_cost", 0)
+            cost_str = f"${cost:.2f}" if cost > 0 else "-"
             lines.append(
                 f"| {cmd} | {stat['n']} | {stat.get('median', '-')} | "
                 f"{stat.get('mean', '-')} | {p90} | "
                 f"{stat.get('min', '-')} | {stat.get('max', '-')} | "
-                f"{stat.get('total_duration_min', '-')} |"
+                f"{stat.get('total_duration_min', '-')} | {cost_str} |"
             )
         lines.append("")
 
         # Per-agent duration table
         lines.append("### Duration by Agent Type")
         lines.append("")
-        lines.append("| Agent | N | Median | Mean | P90 | Min | Max |")
-        lines.append("|-------|---|--------|------|-----|-----|-----|")
+        lines.append("| Agent | N | Median | Mean | P90 | Min | Max | Approx Cost |")
+        lines.append("|-------|---|--------|------|-----|-----|-----|-------------|")
         for agent, stat in sorted(st["by_agent"].items(), key=lambda x: x[1]["n"], reverse=True):
             if stat["n"] < 2:
                 continue  # Skip single-occurrence agents for clarity
             p90 = stat.get("p90", "-")
+            cost = stat.get("approx_cost", 0)
+            cost_str = f"${cost:.2f}" if cost > 0 else "-"
             lines.append(
                 f"| {agent} | {stat['n']} | {stat.get('median', '-')} | "
                 f"{stat.get('mean', '-')} | {p90} | "
-                f"{stat.get('min', '-')} | {stat.get('max', '-')} |"
+                f"{stat.get('min', '-')} | {stat.get('max', '-')} | {cost_str} |"
             )
         lines.append("")
 

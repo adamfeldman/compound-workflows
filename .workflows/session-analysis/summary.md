@@ -1,15 +1,15 @@
 # Session Analysis Summary
 
-Generated from 98 sessions, 152 phase observations, 865 agent observations, 190 segment observations.
+Generated from 98 sessions, 152 phase observations, 867 agent observations, 190 segment observations.
 
 ## 1. Session Health Metrics
 
 | Metric | N | Min | Median | Mean | Max | P90 |
 |--------|---|-----|--------|------|-----|-----|
-| Session wall-clock (min) | 39 | 0.15 | 46.36 | 1114.17 | 21362.84 | 2131.68 |
-| Session active time (min) | 39 | 0.15 | 21.74 | 159.35 | 2149.02 | 508.41 |
+| Session wall-clock (min) | 39 | 0.15 | 46.36 | 1114.47 | 21362.84 | 2131.68 |
+| Session active time (min) | 39 | 0.15 | 21.74 | 159.65 | 2149.02 | 508.41 |
 | Session idle time (min) | 21 | 7.47 | 185.18 | 1773.24 | 20366.82 | 3607.6 |
-| JSONL entries per session | 98 | 1 | 8.0 | 856.29 | 26785 | 1651 |
+| JSONL entries per session | 98 | 1 | 8.0 | 858.76 | 26785 | 1651 |
 | User messages per session | 38 | 1 | 17.0 | 114.58 | 1452 | 344 |
 | Corrections per session | 98 | 0 | 0.0 | 12.69 | 471 | 22 |
 | Git commits per session | 98 | 0 | 0.0 | 3.63 | 127 | 8 |
@@ -71,7 +71,7 @@ How much idle time inflates each phase. Active ratio = active median / wall-cloc
 
 | Subagent Type | N | Min (s) | Median | Mean | Max | P90 |
 |---------------|---|---------|--------|------|-----|-----|
-| unknown | 100 | 5.1 | 105.97 | 233.89 | 2469.79 | 500.79 |
+| unknown | 102 | 5.1 | 108.57 | 235.96 | 2469.79 | 492.52 |
 | general-purpose | 45 | 1.59 | 100.85 | 200.22 | 1376.04 | 403.82 |
 | Explore | 20 | 13.4 | 57.29 | 61.63 | 148.89 | 145.27 |
 | compound-workflows:workflow:plan-readiness-reviewer | 19 | 34.7 | 67.06 | 175.28 | 1681.72 | 473.9 |
@@ -88,7 +88,7 @@ How much idle time inflates each phase. Active ratio = active median / wall-cloc
 
 | Subagent Type | N | Min (s) | Median | Mean | Max | P90 |
 |---------------|---|---------|--------|------|-----|-----|
-| unknown | 321 | 0.0 | 0.04 | 77.47 | 2469.79 | 219.09 |
+| unknown | 323 | 0.0 | 0.04 | 79.09 | 2469.79 | 230.25 |
 | general-purpose | 143 | 0.0 | 0.03 | 67.1 | 1376.07 | 242.64 |
 | compound-workflows:research:repo-research-analyst | 65 | 0.0 | 0.01 | 3.21 | 120.84 | 0.06 |
 | compound-workflows:workflow:red-team-relay | 63 | 0.0 | 0.03 | 9.91 | 282.01 | 0.08 |
@@ -126,7 +126,7 @@ How much idle time inflates each phase. Active ratio = active median / wall-cloc
 
 | Subagent Type | N | Min | Median | Mean | Max | P90 |
 |---------------|---|-----|--------|------|-----|-----|
-| unknown | 100 | 12421 | 40082.0 | 44480.77 | 125070 | 71892 |
+| unknown | 102 | 12421 | 40337.5 | 45034.65 | 125070 | 71892 |
 | general-purpose | 45 | 11097 | 37040 | 46269.67 | 132671 | 89874 |
 | Explore | 20 | 36896 | 68762.5 | 66497.75 | 112887 | 91597 |
 | compound-workflows:workflow:plan-readiness-reviewer | 19 | 22860 | 30441 | 29740.37 | 34132 | 33317 |
@@ -141,15 +141,15 @@ How much idle time inflates each phase. Active ratio = active median / wall-cloc
 
 ## 4. Tool Call Distribution
 
-**Total tool calls across all sessions:** 14337
+**Total tool calls across all sessions:** 14345
 
 | Tool | Count | % of Total |
 |------|-------|------------|
-| Bash | 6756 | 47.1% |
+| Bash | 6762 | 47.1% |
 | Edit | 2223 | 15.5% |
 | Read | 2211 | 15.4% |
 | AskUserQuestion | 896 | 6.2% |
-| Agent | 835 | 5.8% |
+| Agent | 837 | 5.8% |
 | Grep | 460 | 3.2% |
 | Write | 366 | 2.6% |
 | ToolSearch | 174 | 1.2% |
@@ -279,7 +279,7 @@ Most common phase sequences observed within sessions (consecutive skill invocati
 - **Raw observations file:** `raw-observations.jsonl`
 - **Total sessions:** 98
 - **Total phase observations:** 152
-- **Total agent observations:** 865
+- **Total agent observations:** 867
 - **Total segment observations:** 190
 - **Near-empty sessions (<=2 entries):** 30
 - **Idle threshold:** 300s (5 minutes)
@@ -294,7 +294,7 @@ Every session segment classified by dominant activity. Categories: coding (Edit+
 | light-coding | 56 | 35.16 | 48.01 | 102.56 | 47.63 |
 | exploration | 18 | 12.28 | 15.05 | 35.69 | 20.77 |
 | coding | 18 | 35.0 | 54.89 | 77.31 | 47.29 |
-| bead-management | 17 | 21.68 | 28.04 | 80.19 | 57.76 |
+| bead-management | 17 | 21.68 | 28.72 | 80.19 | 69.47 |
 | discussion | 8 | 0.53 | 1.16 | - | 0.53 |
 | configuration | 5 | 6.0 | 14.6 | - | 6.0 |
 
@@ -324,18 +324,18 @@ BD subcommand distribution within bead-management segments. Creation = bd create
 
 | BD Sub-Category | Command Count | Attributed Active Min |
 |-----------------|---------------|----------------------|
-| triage | 155 | 198.4 |
-| updating | 133 | 173.5 |
-| creation | 56 | 73.2 |
-| other | 26 | 31.5 |
+| triage | 155 | 199.3 |
+| updating | 137 | 181.9 |
+| creation | 56 | 75.3 |
+| other | 26 | 31.8 |
 
 **Raw bd subcommand counts:**
 
-- `bd update`: 98
+- `bd update`: 100
 - `bd show`: 67
 - `bd create`: 56
 - `bd search`: 40
-- `bd close`: 29
+- `bd close`: 31
 - `bd sql`: 22
 - `bd list`: 21
 - `bd dep`: 12
@@ -379,49 +379,49 @@ Sessions with overlapping [first_timestamp, last_timestamp] ranges. Concurrent s
 
 | Bead ID | Sessions | Windowed Min | Old Session Min | Reduction | Methods | Ref Types |
 |---------|----------|-------------|-----------------|-----------|---------|-----------|
-| h0g | 5 | 2718.4 | 4301.1 | 36.8% | windowed(5) | bd_cmd(5), commit_ref(4), user_msg(3) |
-| ybm | 4 | 1835.4 | 4197.4 | 56.3% | windowed(3), proportional(1) | commit_ref(4), bd_cmd(3), user_msg(1) |
-| aig | 4 | 1576.8 | 4197.4 | 62.4% | windowed(4) | bd_cmd(4), commit_ref(3), user_msg(3) |
-| 884 | 3 | 1496.1 | 3637.5 | 58.9% | windowed(3) | bd_cmd(3), commit_ref(2), user_msg(1) |
-| xu2 | 3 | 1438.2 | 3637.5 | 60.5% | windowed(3) | bd_cmd(3), commit_ref(1), user_msg(1) |
+| h0g | 5 | 2718.4 | 4312.8 | 37.0% | windowed(5) | bd_cmd(5), commit_ref(4), user_msg(3) |
+| ybm | 4 | 1835.4 | 4209.1 | 56.4% | windowed(3), proportional(1) | commit_ref(4), bd_cmd(3), user_msg(1) |
+| aig | 4 | 1576.8 | 4209.1 | 62.5% | windowed(4) | bd_cmd(4), commit_ref(3), user_msg(3) |
+| 884 | 3 | 1496.1 | 3649.2 | 59.0% | windowed(3) | bd_cmd(3), commit_ref(2), user_msg(1) |
+| xu2 | 3 | 1438.2 | 3649.2 | 60.6% | windowed(3) | bd_cmd(3), commit_ref(1), user_msg(1) |
 | 22l | 2 | 1399.5 | 2708.9 | 48.3% | windowed(2) | bd_cmd(2), user_msg(2), commit_ref(1) |
-| czu | 3 | 1207.6 | 3637.5 | 66.8% | windowed(3) | bd_cmd(3), commit_ref(2), user_msg(2) |
-| 3zr | 4 | 1179.3 | 3990.5 | 70.4% | windowed(4) | user_msg(3), bd_cmd(3), commit_ref(2) |
+| czu | 3 | 1207.6 | 3649.2 | 66.9% | windowed(3) | bd_cmd(3), commit_ref(2), user_msg(2) |
+| 3zr | 4 | 1179.3 | 4002.2 | 70.5% | windowed(4) | user_msg(3), bd_cmd(3), commit_ref(2) |
 | srf | 1 | 1084.3 | 2149.0 | 49.5% | windowed(1) | bd_cmd(1) |
-| a6t | 4 | 955.4 | 3735.3 | 74.4% | windowed(4) | bd_cmd(4), commit_ref(2), user_msg(1) |
+| a6t | 4 | 955.4 | 3747.1 | 74.5% | windowed(4) | bd_cmd(4), commit_ref(2), user_msg(1) |
 | 5b6 | 3 | 920.2 | 3653.4 | 74.8% | windowed(3) | bd_cmd(3), user_msg(2) |
 | wgl | 1 | 866.3 | 2149.0 | 59.7% | windowed(1) | bd_cmd(1), commit_ref(1), user_msg(1) |
 | voo | 2 | 842.3 | 3145.0 | 73.2% | windowed(2) | bd_cmd(2), user_msg(1) |
 | 3k3 | 3 | 665.7 | 3157.9 | 78.9% | windowed(3) | bd_cmd(3), user_msg(2) |
 | ou4 | 2 | 594.1 | 3145.0 | 81.1% | windowed(2) | bd_cmd(2) |
-| 8vk | 3 | 582.6 | 3637.5 | 84.0% | windowed(2), proportional(1) | bd_cmd(2), commit_ref(1) |
-| 4v2 | 4 | 559.6 | 3735.3 | 85.0% | windowed(4) | bd_cmd(4), commit_ref(2), user_msg(1) |
-| rhl | 3 | 519.4 | 3637.5 | 85.7% | windowed(2), proportional(1) | bd_cmd(2), commit_ref(1), user_msg(1) |
-| eec | 6 | 510.1 | 4204.0 | 87.9% | windowed(6) | bd_cmd(6), user_msg(1) |
-| 42s | 3 | 462.2 | 3637.5 | 87.3% | windowed(3) | bd_cmd(3), user_msg(2), commit_ref(2) |
+| 8vk | 3 | 582.6 | 3649.2 | 84.0% | windowed(2), proportional(1) | bd_cmd(2), commit_ref(1) |
+| 4v2 | 4 | 559.6 | 3747.1 | 85.1% | windowed(4) | bd_cmd(4), commit_ref(2), user_msg(1) |
+| rhl | 3 | 519.4 | 3649.2 | 85.8% | windowed(2), proportional(1) | bd_cmd(2), commit_ref(1), user_msg(1) |
+| eec | 6 | 510.1 | 4215.7 | 87.9% | windowed(6) | bd_cmd(6), user_msg(1) |
+| 42s | 3 | 462.2 | 3649.2 | 87.3% | windowed(3) | bd_cmd(3), user_msg(2), commit_ref(2) |
 
-**Total beads with attribution:** 299
+**Total beads with attribution:** 301
 **Beads spanning multiple sessions:** 91
-**Total old session-level attributed time:** 438188.0 min
-**Total windowed attributed time:** 37819.8 min
+**Total old session-level attributed time:** 440156.6 min
+**Total windowed attributed time:** 37839.7 min
 **Overall reduction:** 91.4%
-**Beads using windowed method:** 299
+**Beads using windowed method:** 301
 **Beads using proportional-only method:** 0
 
 ### Old session-level top 10 (for comparison)
 
 | Bead ID | Sessions | Old Active Min | Old Wall Min | Phases |
 |---------|----------|----------------|--------------|--------|
-| h0g | 5 | 4301.1 | 34696.0 | compact-prep(5), plan(4), work(4), brainstorm(4), compound(3) |
-| eec | 6 | 4204.0 | 30418.2 | compact-prep(6), work(4), plan(3), brainstorm(3), compound(3) |
-| ybm | 4 | 4197.4 | 34544.4 | work(4), compact-prep(4), plan(3), brainstorm(3), compound(3) |
-| aig | 4 | 4197.4 | 34544.4 | work(4), compact-prep(4), plan(3), brainstorm(3), compound(3) |
-| wtn | 4 | 4145.9 | 30208.3 | work(4), compact-prep(4), plan(3), brainstorm(3), compound(3) |
-| 3zr | 4 | 3990.5 | 30181.4 | compact-prep(4), compound(3), brainstorm(3), work(3), deepen-plan(2) |
-| a6t | 4 | 3735.3 | 28910.3 | work(4), compact-prep(4), plan(2), brainstorm(2), compound(2) |
-| 4v2 | 4 | 3735.3 | 28910.3 | work(4), compact-prep(4), plan(2), brainstorm(2), compound(2) |
-| 0ob | 3 | 3704.9 | 32927.8 | plan(3), work(3), compact-prep(3), brainstorm(3), compound(2) |
-| jed | 4 | 3682.7 | 28933.1 | compact-prep(4), work(3), plan(2), brainstorm(2), compound(2) |
+| h0g | 5 | 4312.8 | 34707.7 | compact-prep(5), work(4), plan(4), brainstorm(4), compound(3) |
+| eec | 6 | 4215.7 | 30429.9 | compact-prep(6), work(4), plan(3), brainstorm(3), compound(3) |
+| ybm | 4 | 4209.1 | 34556.1 | compact-prep(4), work(4), plan(3), brainstorm(3), compound(3) |
+| aig | 4 | 4209.1 | 34556.1 | compact-prep(4), work(4), plan(3), brainstorm(3), compound(3) |
+| wtn | 4 | 4157.6 | 30220.0 | compact-prep(4), work(4), plan(3), brainstorm(3), compound(3) |
+| 3zr | 4 | 4002.2 | 30193.1 | compact-prep(4), compound(3), brainstorm(3), work(3), deepen-plan(2) |
+| 4v2 | 4 | 3747.1 | 28922.0 | compact-prep(4), work(4), plan(2), brainstorm(2), compound(2) |
+| a6t | 4 | 3747.1 | 28922.0 | compact-prep(4), work(4), plan(2), brainstorm(2), compound(2) |
+| 0ob | 3 | 3704.9 | 32927.8 | compact-prep(3), work(3), plan(3), brainstorm(3), deepen-plan(2) |
+| jed | 4 | 3694.4 | 28944.8 | compact-prep(4), work(3), plan(2), brainstorm(2), compound(2) |
 
 ## 12. Token-per-Phase Aggregation
 
@@ -429,17 +429,17 @@ Agent/Task token usage grouped by the workflow phase they executed within. Deter
 
 | Phase | Agents | Total Tokens | % of Tokens | Total Duration (s) | Tokens/Agent |
 |-------|--------|-------------|-------------|--------------------|--------------| 
-| work | 79 | 3,476,639 | 35.9% | 18804.5 | 44,008 |
-| non-workflow | 48 | 2,305,412 | 23.8% | 7182.7 | 48,029 |
-| compact-prep | 36 | 1,448,297 | 15.0% | 6235.0 | 40,230 |
-| brainstorm | 21 | 809,466 | 8.4% | 3621.3 | 38,546 |
-| plan | 18 | 630,761 | 6.5% | 3694.3 | 35,042 |
-| deepen-plan | 8 | 588,545 | 6.1% | 1974.4 | 73,568 |
+| work | 79 | 3,476,639 | 35.4% | 18804.5 | 44,008 |
+| non-workflow | 48 | 2,305,412 | 23.5% | 7182.7 | 48,029 |
+| compact-prep | 38 | 1,593,754 | 16.2% | 6914.0 | 41,941 |
+| brainstorm | 21 | 809,466 | 8.2% | 3621.3 | 38,546 |
+| plan | 18 | 630,761 | 6.4% | 3694.3 | 35,042 |
+| deepen-plan | 8 | 588,545 | 6.0% | 1974.4 | 73,568 |
 | compound | 3 | 232,146 | 2.4% | 715.8 | 77,382 |
 | gemini-imagegen | 3 | 139,309 | 1.4% | 56.7 | 46,436 |
 | classify-stats | 1 | 52,509 | 0.5% | 243.2 | 52,509 |
 
-**Total agent tokens across all phases:** 9,683,084
+**Total agent tokens across all phases:** 9,828,541
 
 ## 13. Estimate vs Actual (Windowed Attribution)
 
@@ -448,7 +448,7 @@ Comparing `estimated_minutes` from the beads database with windowed `total_activ
 | Bead ID | Title | Est | Windowed Actual | Old Session Actual | W-Ratio | O-Ratio |
 |---------|-------|-----|-----------------|--------------------|---------|---------| 
 | 5b6 | Audit plugin for cheaper-model dispatch ... | 45 | 920.2 | 3653.4 | 20.45 | 81.19 |
-| 3zr | Mine session logs for empirical workflow... | 100 | 1179.3 | 3990.5 | 11.79 | 39.9 |
+| 3zr | Mine session logs for empirical workflow... | 100 | 1179.3 | 4002.2 | 11.79 | 40.02 |
 | p14 | capture-stats.sh: handle Agent tool usag... | 30 | 351.8 | 3145.0 | 11.73 | 104.83 |
 | jg6 | Fix capture-stats.sh usage format parser... | 20 | 179.0 | 1504.4 | 8.95 | 75.22 |
 | ywug | compact-prep heredoc permission prompt f... | 5 | 40.3 | 2657.4 | 8.06 | 531.49 |
@@ -472,23 +472,23 @@ Comparing `estimated_minutes` from the beads database with windowed `total_activ
 | 71sr | Update stats-capture-schema.md for stdin... | 5 | 7.9 | 48.2 | 1.58 | 9.63 |
 | 5kxt | Version bump to 3.0.3 and changelog | 10 | 13.3 | 56.6 | 1.33 | 5.66 |
 | ml1 | Step 4: Update CLAUDE.md agent registry | 5 | 6.5 | 2149.0 | 1.3 | 429.8 |
-| kte5 | P5-S7: Permission prompt cost estimation | 8 | 10.2 | 492.5 | 1.28 | 61.56 |
+| kte5 | P5-S7: Permission prompt cost estimation | 8 | 10.2 | 504.2 | 1.28 | 63.02 |
 | sg5b | Update file counts 7→8 in CLAUDE.md, AGE... | 10 | 11.8 | 56.6 | 1.18 | 5.66 |
 | xnep | Remove .tmp→mv atomic write pattern from... | 60 | 69.5 | 702.0 | 1.16 | 11.7 |
 | i2tn | Step 5: Verify zero findings + version b... | 20 | 20.5 | 508.4 | 1.03 | 25.42 |
 | pdue | Run QA: no-shell-atomicity.sh + full plu... | 15 | 15.4 | 56.6 | 1.03 | 3.77 |
-| ort2 | P5-S1: Per-request cost from JSONL | 15 | 14.9 | 492.5 | 0.99 | 32.83 |
+| ort2 | P5-S1: Per-request cost from JSONL | 15 | 14.9 | 504.2 | 0.99 | 33.61 |
 | u1fd | Expand permissive profile with 11 missin... | 30 | 28.4 | 282.4 | 0.95 | 9.41 |
-| 0nvy | P5-S4: Estimation accuracy segmentation | 12 | 11.2 | 492.5 | 0.93 | 41.04 |
-| 9lw6 | P5-S6: Velocity trend | 10 | 9.1 | 492.5 | 0.91 | 49.25 |
+| 0nvy | P5-S4: Estimation accuracy segmentation | 12 | 11.2 | 504.2 | 0.93 | 42.02 |
+| 9lw6 | P5-S6: Velocity trend | 10 | 9.1 | 504.2 | 0.91 | 50.42 |
 | bw9v | Defer compact-prep run directory creatio... | 10 | 9.1 | 126.5 | 0.91 | 12.65 |
 | w2hf | Update 5 skill files for stdin capture-s... | 15 | 13.6 | 48.2 | 0.91 | 3.21 |
-| ojry | P5-S5: Compaction cost measurement | 12 | 10.5 | 492.5 | 0.88 | 41.04 |
-| yai0 | P5-S9: Tighten estimation heuristics | 15 | 13.1 | 492.5 | 0.88 | 32.83 |
-| n3s5 | P5-S3: Per-workflow confirmation prompt ... | 12 | 9.8 | 492.5 | 0.82 | 41.04 |
+| ojry | P5-S5: Compaction cost measurement | 12 | 10.5 | 504.2 | 0.88 | 42.02 |
+| yai0 | P5-S9: Tighten estimation heuristics | 15 | 13.1 | 504.2 | 0.88 | 33.61 |
+| n3s5 | P5-S3: Per-workflow confirmation prompt ... | 12 | 9.8 | 504.2 | 0.82 | 42.02 |
 | yeqy | Step 5: Update plugin infrastructure | 20 | 16.3 | 145.5 | 0.82 | 7.27 |
-| vm7m | P5-S8: QA retry cost | 10 | 7.9 | 492.5 | 0.79 | 49.25 |
-| df8x | P5-S2: Stats YAML mining | 15 | 11.1 | 492.5 | 0.74 | 32.83 |
+| vm7m | P5-S8: QA retry cost | 10 | 7.9 | 504.2 | 0.79 | 50.42 |
+| df8x | P5-S2: Stats YAML mining | 15 | 11.1 | 504.2 | 0.74 | 33.61 |
 | rdij | fix: compact-prep perf — direct memory w... | 20 | 14.0 | 126.5 | 0.7 | 6.33 |
 | a433 | Fix semantic-checks.md: remove .tmp→mv | 10 | 6.9 | 56.6 | 0.69 | 5.66 |
 | qlfx | Step 4: Expand scan scope in Tier 1 QA s... | 30 | 20.2 | 145.5 | 0.67 | 4.85 |
@@ -501,7 +501,7 @@ Comparing `estimated_minutes` from the beads database with windowed `total_activ
 | 9l0o | Add no-shell-atomicity.sh QA script | 15 | 8.2 | 56.6 | 0.55 | 3.77 |
 | 8zy | Write auto-approve.sh hook template | 45 | 24.4 | 2149.0 | 0.54 | 47.76 |
 | a7t | Install hook + update settings.json (orc... | 10 | 5.3 | 2149.0 | 0.53 | 214.9 |
-| 3ysa | 3zr-S3: Update estimation-heuristics.md ... | 20 | 10.3 | 492.5 | 0.52 | 24.62 |
+| 3ysa | 3zr-S3: Update estimation-heuristics.md ... | 20 | 10.3 | 504.2 | 0.52 | 25.21 |
 | h7j | [investigate] Transient background Agent... | 30 | 15.2 | 2149.0 | 0.51 | 71.63 |
 | pck2 | Fix heredoc hard heuristic — revert ywug... | 30 | 14.9 | 2149.0 | 0.5 | 71.63 |
 | 88gl | Step 3: Create write-tool-discipline.sh ... | 30 | 14.8 | 145.5 | 0.49 | 4.85 |
@@ -511,21 +511,23 @@ Comparing `estimated_minutes` from the beads database with windowed `total_activ
 | e5wg | Fix classify-stats/SKILL.md: remove .tmp... | 15 | 7.3 | 56.6 | 0.48 | 3.77 |
 | 3m1 | QA + adversarial testing | 30 | 13.7 | 2149.0 | 0.46 | 71.63 |
 | bz96 | CLAUDE.md + init-values.sh header commen... | 10 | 4.0 | 97.8 | 0.4 | 9.78 |
-| o428 | P0b: Add tool_use_id and session_id to h... | 15 | 5.7 | 492.5 | 0.38 | 32.83 |
+| o428 | P0b: Add tool_use_id and session_id to h... | 15 | 5.7 | 504.2 | 0.38 | 33.61 |
 | igp | Plugin metadata: version bump, CHANGELOG... | 15 | 5.4 | 2149.0 | 0.36 | 143.27 |
 | z5lj | Setup: offer to configure Claude statusl... | 20 | 6.9 | 2149.0 | 0.35 | 107.45 |
 | j3wo | Steps 3a+3b+3c: Migrate brainstorm, plan... | 30 | 10.3 | 508.4 | 0.34 | 16.95 |
 | u3jn | Steps 1+2: Create init-values.sh, check-... | 45 | 13.5 | 508.4 | 0.3 | 11.3 |
 | v3du | init-values.sh: add mkdir + CACHED_MODEL... | 20 | 6.0 | 97.8 | 0.3 | 4.89 |
 | wg5 | Step 3: Update Phase 7 decision tree in ... | 20 | 5.8 | 2149.0 | 0.29 | 107.45 |
+| bpv3 | S4: Classification-enriched dispatch ana... | 30 | 8.4 | 504.2 | 0.28 | 16.81 |
 | pud5 | Skill files: remove mkdir/env caching, u... | 25 | 6.9 | 97.8 | 0.28 | 3.91 |
 | 5849 | Step 2: Fix all 10 violations | 45 | 12.0 | 145.5 | 0.27 | 3.23 |
 | cew | Step 6: review.md instrumentation | 15 | 4.0 | 2149.0 | 0.27 | 143.27 |
-| gfl5 | S2: Hook audit log cross-reference | 60 | 15.9 | 492.5 | 0.27 | 8.21 |
-| szc2 | S1: Compaction reorientation fix — activ... | 30 | 8.0 | 492.5 | 0.27 | 16.42 |
+| gfl5 | S2: Hook audit log cross-reference | 60 | 15.9 | 504.2 | 0.27 | 8.4 |
+| szc2 | S1: Compaction reorientation fix — activ... | 30 | 8.0 | 504.2 | 0.27 | 16.81 |
 | tvc | Step 6: Update brainstorm.md — Add probl... | 15 | 4.0 | 2149.0 | 0.27 | 143.27 |
-| m441 | P0a: Fix MODEL_PRICING for all Claude mo... | 45 | 10.6 | 492.5 | 0.24 | 10.94 |
-| vxi0 | 3zr-S1: Classification & phase boundarie... | 45 | 10.5 | 492.5 | 0.23 | 10.94 |
+| 7uof | S3: Cache vs non-cache cost split | 45 | 11.6 | 504.2 | 0.26 | 11.2 |
+| m441 | P0a: Fix MODEL_PRICING for all Claude mo... | 45 | 10.6 | 504.2 | 0.24 | 11.2 |
+| vxi0 | 3zr-S1: Classification & phase boundarie... | 45 | 10.5 | 504.2 | 0.23 | 11.2 |
 | vzo | Step 2: Add Phase 6.9 to plan.md — Condi... | 25 | 5.5 | 2149.0 | 0.22 | 85.96 |
 | 50s | Step 5: Update deepen-plan.md — Add 7th ... | 20 | 4.0 | 2149.0 | 0.2 | 107.45 |
 | 5a2 | Step 4: brainstorm.md instrumentation | 20 | 4.0 | 2149.0 | 0.2 | 107.45 |
@@ -534,7 +536,7 @@ Comparing `estimated_minutes` from the beads database with windowed `total_activ
 | bdl | Step 9: classify-stats skill | 25 | 4.0 | 2149.0 | 0.16 | 85.96 |
 | h056 | Steps 4a-4g: Migrate all skill files | 25 | 4.0 | 508.4 | 0.16 | 20.34 |
 | kfq | Step 2: capture-stats.sh + stats-capture... | 25 | 4.0 | 2149.0 | 0.16 | 85.96 |
-| c5ec | 3zr-S2: Proportional analysis, dedup, an... | 45 | 6.5 | 492.5 | 0.15 | 10.94 |
+| c5ec | 3zr-S2: Proportional analysis, dedup, an... | 45 | 6.5 | 504.2 | 0.15 | 11.2 |
 | gjvi | Setup re-asks permission profile, ignore... | 30 | 4.0 | 35.4 | 0.13 | 1.18 |
 | xj9 | Step 5: plan.md instrumentation | 30 | 4.0 | 2149.0 | 0.13 | 71.63 |
 | k752 | Steps 3d+3e+3f+3g: Migrate work, deepen-... | 45 | 4.0 | 508.4 | 0.09 | 11.3 |
@@ -543,30 +545,30 @@ Comparing `estimated_minutes` from the beads database with windowed `total_activ
 | x15f | Consolidate mkdir and env caching into i... | 60 | 4.0 | 97.8 | 0.07 | 1.63 |
 | 254 | Zero-findings QA baseline with context-l... | 0 | 4.0 | 996.0 | - | - |
 
-**Beads with both estimate and actual:** 95
-**Windowed — Mean ratio:** 1.72 | **Median ratio:** 0.6
-**Old session — Mean ratio:** 55.08 | **Median ratio:** 31.69
-**Windowed: Under-estimated (>1):** 30 | **Over-estimated (<1):** 64 | **Exact:** 0
+**Beads with both estimate and actual:** 97
+**Windowed — Mean ratio:** 1.69 | **Median ratio:** 0.58
+**Old session — Mean ratio:** 54.34 | **Median ratio:** 27.98
+**Windowed: Under-estimated (>1):** 30 | **Over-estimated (<1):** 66 | **Exact:** 0
 
 ## 14. Time Allocation Summary
 
 How total active time is distributed across workflow phases and non-workflow activity categories.
 
-**Total active time across all sessions:** 6214.5 min (103.6 hrs)
-**Total wall-clock time across all sessions:** 43452.4 min (724.2 hrs)
+**Total active time across all sessions:** 6226.2 min (103.8 hrs)
+**Total wall-clock time across all sessions:** 43464.2 min (724.4 hrs)
 
 ### By Activity Category (from segments)
 
-**Workflow phase active time:** 5147.9 min (85.8 hrs)
+**Workflow phase active time:** 5159.6 min (86.0 hrs)
 **Non-workflow active time:** 1066.7 min (17.8 hrs)
 
 | Activity | Active Min | Wall-clock Min | % of Total Active |
 |----------|------------|----------------|-------------------|
-| light-coding (workflow-phase) | 2324.7 | 13419.0 | 37.4% |
+| light-coding (workflow-phase) | 2324.7 | 13419.0 | 37.3% |
 | mixed (workflow-phase) | 1649.1 | 4796.6 | 26.5% |
 | coding (workflow-phase) | 602.0 | 803.3 | 9.7% |
-| bead-management (workflow-phase) | 407.0 | 4207.3 | 6.5% |
-| light-coding (pre-workflow) | 363.6 | 619.2 | 5.9% |
+| bead-management (workflow-phase) | 418.7 | 4219.0 | 6.7% |
+| light-coding (pre-workflow) | 363.6 | 619.2 | 5.8% |
 | coding (pre-workflow) | 361.8 | 14987.6 | 5.8% |
 | exploration (workflow-phase) | 156.3 | 250.8 | 2.5% |
 | exploration (pre-workflow) | 109.9 | 158.6 | 1.8% |
@@ -581,8 +583,8 @@ How total active time is distributed across workflow phases and non-workflow act
 | bead-management | 2.0 | 2.0 | 0.0% |
 | mixed | 0.1 | 0.1 | 0.0% |
 
-**Total bead-management active time:** 476.6 min (7.9 hrs)
-**Total bead-management wall-clock time:** 4770.5 min (79.5 hrs)
+**Total bead-management active time:** 488.3 min (8.1 hrs)
+**Total bead-management wall-clock time:** 4782.2 min (79.7 hrs)
 
 ### Simplified Category Rollup
 
@@ -590,10 +592,10 @@ Categories collapsed across all segment types.
 
 | Category | Active Min | Active Hrs | % of Total |
 |----------|------------|------------|------------|
-| light-coding | 2688.4 | 44.8 | 43.3% |
-| mixed | 1708.3 | 28.5 | 27.5% |
+| light-coding | 2688.4 | 44.8 | 43.2% |
+| mixed | 1708.3 | 28.5 | 27.4% |
 | coding | 988.1 | 16.5 | 15.9% |
-| bead-management | 476.6 | 7.9 | 7.7% |
+| bead-management | 488.3 | 8.1 | 7.8% |
 | exploration | 270.9 | 4.5 | 4.4% |
 | configuration | 73.0 | 1.2 | 1.2% |
 | discussion | 9.3 | 0.2 | 0.1% |
@@ -604,18 +606,18 @@ Key aggregate metrics computed with minute-level deduplication across concurrent
 
 | Metric | Value |
 |--------|-------|
-| Deduplicated active hours | 74.37 |
-| True wall-clock hours (merged intervals) | 405.7 |
-| Total cost (JSONL-computed) | $1954.62 |
+| Deduplicated active hours | 74.57 |
+| True wall-clock hours (merged intervals) | 405.89 |
+| Total cost (JSONL-computed) | $1955.38 |
 | Total cost (ccusage, for comparison) | $310.46 |
-| Cost per active hour | $26.28 |
-| Overhead ratio (bd min / active min) | 16.78% |
-| Automation ratio (Agent+Task / total tools) | 6.04% |
-| Closed beads | 220 |
+| Cost per active hour | $26.22 |
+| Overhead ratio (bd min / active min) | 16.74% |
+| Automation ratio (Agent+Task / total tools) | 6.05% |
+| Closed beads | 222 |
 | Active days | 8 |
-| Beads per day | 27.5 |
-| Active minutes per bead | 20.3 |
-| Estimation accuracy (median actual/estimated) | 0.61 |
+| Beads per day | 27.8 |
+| Active minutes per bead | 20.2 |
+| Estimation accuracy (median actual/estimated) | 0.58 |
 | Phase skip rate (work without brainstorm/deepen) | 73.8% (155/210) |
 
 ## 16. Proportional Tool-Call Allocation
@@ -675,38 +677,38 @@ Per-request cost computed from JSONL `message.usage` fields with model-specific 
 
 ### Total
 
-**JSONL-computed cost: $1954.62**
+**JSONL-computed cost: $1955.38**
 
-ccusage total (for comparison): $310.46 (delta: $+1644.16, +529.6%)
+ccusage total (for comparison): $310.46 (delta: $+1644.92, +529.8%)
 
 ### Token Totals
 
 | Token Type | Count | Cost | % of Total |
 |-----------|-------|------|-----------|
-| Input | 115,640 | $0.58 | 0.0% |
-| Cache creation | 73,846,689 | $460.73 | 23.6% |
-| Cache read | 2,754,031,218 | $1375.13 | 70.4% |
-| Output | 4,746,154 | $118.19 | 6.0% |
+| Input | 115,650 | $0.58 | 0.0% |
+| Cache creation | 73,853,960 | $460.77 | 23.6% |
+| Cache read | 2,755,353,504 | $1375.79 | 70.4% |
+| Output | 4,748,244 | $118.24 | 6.0% |
 
 ### Cache vs Non-Cache Cost
 
 | Category | Cost | % of Total |
 |----------|------|-----------|
-| Cache (creation + read) | $1835.85 | 93.9% |
-| Non-cache (input + output) | $118.77 | 6.1% |
+| Cache (creation + read) | $1836.56 | 93.9% |
+| Non-cache (input + output) | $118.82 | 6.1% |
 
 ### Cost by Model
 
 | Model | Total | Cache | Non-Cache | Cache % |
 |-------|-------|-------|-----------|---------|
-| claude-opus-4-6 | $1949.87 | $1831.79 | $118.08 | 93.9% |
+| claude-opus-4-6 | $1950.63 | $1832.50 | $118.13 | 93.9% |
 | claude-sonnet-4-6 | $4.75 | $4.06 | $0.69 | 85.4% |
 
 ### Cost by Phase
 
 | Phase | Total | Cache | Non-Cache | Cache % |
 |-------|-------|-------|-----------|---------|
-| compact-prep | $595.53 | $565.02 | $30.52 | 94.9% |
+| compact-prep | $596.29 | $565.72 | $30.57 | 94.9% |
 | work | $408.26 | $382.73 | $25.53 | 93.7% |
 | non-workflow | $265.13 | $248.22 | $16.91 | 93.6% |
 | brainstorm | $257.90 | $239.43 | $18.47 | 92.8% |
@@ -725,16 +727,16 @@ ccusage total (for comparison): $310.46 (delta: $+1644.16, +529.6%)
 | Sessions with cost > $0 | 34 | | |
 | Min | $0.14 | | |
 | Median | $14.18 | | |
-| Mean | $57.49 | | |
+| Mean | $57.51 | | |
 | Max | $673.12 | | |
-| P90 | $178.17 | | |
+| P90 | $178.93 | | |
 
 ### Per-Session Cache vs Non-Cache
 
 | Metric | Cache $ | Non-Cache $ | Cache % |
 |--------|---------|-------------|---------|
 | Median | $13.67 | $0.53 | 94.2% |
-| Mean | $54.00 | $3.49 | 94.2% |
+| Mean | $54.02 | $3.49 | 94.2% |
 | Min | $0.13 | $0.00 | 88.5% |
 | Max | $626.94 | $46.18 | 99.7% |
 
@@ -742,30 +744,32 @@ ccusage total (for comparison): $310.46 (delta: $+1644.16, +529.6%)
 
 Per-agent-dispatch duration data mined from `.workflows/stats/*.yaml`. Each entry represents one subagent dispatch with wall-clock duration. Durations shown in minutes.
 
-**Total dispatch entries:** 208
+**Total dispatch entries:** 210
+
+*Cost is approximate — stats YAML captures total I/O tokens only, not cache breakdown. Uses computed cache-inclusive effective rate ($0.69/M tokens) from corrected MODEL_PRICING.*
 
 ### Duration by Workflow Command
 
-| Command | N | Median | Mean | P90 | Min | Max | Total Min |
-|---------|---|--------|------|-----|-----|-----|-----------|
-| work | 53 | 2.96 | 4.3 | 9.87 | 0.68 | 18.46 | 228.01 |
-| plan | 61 | 2.38 | 2.51 | 4.01 | 0.86 | 5.62 | 153.31 |
-| brainstorm | 45 | 1.85 | 1.99 | 2.82 | 0.61 | 5.69 | 89.56 |
-| deepen-plan | 12 | 2.77 | 3.12 | 4.74 | 1.74 | 6.06 | 37.4 |
+| Command | N | Median | Mean | P90 | Min | Max | Total Min | Approx Cost |
+|---------|---|--------|------|-----|-----|-----|-----------|-------------|
+| work | 55 | 2.99 | 4.35 | 9.87 | 0.68 | 18.46 | 239.33 | $2.14 |
+| plan | 61 | 2.38 | 2.51 | 4.01 | 0.86 | 5.62 | 153.31 | $1.85 |
+| brainstorm | 45 | 1.85 | 1.99 | 2.82 | 0.61 | 5.69 | 89.56 | $1.14 |
+| deepen-plan | 12 | 2.77 | 3.12 | 4.74 | 1.74 | 6.06 | 37.4 | $0.46 |
 
 ### Duration by Agent Type
 
-| Agent | N | Median | Mean | P90 | Min | Max |
-|-------|---|--------|------|-----|-----|-----|
-| general-purpose | 78 | 2.25 | 3.61 | 7.17 | 0.61 | 18.46 |
-| red-team-relay | 24 | 2.02 | 2.2 | 3.8 | 1.07 | 3.8 |
-| semantic-checks | 16 | 2.38 | 2.41 | 3.15 | 1.03 | 3.94 |
-| repo-research-analyst | 15 | 3.24 | 3.23 | 4.93 | 1.41 | 5.62 |
-| learnings-researcher | 9 | 1.79 | 1.83 | - | 1.01 | 2.66 |
-| plan-readiness-reviewer | 8 | 1.07 | 1.17 | - | 0.86 | 1.84 |
-| context-researcher | 7 | 2.47 | 2.55 | - | 1.82 | 3.19 |
-| spec-flow-analyzer | 7 | 4.01 | 3.99 | - | 2.74 | 4.79 |
-| plan-consolidator | 4 | 1.9 | 1.79 | - | 1.21 | 2.13 |
+| Agent | N | Median | Mean | P90 | Min | Max | Approx Cost |
+|-------|---|--------|------|-----|-----|-----|-------------|
+| general-purpose | 80 | 2.28 | 3.66 | 7.2 | 0.61 | 18.46 | $2.86 |
+| red-team-relay | 24 | 2.02 | 2.2 | 3.8 | 1.07 | 3.8 | $0.32 |
+| semantic-checks | 16 | 2.38 | 2.41 | 3.15 | 1.03 | 3.94 | $0.44 |
+| repo-research-analyst | 15 | 3.24 | 3.23 | 4.93 | 1.41 | 5.62 | $0.79 |
+| learnings-researcher | 9 | 1.79 | 1.83 | - | 1.01 | 2.66 | $0.25 |
+| plan-readiness-reviewer | 8 | 1.07 | 1.17 | - | 0.86 | 1.84 | $0.15 |
+| context-researcher | 7 | 2.47 | 2.55 | - | 1.82 | 3.19 | $0.28 |
+| spec-flow-analyzer | 7 | 4.01 | 3.99 | - | 2.74 | 4.79 | $0.30 |
+| plan-consolidator | 4 | 1.9 | 1.79 | - | 1.21 | 2.13 | $0.09 |
 
 ### Estimate vs Actual (Stats Dispatch Time)
 
@@ -785,7 +789,9 @@ Compares bead estimated_minutes with total subagent dispatch duration. Note: dis
 | qlfx | 30 | 7.17 | 0.24x | 1 | work |
 | 3zr | 100 | 20.8 | 0.21x | 3 | work |
 | gfl5 | 60 | 11.32 | 0.19x | 1 | work |
+| 7uof | 45 | 7.2 | 0.16x | 1 | work |
 | yeqy | 20 | 3.05 | 0.15x | 1 | work |
+| bpv3 | 30 | 4.11 | 0.14x | 1 | work |
 | m441 | 45 | 5.94 | 0.13x | 1 | work |
 | igp | 15 | 1.85 | 0.12x | 2 | work |
 | szc2 | 30 | 3.65 | 0.12x | 1 | work |
@@ -800,7 +806,7 @@ Compares bead estimated_minutes with total subagent dispatch duration. Note: dis
 | 5849 | 45 | 2.44 | 0.05x | 1 | work |
 | qnu | 45 | 2.44 | 0.05x | 1 | work |
 
-**Dispatch-to-estimate ratio:** median 0.14x, mean 0.28x (N=26)
+**Dispatch-to-estimate ratio:** median 0.15x, mean 0.27x (N=28)
 
 *Ratios < 1.0 mean dispatch time was less than estimated (expected, since estimates cover full workflow including orchestration and user interaction).*
 
@@ -851,7 +857,7 @@ AskUserQuestion events attributed to workflow phases by matching event timestamp
 
 Estimation accuracy (actual/estimated ratio) segmented by bead type, priority, session count, and estimate size. Ratio < 1 means faster than estimated; > 1 means slower.
 
-**Beads analyzed:** 94 (overall median ratio: 0.6x, mean: 1.72x)
+**Beads analyzed:** 96 (overall median ratio: 0.58x, mean: 1.69x)
 
 ### By Issue Type
 
@@ -859,14 +865,14 @@ Estimation accuracy (actual/estimated ratio) segmented by bead type, priority, s
 |---------|---|--------|------|-----|-----|-----------|----------|
 | bug | 19 | 2.36x | 3.24x | 0.07x | 11.73x | 12 | 7 |
 | feature | 5 | 0.95x | 2.29x | 0.08x | 5.62x | 2 | 3 |
-| task | 70 | 0.55x | 1.27x | 0.09x | 20.45x | 16 | 54 |
+| task | 72 | 0.54x | 1.24x | 0.09x | 20.45x | 16 | 56 |
 
 ### By Priority
 
 | Priority | N | Median | Mean | Min | Max | Under-est | Over-est |
 |---------|---|--------|------|-----|-----|-----------|----------|
 | P0 | 3 | 0.38x | 0.44x | 0.24x | 0.7x | 0 | 3 |
-| P1 | 47 | 0.55x | 1.37x | 0.07x | 20.45x | 10 | 37 |
+| P1 | 49 | 0.54x | 1.32x | 0.07x | 20.45x | 10 | 39 |
 | P2 | 28 | 1.46x | 2.85x | 0.13x | 11.79x | 17 | 11 |
 | P3 | 13 | 0.62x | 1.11x | 0.08x | 4.46x | 3 | 10 |
 | P4 | 3 | 0.55x | 0.66x | 0.51x | 0.91x | 0 | 3 |
@@ -876,14 +882,14 @@ Estimation accuracy (actual/estimated ratio) segmented by bead type, priority, s
 | Sessions | N | Median | Mean | Min | Max | Under-est | Over-est |
 |---------|---|--------|------|-----|-----|-----------|----------|
 | multi-session | 21 | 4.27x | 5.54x | 0.95x | 20.45x | 20 | 1 |
-| single-session | 73 | 0.49x | 0.62x | 0.07x | 3.86x | 10 | 63 |
+| single-session | 75 | 0.49x | 0.61x | 0.07x | 3.86x | 10 | 65 |
 
 ### By Estimate Size
 
 | Bucket | N | Median | Mean | Min | Max | Under-est | Over-est |
 |---------|---|--------|------|-----|-----|-----------|----------|
 | <15min | 19 | 0.91x | 1.35x | 0.4x | 8.06x | 7 | 12 |
-| 15-60min | 69 | 0.49x | 1.5x | 0.07x | 20.45x | 17 | 52 |
+| 15-60min | 71 | 0.48x | 1.46x | 0.07x | 20.45x | 17 | 54 |
 | 60-120min | 4 | 4.45x | 5.86x | 2.76x | 11.79x | 4 | 0 |
 | >120min | 2 | 4.66x | 4.66x | 3.7x | 5.62x | 2 | 0 |
 
@@ -962,12 +968,14 @@ Estimation accuracy (actual/estimated ratio) segmented by bead type, priority, s
 | u3jn | task | P1 | 45 | 13.5 | 0.3x | 1 | 15-60min |
 | v3du | task | P1 | 20 | 6.0 | 0.3x | 1 | 15-60min |
 | wg5 | task | P1 | 20 | 5.8 | 0.29x | 1 | 15-60min |
+| bpv3 | task | P1 | 30 | 8.4 | 0.28x | 1 | 15-60min |
 | pud5 | task | P1 | 25 | 6.9 | 0.28x | 1 | 15-60min |
 | 5849 | task | P2 | 45 | 12.0 | 0.27x | 1 | 15-60min |
 | cew | task | P2 | 15 | 4.0 | 0.27x | 1 | 15-60min |
 | gfl5 | task | P1 | 60 | 15.9 | 0.27x | 1 | 15-60min |
 | szc2 | task | P1 | 30 | 8.0 | 0.27x | 1 | 15-60min |
 | tvc | task | P1 | 15 | 4.0 | 0.27x | 1 | 15-60min |
+| 7uof | task | P1 | 45 | 11.6 | 0.26x | 1 | 15-60min |
 | m441 | task | P0 | 45 | 10.6 | 0.24x | 1 | 15-60min |
 | vxi0 | task | P1 | 45 | 10.5 | 0.23x | 1 | 15-60min |
 | vzo | task | P1 | 25 | 5.5 | 0.22x | 1 | 15-60min |
@@ -1128,17 +1136,17 @@ Time from compaction to first productive tool call (Edit/Write/Agent/Task). **Ra
 
 Daily velocity: bead closures and active hours per date. Active time is computed from session timestamps (sum of session active minutes bucketed by session start date). Bead closures come from the beads database `closed_at` field. Note: beads/hour can be skewed on individual dates because long sessions bucket to their start date while bead closures bucket to their close date.
 
-**Date range:** 9 dates, 220 beads closed, 103.56 active hours
+**Date range:** 9 dates, 222 beads closed, 103.76 active hours
 
 ### Velocity Summary
 
 | Metric | Value |
 |--------|-------|
-| Overall beads/hour | 2.12 |
+| Overall beads/hour | 2.14 |
 | Median beads/day | 20.5 |
-| Mean beads/day | 27.5 |
+| Mean beads/day | 27.8 |
 | Median active hours/day | 14.94 |
-| Mean active hours/day | 14.79 |
+| Mean active hours/day | 14.82 |
 
 ### Daily Trend
 
@@ -1151,8 +1159,8 @@ Daily velocity: bead closures and active hours per date. Active time is computed
 | 2026-03-10 | 29 | 0.0 | - |
 | 2026-03-11 | 19 | 8.47 | 2.24 |
 | 2026-03-12 | 56 | 14.94 | 3.75 |
-| 2026-03-13 | 22 | 16.95 | 1.3 |
-| 2026-03-14 | 4 | 0.37 | 10.81 |
+| 2026-03-13 | 22 | 17.15 | 1.28 |
+| 2026-03-14 | 6 | 0.37 | 16.22 |
 
 ## 25. Permission Prompt Estimate
 
@@ -1204,8 +1212,8 @@ Cross-references the hook audit log (`.workflows/.hook-audit.log`) with JSONL se
 | auto-approved | 0 | 0.0% |
 | hook-suppressed | 1947 | 28.8% |
 | ambiguous | 738 | 10.9% |
-| user-prompted | 4071 | 60.3% |
-| **Total Bash calls** | **6756** | **100%** |
+| user-prompted | 4077 | 60.3% |
+| **Total Bash calls** | **6762** | **100%** |
 
 ### Hook Audit Log Statistics
 
@@ -1223,8 +1231,8 @@ Cross-references the hook audit log (`.workflows/.hook-audit.log`) with JSONL se
 
 | Metric | Section 25 (Proxy) | Section 27 (Hook Audit) |
 |--------|-------------------|------------------------|
-| User-prompted Bash calls | 121 (pattern-based upper bound) | 4071 (unmatched in audit log) |
-| Ratio (S27/S25) | — | 33.64x |
+| User-prompted Bash calls | 121 (pattern-based upper bound) | 4077 (unmatched in audit log) |
+| Ratio (S27/S25) | — | 33.69x |
 
 The section 25 proxy counts Bash calls matching heuristic-triggering patterns (`$()`, `<<`, `{"`) as an upper bound. The section 27 hook audit classifies calls that were NOT auto-approved and NOT in work-phase sessions. The difference reflects: (a) static rules that suppress heuristics for known-safe commands, (b) commands that match patterns but don't actually trigger prompts, and (c) different classification methodology (pattern-based vs audit-based).
 
@@ -1234,7 +1242,7 @@ The section 25 proxy counts Bash calls matching heuristic-triggering patterns (`
 |---------|-------|--------------|------------|-----------|---------------|
 | 77508108-376... | 2320 | 0 | 840 | 0 | 1480 |
 | 3b01ea81-37f... | 869 | 0 | 155 | 0 | 714 |
-| 7629c6aa-170... | 614 | 0 | 124 | 0 | 490 |
+| 7629c6aa-170... | 620 | 0 | 124 | 0 | 496 |
 | 551deff1-065... | 560 | 0 | 237 | 0 | 323 |
 | 59b5ae34-2de... | 399 | 0 | 159 | 0 | 240 |
 | c2fb05c7-7fa... | 226 | 0 | 71 | 0 | 155 |
@@ -1247,3 +1255,49 @@ The section 25 proxy counts Bash calls matching heuristic-triggering patterns (`
 | d9750748-248... | 28 | 0 | 0 | 0 | 28 |
 | 2ea0781f-eb6... | 26 | 0 | 0 | 0 | 26 |
 | 27df18e9-af1... | 20 | 0 | 0 | 0 | 20 |
+
+## 28. Dispatch Analysis by Classification
+
+Groups stats YAML dispatch entries by classification dimensions: **complexity** (rote/mechanical/analytical/judgment) and **output_type** (code-edit/research/review/relay/synthesis). Entries without classification are grouped as 'unclassified'. Durations in minutes, tokens are raw I/O totals.
+
+### Duration by Complexity Tier
+
+| Complexity | N | Median | Mean | P90 | Min | Max | Total Min |
+|------------|---|--------|------|-----|-----|-----|-----------|
+| analytical | 95 | 2.17 | 3.19 | 6.21 | 0.61 | 18.46 | 303.09 |
+| mechanical | 36 | 2.02 | 2.16 | 3.44 | 0.81 | 3.8 | 77.63 |
+| unclassified | 28 | 2.93 | 3.62 | 6.06 | 1.29 | 11.32 | 101.29 |
+| judgment | 14 | 2.32 | 2.69 | 4.73 | 1.03 | 5.69 | 37.6 |
+| **Total** | **173** | | | | | | **519.61** |
+
+### Duration by Output Type
+
+| Output Type | N | Median | Mean | P90 | Min | Max | Total Min |
+|-------------|---|--------|------|-----|-----|-----|-----------|
+| code-edit | 38 | 2.09 | 3.16 | 5.77 | 0.68 | 18.46 | 120.08 |
+| research | 37 | 3.14 | 4.17 | 8.96 | 1.01 | 15.9 | 154.17 |
+| review | 36 | 2.25 | 2.26 | 4.01 | 0.86 | 4.79 | 81.23 |
+| unclassified | 28 | 2.93 | 3.62 | 6.06 | 1.29 | 11.32 | 101.29 |
+| relay | 22 | 2.02 | 2.21 | 3.8 | 1.07 | 3.8 | 48.55 |
+| synthesis | 12 | 1.12 | 1.19 | 1.75 | 0.61 | 2.06 | 14.29 |
+| **Total** | **173** | | | | | | **519.61** |
+
+### Token Usage by Complexity Tier
+
+| Complexity | N (with tokens) | Median Tokens | Mean Tokens | Total Tokens |
+|------------|-----------------|---------------|-------------|--------------|
+| analytical | 95 | 48,396 | 50,428 | 4,790,711 |
+| mechanical | 36 | 20,630 | 25,530 | 919,109 |
+| unclassified | 28 | 59,862 | 59,460 | 1,664,893 |
+| judgment | 14 | 38,701 | 51,360 | 719,046 |
+| **Total** | | | | **8,093,759** |
+
+### Cross-Tabulation: Complexity x Output Type (Count)
+
+| Complexity | code-edit | relay | research | review | synthesis | unclassified | **Row Total** |
+|------------|-----------|-------|----------|--------|-----------|--------------|---------------|
+| mechanical | 1 | 22 | - | 10 | 3 | - | **36** |
+| analytical | 35 | - | 36 | 15 | 9 | - | **95** |
+| judgment | 2 | - | 1 | 11 | - | - | **14** |
+| unclassified | - | - | - | - | - | 28 | **28** |
+| **Col Total** | **38** | **22** | **37** | **36** | **12** | **28** | **173** |
