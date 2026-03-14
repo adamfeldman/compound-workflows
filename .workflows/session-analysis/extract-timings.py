@@ -641,13 +641,19 @@ def compute_stats_step_timing(stats_entries, closed_bead_estimates):
         - estimate_vs_actual: list of {bead, estimated_minutes, actual_total_ms, step_count}
         - records: list of stats_step_timing record dicts for raw output
     """
-    from collections import defaultdict
+    from collections import defaultdict, Counter
 
     # Group by command
     by_command = defaultdict(list)
     by_agent = defaultdict(list)
     by_command_step = defaultdict(lambda: defaultdict(list))
     by_bead = defaultdict(list)
+
+    # Classification groupings (Phase 6, Step 4)
+    # Each stores list of dicts with duration_ms and tokens for richer stats
+    by_complexity = defaultdict(list)   # complexity_tier -> [{duration_ms, tokens}]
+    by_output_type = defaultdict(list)  # output_type -> [{duration_ms, tokens}]
+    complexity_x_output = Counter()     # (complexity, output_type) -> count
 
     for entry in stats_entries:
         cmd = entry.get("command", "unknown")
@@ -657,10 +663,24 @@ def compute_stats_step_timing(stats_entries, closed_bead_estimates):
         bead = entry.get("bead")
         tokens = entry.get("tokens") or 0
 
+        # Classification fields (may be None/null in older entries)
+        complexity = entry.get("complexity") or "unclassified"
+        output_type = entry.get("output_type") or "unclassified"
+        # Normalize null string from YAML
+        if complexity == "null":
+            complexity = "unclassified"
+        if output_type == "null":
+            output_type = "unclassified"
+
         if duration_ms > 0:
             by_command[cmd].append(duration_ms)
             by_agent[agent].append(duration_ms)
             by_command_step[cmd][step].append(duration_ms)
+
+            # Classification groupings
+            by_complexity[complexity].append({"duration_ms": duration_ms, "tokens": tokens})
+            by_output_type[output_type].append({"duration_ms": duration_ms, "tokens": tokens})
+            complexity_x_output[(complexity, output_type)] += 1
 
         if bead and duration_ms > 0:
             bead_str = str(bead)
@@ -741,10 +761,83 @@ def compute_stats_step_timing(stats_entries, closed_bead_estimates):
             **entry,
         })
 
+    # --- Classification stats (Phase 6, Step 4) ---
+    def _compute_classification_group_stats(grouped_data):
+        """Compute duration and token stats for a classification grouping.
+
+        Args:
+            grouped_data: dict of group_key -> list of {duration_ms, tokens}
+
+        Returns:
+            dict of group_key -> {duration: {n, median, p90, mean, total_min},
+                                   tokens: {n, median, mean, total}}
+        """
+        result = {}
+        for key, items in sorted(grouped_data.items(), key=lambda x: len(x[1]), reverse=True):
+            dur_minutes = [d["duration_ms"] / 60000.0 for d in items]
+            token_vals = [d["tokens"] for d in items if d["tokens"] > 0]
+            dur_stats = compute_stats(dur_minutes)
+            dur_stats["total_min"] = round(sum(dur_minutes), 2)
+            tok_stats = compute_stats(token_vals) if token_vals else {"n": 0}
+            tok_stats["total"] = sum(token_vals) if token_vals else 0
+            result[key] = {"duration": dur_stats, "tokens": tok_stats}
+        return result
+
+    complexity_stats = _compute_classification_group_stats(by_complexity)
+    output_type_stats = _compute_classification_group_stats(by_output_type)
+
+    # Cross-tabulation: complexity x output_type
+    cross_tab = {}
+    for (comp, otype), count in sorted(complexity_x_output.items()):
+        if comp not in cross_tab:
+            cross_tab[comp] = {}
+        cross_tab[comp][otype] = count
+
+    # Build classification_analysis records for raw output
+    for group_key, stats in complexity_stats.items():
+        records.append({
+            "record_type": "classification_analysis",
+            "dimension": "complexity",
+            "group": group_key,
+            "n": stats["duration"]["n"],
+            "duration_median_min": stats["duration"].get("median"),
+            "duration_p90_min": stats["duration"].get("p90"),
+            "duration_mean_min": stats["duration"].get("mean"),
+            "duration_total_min": stats["duration"].get("total_min"),
+            "token_n": stats["tokens"]["n"],
+            "token_median": stats["tokens"].get("median"),
+            "token_mean": stats["tokens"].get("mean"),
+            "token_total": stats["tokens"].get("total"),
+        })
+    for group_key, stats in output_type_stats.items():
+        records.append({
+            "record_type": "classification_analysis",
+            "dimension": "output_type",
+            "group": group_key,
+            "n": stats["duration"]["n"],
+            "duration_median_min": stats["duration"].get("median"),
+            "duration_p90_min": stats["duration"].get("p90"),
+            "duration_mean_min": stats["duration"].get("mean"),
+            "duration_total_min": stats["duration"].get("total_min"),
+            "token_n": stats["tokens"]["n"],
+            "token_median": stats["tokens"].get("median"),
+            "token_mean": stats["tokens"].get("mean"),
+            "token_total": stats["tokens"].get("total"),
+        })
+    # Cross-tabulation record
+    records.append({
+        "record_type": "classification_analysis",
+        "dimension": "cross_tab",
+        "cross_tab": {f"{c}|{o}": cnt for (c, o), cnt in complexity_x_output.items()},
+    })
+
     return {
         "by_command": command_stats,
         "by_agent": agent_stats,
         "estimate_vs_actual": estimate_vs_actual,
+        "by_complexity": complexity_stats,
+        "by_output_type": output_type_stats,
+        "cross_tab": cross_tab,
         "records": records,
         "total_entries": len(stats_entries),
     }
@@ -6276,6 +6369,137 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             lines.append("")
     else:
         lines.append("*No hook audit data available.*")
+        lines.append("")
+
+    # --- Section 28: Dispatch Analysis by Classification ---
+    lines.append("## 28. Dispatch Analysis by Classification")
+    lines.append("")
+    lines.append(
+        "Groups stats YAML dispatch entries by classification dimensions: "
+        "**complexity** (rote/mechanical/analytical/judgment) and "
+        "**output_type** (code-edit/research/review/relay/synthesis). "
+        "Entries without classification are grouped as 'unclassified'. "
+        "Durations in minutes, tokens are raw I/O totals."
+    )
+    lines.append("")
+
+    if stats_timing_data and stats_timing_data.get("by_complexity"):
+        st = stats_timing_data
+
+        # --- Duration by complexity tier ---
+        lines.append("### Duration by Complexity Tier")
+        lines.append("")
+        lines.append("| Complexity | N | Median | Mean | P90 | Min | Max | Total Min |")
+        lines.append("|------------|---|--------|------|-----|-----|-----|-----------|")
+        total_dispatches = 0
+        total_duration_min = 0.0
+        for tier, stats in sorted(st["by_complexity"].items(),
+                                   key=lambda x: x[1]["duration"]["n"], reverse=True):
+            d = stats["duration"]
+            total_dispatches += d["n"]
+            total_duration_min += d.get("total_min", 0)
+            p90 = d.get("p90", "-")
+            lines.append(
+                f"| {tier} | {d['n']} | {d.get('median', '-')} | "
+                f"{d.get('mean', '-')} | {p90} | "
+                f"{d.get('min', '-')} | {d.get('max', '-')} | "
+                f"{d.get('total_min', '-')} |"
+            )
+        lines.append(
+            f"| **Total** | **{total_dispatches}** | | | | | | "
+            f"**{round(total_duration_min, 2)}** |"
+        )
+        lines.append("")
+
+        # --- Duration by output type ---
+        lines.append("### Duration by Output Type")
+        lines.append("")
+        lines.append("| Output Type | N | Median | Mean | P90 | Min | Max | Total Min |")
+        lines.append("|-------------|---|--------|------|-----|-----|-----|-----------|")
+        total_dispatches_ot = 0
+        total_duration_min_ot = 0.0
+        for otype, stats in sorted(st["by_output_type"].items(),
+                                    key=lambda x: x[1]["duration"]["n"], reverse=True):
+            d = stats["duration"]
+            total_dispatches_ot += d["n"]
+            total_duration_min_ot += d.get("total_min", 0)
+            p90 = d.get("p90", "-")
+            lines.append(
+                f"| {otype} | {d['n']} | {d.get('median', '-')} | "
+                f"{d.get('mean', '-')} | {p90} | "
+                f"{d.get('min', '-')} | {d.get('max', '-')} | "
+                f"{d.get('total_min', '-')} |"
+            )
+        lines.append(
+            f"| **Total** | **{total_dispatches_ot}** | | | | | | "
+            f"**{round(total_duration_min_ot, 2)}** |"
+        )
+        lines.append("")
+
+        # --- Token usage by complexity tier ---
+        lines.append("### Token Usage by Complexity Tier")
+        lines.append("")
+        lines.append("| Complexity | N (with tokens) | Median Tokens | Mean Tokens | Total Tokens |")
+        lines.append("|------------|-----------------|---------------|-------------|--------------|")
+        grand_total_tokens = 0
+        for tier, stats in sorted(st["by_complexity"].items(),
+                                   key=lambda x: x[1]["duration"]["n"], reverse=True):
+            t = stats["tokens"]
+            grand_total_tokens += t.get("total", 0)
+            if t["n"] > 0:
+                total_fmt = f"{t['total']:,}" if t.get("total") else "-"
+                median_fmt = f"{int(t['median']):,}" if t.get("median") else "-"
+                mean_fmt = f"{int(t['mean']):,}" if t.get("mean") else "-"
+                lines.append(
+                    f"| {tier} | {t['n']} | {median_fmt} | {mean_fmt} | {total_fmt} |"
+                )
+            else:
+                lines.append(f"| {tier} | 0 | - | - | - |")
+        lines.append(f"| **Total** | | | | **{grand_total_tokens:,}** |")
+        lines.append("")
+
+        # --- Cross-tabulation: complexity x output_type ---
+        cross_tab = st.get("cross_tab", {})
+        if cross_tab:
+            lines.append("### Cross-Tabulation: Complexity x Output Type (Count)")
+            lines.append("")
+
+            # Collect all output types for columns
+            all_output_types = sorted(set(
+                ot for comp_dict in cross_tab.values() for ot in comp_dict.keys()
+            ))
+            # Header
+            header = "| Complexity | " + " | ".join(all_output_types) + " | **Row Total** |"
+            sep = "|------------|" + "|".join("-" * (max(len(ot), 3) + 2) for ot in all_output_types) + "|---------------|"
+            lines.append(header)
+            lines.append(sep)
+
+            # Define display order for complexity tiers
+            complexity_order = ["rote", "mechanical", "analytical", "judgment", "unclassified"]
+            sorted_complexities = sorted(
+                cross_tab.keys(),
+                key=lambda c: complexity_order.index(c) if c in complexity_order else 99,
+            )
+
+            col_totals = {ot: 0 for ot in all_output_types}
+            grand_total = 0
+            for comp in sorted_complexities:
+                comp_dict = cross_tab[comp]
+                row_total = sum(comp_dict.values())
+                grand_total += row_total
+                cells = []
+                for ot in all_output_types:
+                    count = comp_dict.get(ot, 0)
+                    col_totals[ot] += count
+                    cells.append(str(count) if count > 0 else "-")
+                lines.append(f"| {comp} | " + " | ".join(cells) + f" | **{row_total}** |")
+
+            # Column totals row
+            col_cells = [f"**{col_totals[ot]}**" for ot in all_output_types]
+            lines.append(f"| **Col Total** | " + " | ".join(col_cells) + f" | **{grand_total}** |")
+            lines.append("")
+    else:
+        lines.append("*No classification data available in stats YAML entries.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
