@@ -30,6 +30,7 @@ Outputs:
 """
 
 import json
+import bisect
 import os
 import sys
 import re
@@ -127,6 +128,391 @@ def find_stats_yaml_dir():
     except Exception:
         pass
     return None
+
+
+def find_hook_audit_log():
+    """Locate the .workflows/.hook-audit.log file.
+
+    The hook audit log lives in the MAIN repo root (not worktrees).
+    Always prefers the main worktree's copy since that's where the hook writes.
+    Falls back to local repo root if not in a worktree.
+    Returns the file path, or None if not found.
+    """
+    repo_root = os.path.dirname(os.path.dirname(SCRIPT_DIR))
+
+    # Try main worktree via git first (always prefer main repo)
+    try:
+        result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            capture_output=True, text=True, timeout=5,
+            cwd=repo_root,
+        )
+        # First "worktree" entry in porcelain output is always the main worktree
+        for line in result.stdout.splitlines():
+            if line.startswith("worktree "):
+                main_root = line[len("worktree "):]
+                main_log = os.path.join(main_root, ".workflows", ".hook-audit.log")
+                if os.path.isfile(main_log):
+                    return main_log
+                break  # Only check the first (main) worktree
+    except Exception:
+        pass
+
+    # Fall back to local repo root
+    local_log = os.path.join(repo_root, ".workflows", ".hook-audit.log")
+    if os.path.isfile(local_log):
+        return local_log
+
+    return None
+
+
+# ISO 8601 timestamp pattern for hook audit log line detection
+_HOOK_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T")
+
+
+def parse_hook_audit_log():
+    """Parse the hook audit log into structured entries.
+
+    Handles two formats:
+    - 3-field (legacy): TIMESTAMP\\tTOOL_NAME\\tDETAIL
+    - 5-field (new): TIMESTAMP\\tTOOL_NAME\\tTOOL_USE_ID\\tSESSION_ID\\tDETAIL
+
+    Multi-line commands: lines NOT starting with ISO 8601 timestamp pattern
+    (YYYY-MM-DDT) are continuation of previous entry's detail field.
+
+    Returns list of dicts: {timestamp, tool_name, tool_use_id, session_id,
+                            detail, format: '3-field'|'5-field'}
+    Graceful fallback: if file doesn't exist or is empty, returns empty list
+    with stderr warning.
+    """
+    log_path = find_hook_audit_log()
+    if not log_path:
+        print("  WARNING: Could not find .workflows/.hook-audit.log", file=sys.stderr)
+        return []
+
+    try:
+        with open(log_path, "r") as f:
+            raw_lines = f.readlines()
+    except Exception as e:
+        print(f"  WARNING: Could not read hook audit log: {e}", file=sys.stderr)
+        return []
+
+    if not raw_lines:
+        print("  WARNING: Hook audit log is empty", file=sys.stderr)
+        return []
+
+    entries = []
+    current_entry = None
+
+    for raw_line in raw_lines:
+        line = raw_line.rstrip("\n")
+
+        # Check if this line starts a new entry (ISO 8601 timestamp)
+        if _HOOK_TS_RE.match(line):
+            # Save previous entry if any
+            if current_entry is not None:
+                entries.append(current_entry)
+
+            # Parse tab-delimited fields
+            fields = line.split("\t")
+            if len(fields) >= 5:
+                current_entry = {
+                    "timestamp": fields[0],
+                    "tool_name": fields[1],
+                    "tool_use_id": fields[2] if fields[2] != "none" else None,
+                    "session_id": fields[3] if fields[3] != "none" else None,
+                    "detail": fields[4],
+                    "format": "5-field",
+                }
+            elif len(fields) >= 3:
+                current_entry = {
+                    "timestamp": fields[0],
+                    "tool_name": fields[1],
+                    "tool_use_id": None,
+                    "session_id": None,
+                    "detail": fields[2],
+                    "format": "3-field",
+                }
+            elif len(fields) >= 1:
+                # Malformed line with timestamp but not enough fields
+                current_entry = {
+                    "timestamp": fields[0],
+                    "tool_name": "",
+                    "tool_use_id": None,
+                    "session_id": None,
+                    "detail": "\t".join(fields[1:]) if len(fields) > 1 else "",
+                    "format": "3-field",
+                }
+        else:
+            # Continuation line — append to previous entry's detail
+            if current_entry is not None:
+                current_entry["detail"] += "\n" + line
+
+    # Don't forget the last entry
+    if current_entry is not None:
+        entries.append(current_entry)
+
+    # Parse timestamps into datetime objects
+    for entry in entries:
+        entry["parsed_ts"] = parse_timestamp(entry["timestamp"])
+
+    print(f"  Parsed {len(entries)} hook audit log entries from {log_path}",
+          file=sys.stderr)
+    legacy_count = sum(1 for e in entries if e["format"] == "3-field")
+    new_count = sum(1 for e in entries if e["format"] == "5-field")
+    print(f"    Legacy (3-field): {legacy_count}, New (5-field): {new_count}",
+          file=sys.stderr)
+
+    return entries
+
+
+def cross_reference_hook_audit(hook_entries, all_tool_use_index, all_session_results,
+                               stats_entries):
+    """Cross-reference hook audit log with JSONL session data.
+
+    Classifies each JSONL Bash tool call into four categories:
+    - auto-approved: matched in hook audit log (exact tool_use_id for 5-field)
+    - hook-suppressed: falls within a work-phase window (hook was disabled)
+    - ambiguous: session contained work dispatch but window boundaries uncertain
+    - user-prompted: not in audit log AND not in a suppressed/ambiguous window
+
+    For legacy (3-field) entries: classified as "legacy (pre-instrumentation)" —
+    no fuzzy matching attempted (per code-simplicity review finding).
+
+    Args:
+        hook_entries: list of dicts from parse_hook_audit_log()
+        all_tool_use_index: dict of tool_use_id -> {session_id, timestamp, tool_name, command}
+        all_session_results: list of process_session() result dicts
+        stats_entries: list of stats YAML entries from load_stats_yaml_entries()
+
+    Returns:
+        dict with:
+        - per_session: {session_id: {auto_approved, hook_suppressed, ambiguous,
+                        user_prompted, total_bash, legacy_audit_entries}}
+        - aggregate: {auto_approved, hook_suppressed, ambiguous, user_prompted,
+                      total_bash, legacy_audit_entries, hook_coverage_start}
+        - records: list of record dicts for raw output
+    """
+    # Build set of tool_use_ids found in hook audit log (5-field only)
+    hook_tool_use_ids = set()
+    for entry in hook_entries:
+        if entry["format"] == "5-field" and entry.get("tool_use_id"):
+            hook_tool_use_ids.add(entry["tool_use_id"])
+
+    # Count legacy entries by tool type
+    legacy_bash_entries = sum(
+        1 for e in hook_entries
+        if e["format"] == "3-field" and e["tool_name"] == "Bash"
+    )
+    legacy_total_entries = sum(1 for e in hook_entries if e["format"] == "3-field")
+
+    # Determine hook coverage start date (earliest hook entry timestamp)
+    hook_start_ts = None
+    for entry in hook_entries:
+        ts = entry.get("parsed_ts")
+        if ts and (hook_start_ts is None or ts < hook_start_ts):
+            hook_start_ts = ts
+
+    # Identify work-phase sessions: sessions that contain a stats YAML entry
+    # with command=work. A work-phase window spans the entire session for
+    # sessions that had a work dispatch.
+    work_sessions = set()  # session_ids with work dispatches
+
+    # Build session time ranges for matching stats entries to sessions
+    session_time_ranges = {}  # session_id -> (first_ts, last_ts)
+    for result in all_session_results:
+        sid = result["session"]["session_id"]
+        first_ts = result.get("first_ts")
+        last_ts = result.get("last_ts")
+        if first_ts and last_ts:
+            session_time_ranges[sid] = (first_ts, last_ts)
+
+    # Match stats entries with command=work to JSONL sessions by timestamp overlap
+    work_stats = [e for e in stats_entries if e.get("command") == "work"]
+    for stat_entry in work_stats:
+        stat_ts = parse_timestamp(stat_entry.get("timestamp"))
+        if not stat_ts:
+            continue
+        for sid, (first_ts, last_ts) in session_time_ranges.items():
+            if first_ts <= stat_ts <= last_ts:
+                work_sessions.add(sid)
+                break  # Each stats entry matches at most one session
+
+    # Also check for sessions with work skill invocations
+    for result in all_session_results:
+        sid = result["session"]["session_id"]
+        for inv in result.get("skill_invocations", []):
+            if inv.get("phase") == "work":
+                work_sessions.add(sid)
+
+    # Build work-phase time windows from skill invocations.
+    # The .work-in-progress sentinel is created at work-phase start and deleted at end.
+    # For each session, find the time windows where a "work" phase was active.
+    # A work-phase window runs from the work skill invocation timestamp to
+    # the next skill invocation timestamp (or session end if work is last phase).
+    work_phase_windows = {}  # session_id -> list of (start_ts, end_ts)
+    sessions_with_work_invocations = set()
+
+    for result in all_session_results:
+        sid = result["session"]["session_id"]
+        invocations = result.get("skill_invocations", [])
+        last_ts = result.get("last_ts")
+        windows = []
+
+        for idx, inv in enumerate(invocations):
+            if inv.get("phase") == "work":
+                sessions_with_work_invocations.add(sid)
+                work_start = inv.get("timestamp")
+                if not work_start:
+                    continue
+                # End is next skill invocation or session end
+                if idx + 1 < len(invocations):
+                    work_end = invocations[idx + 1].get("timestamp")
+                else:
+                    work_end = last_ts
+                if work_start and work_end:
+                    windows.append((work_start, work_end))
+
+        if windows:
+            work_phase_windows[sid] = windows
+
+    # Also mark sessions identified via stats YAML that have no skill invocations
+    for sid in work_sessions - sessions_with_work_invocations:
+        # These sessions had a stats work entry but no work skill invocation in JSONL
+        # Conservative: mark entire session as ambiguous work window
+        if sid in session_time_ranges:
+            work_phase_windows.setdefault(sid, [])
+            # Empty windows list + membership in work_sessions -> ambiguous
+
+    # Identify pure vs mixed work sessions
+    pure_work_sessions = set()
+    mixed_work_sessions = set()
+    for result in all_session_results:
+        sid = result["session"]["session_id"]
+        if sid not in work_sessions:
+            continue
+        invocations = result.get("skill_invocations", [])
+        if not invocations:
+            mixed_work_sessions.add(sid)
+            continue
+        phases = set(inv.get("phase") for inv in invocations)
+        non_work_phases = phases - {"work", None}
+        if non_work_phases:
+            mixed_work_sessions.add(sid)
+        else:
+            pure_work_sessions.add(sid)
+
+    print(f"    Work sessions: {len(work_sessions)} "
+          f"(pure: {len(pure_work_sessions)}, mixed: {len(mixed_work_sessions)})",
+          file=sys.stderr)
+    total_work_windows = sum(len(w) for w in work_phase_windows.values())
+    print(f"    Work-phase windows: {total_work_windows} across "
+          f"{len(work_phase_windows)} sessions",
+          file=sys.stderr)
+
+    # Classify each Bash tool call from JSONL sessions
+    per_session = defaultdict(lambda: {
+        "auto_approved": 0,
+        "hook_suppressed": 0,
+        "ambiguous": 0,
+        "user_prompted": 0,
+        "total_bash": 0,
+        "legacy_audit_entries": 0,
+    })
+
+    aggregate = {
+        "auto_approved": 0,
+        "hook_suppressed": 0,
+        "ambiguous": 0,
+        "user_prompted": 0,
+        "total_bash": 0,
+        "legacy_audit_entries": legacy_bash_entries,
+        "legacy_total_entries": legacy_total_entries,
+        "hook_coverage_start": hook_start_ts.isoformat() if hook_start_ts else None,
+        "work_sessions_total": len(work_sessions),
+        "pure_work_sessions": len(pure_work_sessions),
+        "mixed_work_sessions": len(mixed_work_sessions),
+        "total_work_windows": total_work_windows,
+        "hook_5field_bash_ids": len([
+            e for e in hook_entries
+            if e["format"] == "5-field" and e["tool_name"] == "Bash"
+        ]),
+    }
+
+    def _in_work_window(ts, windows):
+        """Check if a timestamp falls within any work-phase window.
+
+        Uses bisect for performance on sorted windows.
+        """
+        if not windows or not ts:
+            return False
+        # Windows are sorted by start time (skill invocations are chronological)
+        # Use bisect to find the insertion point
+        starts = [w[0] for w in windows]
+        idx = bisect.bisect_right(starts, ts) - 1
+        if idx >= 0 and windows[idx][0] <= ts <= windows[idx][1]:
+            return True
+        return False
+
+    # Process each session's Bash tool calls
+    for result in all_session_results:
+        sid = result["session"]["session_id"]
+        bash_cmds = result.get("bash_commands_with_ts", [])
+        tool_use_ids = result.get("bash_tool_use_ids", {})
+        session_windows = work_phase_windows.get(sid, [])
+
+        for ts, cmd in bash_cmds:
+            per_session[sid]["total_bash"] += 1
+            aggregate["total_bash"] += 1
+
+            # Check if we have a tool_use_id for this bash call
+            # Look up by (timestamp, command) in tool_use_ids
+            matched_tool_use_id = None
+            for tuid, info in tool_use_ids.items():
+                if info["timestamp"] == ts and info["command"] == cmd:
+                    matched_tool_use_id = tuid
+                    break
+
+            if matched_tool_use_id and matched_tool_use_id in hook_tool_use_ids:
+                # Exact match in hook audit log (5-field)
+                per_session[sid]["auto_approved"] += 1
+                aggregate["auto_approved"] += 1
+            elif sid in pure_work_sessions:
+                # Entire session was work-phase — hook was suppressed
+                per_session[sid]["hook_suppressed"] += 1
+                aggregate["hook_suppressed"] += 1
+            elif sid in mixed_work_sessions and session_windows and _in_work_window(ts, session_windows):
+                # Bash call is within a work-phase window in a mixed session
+                per_session[sid]["hook_suppressed"] += 1
+                aggregate["hook_suppressed"] += 1
+            elif sid in mixed_work_sessions and not session_windows:
+                # Work session with no identifiable windows — ambiguous
+                per_session[sid]["ambiguous"] += 1
+                aggregate["ambiguous"] += 1
+            else:
+                # Not in audit log, not in work window — user-prompted
+                per_session[sid]["user_prompted"] += 1
+                aggregate["user_prompted"] += 1
+
+    # Build records for raw output
+    records = []
+    for sid, counts in sorted(per_session.items()):
+        records.append({
+            "record_type": "hook_audit_analysis",
+            "session_id": sid,
+            **counts,
+        })
+
+    records.append({
+        "record_type": "hook_audit_analysis_summary",
+        **aggregate,
+    })
+
+    return {
+        "per_session": dict(per_session),
+        "aggregate": aggregate,
+        "records": records,
+    }
 
 
 def parse_simple_yaml_docs(filepath):
@@ -1478,6 +1864,9 @@ def process_session(filepath):
     # Bash commands with timestamps (for segment classification and bead detection)
     bash_commands_with_ts = []  # (timestamp, command_string)
 
+    # Bash tool_use_ids index (for hook audit cross-reference)
+    bash_tool_use_ids = {}  # tool_use_id -> {session_id, timestamp, tool_name, command}
+
     # User message tracking
     user_message_count = 0
     user_msg_timestamps = []  # timestamps of user messages
@@ -1598,6 +1987,14 @@ def process_session(filepath):
                         cmd = tool_input.get("command", "")
                         if ts:
                             bash_commands_with_ts.append((ts, cmd))
+                        # Index by tool_use_id for hook audit cross-reference
+                        if tool_id:
+                            bash_tool_use_ids[tool_id] = {
+                                "session_id": session_id,
+                                "timestamp": ts,
+                                "tool_name": tool_name,
+                                "command": cmd,
+                            }
                         # --- Git commits ---
                         if "git commit" in cmd:
                             git_commit_count += 1
@@ -1867,6 +2264,7 @@ def process_session(filepath):
         "skill_invocations": skill_invocations,
         "tool_events": tool_events,
         "bash_commands_with_ts": bash_commands_with_ts,
+        "bash_tool_use_ids": bash_tool_use_ids,
         "user_msg_timestamps": user_msg_timestamps,
         "compact_summary_timestamps": compact_summary_ts,
         "request_costs": request_costs,
@@ -3490,6 +3888,29 @@ def main():
               f"{qa_retry_data['summary']['total_active_minutes']} active min",
               file=sys.stderr)
 
+        # --- P6-S2: Hook audit log cross-reference ---
+        print("Parsing hook audit log...", file=sys.stderr)
+        hook_entries = parse_hook_audit_log()
+
+        # Build unified tool_use_id index across all sessions
+        all_tool_use_index = {}
+        for result in all_session_results:
+            all_tool_use_index.update(result.get("bash_tool_use_ids", {}))
+
+        print("Cross-referencing hook audit with JSONL sessions...", file=sys.stderr)
+        hook_audit_data = cross_reference_hook_audit(
+            hook_entries, all_tool_use_index, all_session_results, stats_entries
+        )
+        for rec in hook_audit_data["records"]:
+            raw_out.write(json.dumps(rec, default=str) + "\n")
+        agg = hook_audit_data["aggregate"]
+        print(f"  Hook audit: {agg['total_bash']} total Bash calls — "
+              f"auto-approved: {agg['auto_approved']}, "
+              f"hook-suppressed: {agg['hook_suppressed']}, "
+              f"ambiguous: {agg['ambiguous']}, "
+              f"user-prompted: {agg['user_prompted']}",
+              file=sys.stderr)
+
         # --- S2: Headline metrics ---
         print("Computing headline metrics...", file=sys.stderr)
         total_cost = read_total_cost_from_file()
@@ -3593,6 +4014,7 @@ def main():
         estimation_segment_data, compaction_cost_data,
         all_compaction_costs, velocity_trend_summary,
         permission_prompt_data, qa_retry_data,
+        hook_audit_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -3608,7 +4030,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      compaction_cost_details=None,
                      velocity_trend_data=None,
                      permission_prompt_data=None,
-                     qa_retry_data=None):
+                     qa_retry_data=None,
+                     hook_audit_data=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -5420,6 +5843,145 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             "either QA passed on first attempt or fixes were done "
             "outside the skill-tracked workflow."
         )
+        lines.append("")
+
+    # --- Section 27: Permission Prompt Analysis (Hook Audit) ---
+    lines.append("## 27. Permission Prompt Analysis (Hook Audit)")
+    lines.append("")
+    lines.append(
+        "Cross-references the hook audit log (`.workflows/.hook-audit.log`) with "
+        "JSONL session data to classify every Bash tool call into one of four "
+        "categories: **auto-approved** (matched in hook audit log by exact "
+        "tool_use_id), **hook-suppressed** (occurred within a `/do:work` phase "
+        "window where the hook was disabled via sentinel file), "
+        "**ambiguous** (work session with no identifiable phase windows from "
+        "skill invocations), or **user-prompted** (not auto-approved and not "
+        "in a work-phase window — includes both genuinely user-prompted calls "
+        "and calls from sessions where the hook was running but entries are "
+        "legacy 3-field format without tool_use_id for matching)."
+    )
+    lines.append("")
+    lines.append(
+        "**Note:** The hook audit log only covers entries since hook installation "
+        "(Mar 10, 2026). All current entries are legacy 3-field format (no "
+        "tool_use_id). The auto-approved category will populate once 5-field "
+        "entries accumulate (after P0b lands). Until then, the user-prompted "
+        "count is an upper bound — many of those calls were likely auto-approved "
+        "by the hook but cannot be matched without tool_use_id."
+    )
+    lines.append("")
+
+    if hook_audit_data and hook_audit_data.get("aggregate"):
+        ha = hook_audit_data["aggregate"]
+
+        lines.append("### Aggregate Classification")
+        lines.append("")
+        lines.append("| Category | Count | % of Total |")
+        lines.append("|----------|-------|------------|")
+
+        total_bash = ha.get("total_bash", 0)
+        for cat in ["auto_approved", "hook_suppressed", "ambiguous", "user_prompted"]:
+            count = ha.get(cat, 0)
+            pct = round(100.0 * count / total_bash, 1) if total_bash > 0 else 0
+            label = cat.replace("_", "-")
+            lines.append(f"| {label} | {count} | {pct}% |")
+        lines.append(f"| **Total Bash calls** | **{total_bash}** | **100%** |")
+        lines.append("")
+
+        lines.append("### Hook Audit Log Statistics")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(
+            f"| Hook coverage start | {ha.get('hook_coverage_start', 'N/A')} |"
+        )
+        lines.append(
+            f"| Legacy (3-field) entries (all tools) | {ha.get('legacy_total_entries', 0)} |"
+        )
+        lines.append(
+            f"| Legacy (3-field) Bash entries | {ha.get('legacy_audit_entries', 0)} |"
+        )
+        lines.append(
+            f"| New (5-field) Bash entries in log | {ha.get('hook_5field_bash_ids', 0)} |"
+        )
+        lines.append(
+            f"| Work sessions (total) | {ha.get('work_sessions_total', 0)} |"
+        )
+        lines.append(
+            f"| Pure work sessions | {ha.get('pure_work_sessions', 0)} |"
+        )
+        lines.append(
+            f"| Mixed work sessions | {ha.get('mixed_work_sessions', 0)} |"
+        )
+        lines.append("")
+
+        # Comparison with section 25 proxy
+        lines.append("### Comparison with Section 25 Proxy Estimate")
+        lines.append("")
+        if permission_prompt_data:
+            proxy_count = permission_prompt_data.get("total_triggering_bash_commands", 0)
+            actual_prompted = ha.get("user_prompted", 0)
+            lines.append(
+                f"| Metric | Section 25 (Proxy) | Section 27 (Hook Audit) |"
+            )
+            lines.append(
+                "|--------|-------------------|------------------------|"
+            )
+            lines.append(
+                f"| User-prompted Bash calls | {proxy_count} (pattern-based upper bound) | "
+                f"{actual_prompted} (unmatched in audit log) |"
+            )
+            if proxy_count > 0 and actual_prompted > 0:
+                ratio = round(actual_prompted / proxy_count, 2)
+                lines.append(
+                    f"| Ratio (S27/S25) | — | {ratio}x |"
+                )
+            lines.append("")
+            lines.append(
+                "The section 25 proxy counts Bash calls matching heuristic-triggering "
+                "patterns (`$()`, `<<`, `{\"`) as an upper bound. The section 27 "
+                "hook audit classifies calls that were NOT auto-approved and NOT in "
+                "work-phase sessions. The difference reflects: (a) static rules that "
+                "suppress heuristics for known-safe commands, (b) commands that match "
+                "patterns but don't actually trigger prompts, and (c) different "
+                "classification methodology (pattern-based vs audit-based)."
+            )
+        else:
+            lines.append("*Section 25 proxy data not available for comparison.*")
+        lines.append("")
+
+        # Per-session breakdown (top sessions by user-prompted count)
+        per_session = hook_audit_data.get("per_session", {})
+        if per_session:
+            # Sort by user_prompted descending, show top 15
+            sorted_sessions = sorted(
+                per_session.items(),
+                key=lambda x: x[1].get("user_prompted", 0),
+                reverse=True,
+            )
+            top_sessions = sorted_sessions[:15]
+
+            lines.append("### Per-Session Breakdown (Top 15 by User-Prompted)")
+            lines.append("")
+            lines.append(
+                "| Session | Total | Auto-Approved | Suppressed | "
+                "Ambiguous | User-Prompted |"
+            )
+            lines.append(
+                "|---------|-------|--------------|------------|"
+                "-----------|---------------|"
+            )
+            for sid, counts in top_sessions:
+                lines.append(
+                    f"| {sid[:12]}... | {counts['total_bash']} | "
+                    f"{counts['auto_approved']} | "
+                    f"{counts['hook_suppressed']} | "
+                    f"{counts['ambiguous']} | "
+                    f"{counts['user_prompted']} |"
+                )
+            lines.append("")
+    else:
+        lines.append("*No hook audit data available.*")
         lines.append("")
 
     with open(SUMMARY_OUTPUT, "w") as f:
