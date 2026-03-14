@@ -1,7 +1,7 @@
 ---
 title: "Session Analysis Phase 6: Hook Audit, Classification Analysis, Cost Optimization"
 type: task
-status: active
+status: completed
 date: 2026-03-14
 bead: y53x
 ---
@@ -38,12 +38,12 @@ Correct rates from Anthropic pricing page (verified 2026-03-14):
 | Claude Haiku 3 | $0.25 | $0.30 | $0.03 | $1.25 |
 
 Tasks:
-- [ ] Update `MODEL_PRICING` dict to use prefix matching that distinguishes model generations (e.g., `"claude-opus-4-6"` matches before `"claude-opus-4"`)
-- [ ] Add entries for all model versions in the table above
-- [ ] Fix `get_model_pricing()` to match longest prefix first (so `claude-opus-4-6` doesn't match `claude-opus-4`)
-- [ ] Re-run script — all cost numbers will change
-- [ ] Update section 15 headline metrics, section 19 project cost, and all downstream cost references
-- [ ] Note: the Opus-to-Sonnet cache read ratio is now $0.50/$0.30 = 1.67x for Opus 4.6 (was assumed 6x). This dramatically reduces the projected Sonnet savings.
+- [x] Update `MODEL_PRICING` dict to use prefix matching that distinguishes model generations (e.g., `"claude-opus-4-6"` matches before `"claude-opus-4"`)
+- [x] Add entries for all model versions in the table above
+- [x] Fix `get_model_pricing()` to match longest prefix first (so `claude-opus-4-6` doesn't match `claude-opus-4`)
+- [x] Re-run script — all cost numbers will change
+- [x] Update section 15 headline metrics, section 19 project cost, and all downstream cost references
+- [x] Note: the Opus-to-Sonnet cache read ratio is now $0.50/$0.30 = 1.67x for Opus 4.6 (was assumed 6x). This dramatically reduces the projected Sonnet savings.
 
 Impact: the $4,980 total cost figure from phase 5 is wrong. The corrected figure will be significantly different depending on the model mix (Opus 4 vs 4.6 sessions).
 
@@ -116,11 +116,11 @@ Group all phase 6 data into a single `phase6_data` dict parameter passed to `gen
 
 ### Step 1: Compaction reorientation fix (Item 5)
 
-- [ ] In `extract_compaction_costs()`, apply active/idle gap detection to the reorientation window instead of reporting raw gap time
-- [ ] Use the same `IDLE_THRESHOLD_SECONDS` (300s) logic from `compute_active_idle()`: scan JSONL entries between compaction timestamp and first productive tool call, subtract idle gaps (>5 min between entries)
-- [ ] This preserves legitimate 10-30 min reorientation while filtering overnight gaps (829 min outlier)
-- [ ] Update section 23 (Compaction Cost) to show capped values alongside raw values
-- [ ] Emit updated `compaction_cost` records with both `reorientation_minutes_raw` and `reorientation_minutes_active`
+- [x] In `extract_compaction_costs()`, apply active/idle gap detection to the reorientation window instead of reporting raw gap time
+- [x] Use the same `IDLE_THRESHOLD_SECONDS` (300s) logic from `compute_active_idle()`: scan JSONL entries between compaction timestamp and first productive tool call, subtract idle gaps (>5 min between entries)
+- [x] This preserves legitimate 10-30 min reorientation while filtering overnight gaps (829 min outlier)
+- [x] Update section 23 (Compaction Cost) to show capped values alongside raw values
+- [x] Emit updated `compaction_cost` records with both `reorientation_minutes_raw` and `reorientation_minutes_active`
 
 Test: script runs clean, section 23 shows both raw and active reorientation, median should be similar (~5.67 min), mean should drop significantly from 25.36 min.
 
@@ -136,14 +136,14 @@ Commit: `fix(session-analysis): use active time for compaction reorientation (3z
 
 Note: P0b adds tool_use_id to the hook log, but all ~6,700 existing entries are legacy (3-field) format. For Phase 6, implement only the legacy matching path. The tool_use_id matching path is infrastructure for future phases — build it when enough new-format data exists (~5-10 sessions after P0b lands).
 
-- [ ] Add `parse_hook_audit_log()` function:
+- [x] Add `parse_hook_audit_log()` function:
   - Read `.workflows/.hook-audit.log` from repo root (handle worktree by checking main worktree path)
   - Parse tab-delimited lines, handling both 3-field (legacy) and 5-field (new) formats
   - Handle multi-line commands: lines not starting with ISO 8601 timestamp pattern are continuation of previous entry
   - Return list of dicts: `{timestamp, tool_name, tool_use_id, session_id, detail}`
   - Graceful fallback: if file doesn't exist or is empty, return empty list with stderr warning
 
-- [ ] Add `cross_reference_hook_audit()` function:
+- [x] Add `cross_reference_hook_audit()` function:
   - For new-format entries (5-field): match by `tool_use_id` against JSONL tool call entries (exact key join on content block id field: in assistant messages, content blocks with `type="tool_use"` have an `"id"` field containing the tool_use_id)
   - For legacy entries (3-field): match by timestamp proximity (5-second window) + exact command string match against `bash_commands_with_ts`
   - Detect work-phase windows: sentinel files are created at work-start and deleted at work-end, so only currently-active sentinels have timestamps. For historical sessions, infer work-phase windows from JSONL session data: a work-phase window is the span from the first to last tool call in any session that has an associated stats YAML entry with `command=work` (i.e., was dispatched by `/do:work`). If no stats YAML entries exist for a session, it is not a work-phase session.
@@ -156,13 +156,13 @@ Note: P0b adds tool_use_id to the hook log, but all ~6,700 existing entries are 
   - Note: work-phase window inference from stats YAML is approximate — it tags entire work sessions, not just the dispatch window within a session. The "ambiguous" category captures this uncertainty rather than presenting false precision.
   - Stats YAML to JSONL session join: match by timestamp overlap — each stats entry has a `timestamp` field. Find the JSONL session whose time range (first_ts to last_ts) contains the stats entry's timestamp. If no session matches, skip that stats entry.
 
-- [ ] Add section 27 "Permission Prompt Analysis (Hook Audit)" to summary.md:
+- [x] Add section 27 "Permission Prompt Analysis (Hook Audit)" to summary.md:
   - Total Bash tool calls by category (auto-approved / hook-suppressed / user-prompted)
   - Breakdown by session
   - Comparison with section 25 proxy estimate
   - Note: work-phase data is hook-suppressed, not permission-prompted
 
-- [ ] Emit `hook_audit_analysis` records to raw-observations.jsonl
+- [x] Emit `hook_audit_analysis` records to raw-observations.jsonl
 
 Test: script runs clean, section 27 shows three-category breakdown, user-prompted count should be lower than section 25's proxy estimate.
 
@@ -181,20 +181,20 @@ Commit: `feat(session-analysis): actual permission prompt counts from hook audit
 
 ### Step 3: Cache vs non-cache cost split (Items 7 + 8 combined)
 
-- [ ] Add `compute_phase_cost_by_token_type()` function:
+- [x] Add `compute_phase_cost_by_token_type()` function:
   - Iterate `request_costs` per session within phase time windows (same loop as existing `phase_cost` accumulation)
   - For each request, compute four cost components: `input_cost`, `cache_creation_cost`, `cache_read_cost`, `output_cost` using `get_model_pricing()`
   - Accumulate per-phase: `{phase: {input_cost, cache_creation_cost, cache_read_cost, output_cost, total_cost}}`
   - Also accumulate globally and per-model
 
-- [ ] Modify section 19 (Project Cost) tables:
+- [x] Modify section 19 (Project Cost) tables:
   - "Cost by Phase" table: add columns for Cache (cache_read + cache_creation), Non-cache (input + output), Cache %
   - "Cost by Model" table: add Cache/Non-cache/Cache% columns
   - "Per-Session Cost Distribution" table: add Cache/Non-cache split
 
-- [ ] Apply cache split to section 23 (Compaction Cost): add token cost breakdown (cache vs non-cache) per compaction event. The compaction cost window is the single reorientation window: from the compaction request timestamp to the first productive tool call timestamp (same window already used for reorientation measurement in Step 1).
+- [x] Apply cache split to section 23 (Compaction Cost): add token cost breakdown (cache vs non-cache) per compaction event. The compaction cost window is the single reorientation window: from the compaction request timestamp to the first productive tool call timestamp (same window already used for reorientation measurement in Step 1).
 
-- [ ] Apply cache split to any new cost tables added in subsequent steps (cross-cutting principle)
+- [x] Apply cache split to any new cost tables added in subsequent steps (cross-cutting principle)
 
 Test: script runs clean, section 19 tables show cache/non-cache columns with populated values for all phases. Do not assert specific percentages — P0a changes all cost figures.
 
@@ -210,18 +210,18 @@ Commit: `feat(session-analysis): cache vs non-cache cost split across all cost t
 
 ### Step 4: Classification-enriched analysis (Item 2)
 
-- [ ] Extend `compute_stats_step_timing()` to add grouping by `complexity` and `output_type`:
+- [x] Extend `compute_stats_step_timing()` to add grouping by `complexity` and `output_type`:
   - `by_complexity`: group entries by complexity tier, compute duration stats (median, P90, mean, total)
   - `by_output_type`: group entries by output type, compute same stats
   - Also compute token stats per group (median, mean tokens)
 
-- [ ] Add section 28 "Dispatch Analysis by Classification" to summary.md:
+- [x] Add section 28 "Dispatch Analysis by Classification" to summary.md:
   - Duration by complexity tier table
   - Duration by output type table
   - Token usage by complexity tier
   - Cross-tabulation: complexity x output_type (count matrix)
 
-- [ ] Emit `classification_analysis` records
+- [x] Emit `classification_analysis` records
 
 Test: script runs clean, section 28 shows all groupings with populated tables. Verify analytical entries are the largest group (exact % may shift with new data).
 
@@ -235,18 +235,18 @@ Commit: `feat(session-analysis): classification-enriched dispatch analysis (3zr-
 
 ### Step 5: Cost per workflow step (Item 3)
 
-- [ ] Add `compute_step_cost()` helper:
+- [x] Add `compute_step_cost()` helper:
   - Map abbreviated model names to full model prefixes using the script's `get_model_pricing()` (after P0a, this handles all 9 model variants). The abbreviated->full mapping must distinguish generations: stats YAML `model` field may say "opus" without specifying 4 vs 4.6 -- default to the model generation active during that stats entry's timestamp, or use the most common generation if ambiguous.
   - Unknown model names: skip cost computation for that entry and emit a stderr warning
   - Use stats YAML `tokens` field with the script's corrected effective rate (after P0a). The $493/M cache-inclusive rate from prior analysis is stale -- compute a fresh effective rate from the corrected `MODEL_PRICING` and observed cache:I/O ratios from Step 3 data.
   - Label all per-step costs as approximate in summary output
 
-- [ ] Extend section 20 (Step Timing from Stats YAML) with per-step cost column:
+- [x] Extend section 20 (Step Timing from Stats YAML) with per-step cost column:
   - "Duration by Command" table: add Approx Cost column
   - "Duration by Agent" table: add Approx Cost column
   - Add note: "Cost is approximate — stats YAML captures total I/O tokens only, not cache. Uses computed cache-inclusive effective rate from corrected MODEL_PRICING."
 
-- [ ] Apply cache split principle (Item 8): per-step cost shows total only (no cache split available from stats YAML -- note the limitation)
+- [x] Apply cache split principle (Item 8): per-step cost shows total only (no cache split available from stats YAML -- note the limitation)
 
 Test: script runs clean, section 20 has cost columns, work dispatches should show higher cost than brainstorm/plan dispatches.
 
@@ -264,7 +264,7 @@ Commit: `feat(session-analysis): approximate per-step cost from stats YAML (3zr-
 
 ### Step 6: Session cost vs productivity correlation (Item 4)
 
-- [ ] Add `compute_cost_productivity_correlation()` function:
+- [x] Add `compute_cost_productivity_correlation()` function:
   - Bucket `session_total_cost` by session start date (same pattern as `active_minutes_by_date`)
   - Join with bead closures by date (reuse `load_bead_closures_by_date()` which queries `SELECT DATE(closed_at) as date, COUNT(*) as count FROM issues WHERE status='closed' AND closed_at IS NOT NULL GROUP BY DATE(closed_at) ORDER BY date`)
   - Exclude dates with active_hours < 1.0 (filters batch-closure dates like Mar 9/10 -- document exclusion)
@@ -272,14 +272,14 @@ Commit: `feat(session-analysis): approximate per-step cost from stats YAML (3zr-
   - Compute beads-per-dollar: daily_closures / daily_cost
   - Compute manual Pearson correlation using `statistics.stdev` (no scipy) — include but note "N=5, will become meaningful as more data accumulates"
 
-- [ ] Add section 29 "Cost vs Productivity" to summary.md:
+- [x] Add section 29 "Cost vs Productivity" to summary.md:
   - Daily table: Date, Cost, Beads Closed, Cost/Bead, Active Hours, Beads/Dollar
   - Pearson correlation coefficient (with N and caveat about small sample)
   - Trend direction: is cost/bead increasing (diminishing returns) or stable?
 
-- [ ] Apply cache split principle: daily cost shows cache/non-cache breakdown
+- [x] Apply cache split principle: daily cost shows cache/non-cache breakdown
 
-- [ ] Emit `cost_productivity` records
+- [x] Emit `cost_productivity` records
 
 Test: script runs clean, section 29 shows correlation table, excluded dates noted.
 
@@ -299,29 +299,29 @@ Commit: `feat(session-analysis): session cost vs productivity correlation (3zr-P
 
 ### Step 8: Effort dimension validation (Item 9)
 
-- [ ] Define effort classification criteria (retroactive, session_count + estimate_size only — tool diversity dropped as too coarse at whole-session granularity):
+- [x] Define effort classification criteria (retroactive, session_count + estimate_size only — tool diversity dropped as too coarse at whole-session granularity):
   - **routine**: single-session AND <15 min estimate
   - **involved**: single-session AND 15-60 min estimate
   - **exploratory**: multi-session (2-3 sessions) OR >60 min estimate
   - **pioneering**: multi-session (4+ sessions) AND >120 min actual time (both thresholds required)
 
-- [ ] Add `classify_bead_effort()` function:
+- [x] Add `classify_bead_effort()` function:
   - Input: bead ID, windowed attribution data (sessions, actual_minutes), estimate data (estimated_minutes)
   - Session count from `bead_attribution_windowed[bead_id]["sessions"]`
   - Output: effort tier string
 
-- [ ] Apply to all closed beads with windowed attribution data
-- [ ] Correlate effort tier with estimation accuracy (actual/estimated ratio) -- same segmentation pattern as section 22
-- [ ] Compare predictive power: does effort tier predict blowups better than type alone? Better than session count? Validation threshold: effort tiers must reduce mean estimation error by at least 25% vs session-count alone. If they do not, skip rollout (Step 11) without further deliberation.
+- [x] Apply to all closed beads with windowed attribution data
+- [x] Correlate effort tier with estimation accuracy (actual/estimated ratio) -- same segmentation pattern as section 22
+- [x] Compare predictive power: does effort tier predict blowups better than type alone? Better than session count? Validation threshold: effort tiers must reduce mean estimation error by at least 25% vs session-count alone. If they do not, skip rollout (Step 11) without further deliberation.
 
-- [ ] Add section 31 "Estimation Accuracy by Effort" to summary.md:
+- [x] Add section 31 "Estimation Accuracy by Effort" to summary.md:
   - Effort tier distribution table
   - Accuracy by effort tier (median, mean, N, under/over count)
   - Comparison with type-based and session-count-based segmentation
 
-- [ ] If effort validates: print recommended `bd update` commands to stderr for manual execution (analysis script should not mutate the database)
+- [x] If effort validates: print recommended `bd update` commands to stderr for manual execution (analysis script should not mutate the database)
 
-- [ ] Emit `effort_validation` records
+- [x] Emit `effort_validation` records
 
 Test: script runs clean, section 31 shows effort tiers with accuracy correlation.
 
@@ -345,15 +345,15 @@ Commit: `feat(session-analysis): effort dimension validation on closed beads (3z
 
 Merge model selection data (former Step 7) and Sonnet savings re-estimation into one step with two internal functions. Frame as **quota/throughput freed**, not dollar savings — user is on Max 20x plan.
 
-- [ ] Add `compute_sonnet_migration_analysis()` with two sub-functions:
+- [x] Add `compute_sonnet_migration_analysis()` with two sub-functions:
   - `_per_phase_projections()`: for each phase, compute what cache_read cost would be at Sonnet rates vs Opus rates. Use corrected `get_model_pricing()` — do NOT hardcode rates. Ratio depends on model generation (1.67x for Opus 4.6, 5x for Opus 4).
   - `_per_tier_projections()`: group stats YAML entries by complexity tier AND output_type. For each group: Opus vs Sonnet dispatch counts, tokens, duration, projected Sonnet cost. Note: nearly all dispatches are Opus — this is a projection.
   - "Movable dispatches" = mechanical + analytical complexity tiers (not judgment)
   - Exclude research agents already on Sonnet (5 agents + relay) from savings opportunities
 
-- [ ] Baseline: rough 10-15% estimate from xu2/sze8 bead notes (computed with wrong pricing — will be recalculated after P0a)
+- [x] Baseline: rough 10-15% estimate from xu2/sze8 bead notes (computed with wrong pricing — will be recalculated after P0a)
 
-- [ ] Add section 30 "Sonnet Migration Analysis" to summary.md (replaces former sections 30+32):
+- [x] Add section 30 "Sonnet Migration Analysis" to summary.md (replaces former sections 30+32):
   - Lead with quota impact ("moving mechanical dispatches to Sonnet frees X% of Opus quota for judgment work"), include dollar amounts alongside for completeness
   - Per-phase: current cost, projected Sonnet cost, quota freed %, dollar savings
   - Per-complexity tier: same structure, highlighting which tiers have highest savings potential
@@ -361,7 +361,7 @@ Merge model selection data (former Step 7) and Sonnet savings re-estimation into
   - Note: projection assumes Sonnet produces equivalent quality for mechanical/analytical work — quality validation is a separate concern (xu2/sze8 scope)
   - Note: orchestrator is 50-70% of total Opus cost and untouchable with subagent routing
 
-- [ ] Emit `sonnet_savings_estimate` records
+- [x] Emit `sonnet_savings_estimate` records
 
 Test: script runs clean, section 32 shows before/after comparison with baseline.
 
@@ -380,16 +380,16 @@ Commit: `feat(session-analysis): re-estimate Sonnet savings with actual cache da
 
 ### Step 10: Update estimation heuristics (Item 12 partial)
 
-- [ ] Re-run the full script to generate fresh outputs: `python3 .workflows/session-analysis/extract-timings.py`
-- [ ] Read `.workflows/session-analysis/summary.md` for new sections 27-31
-- [ ] Update `.claude/memory/estimation-heuristics.md` with:
+- [x] Re-run the full script to generate fresh outputs: `python3 .workflows/session-analysis/extract-timings.py`
+- [x] Read `.workflows/session-analysis/summary.md` for new sections 27-31
+- [x] Update `.claude/memory/estimation-heuristics.md` with:
   - Actual permission prompt count (replacing proxy estimate)
   - Per-phase cache vs non-cache cost
   - Effort dimension findings (if predictive)
   - Updated Sonnet savings estimate (replacing rough 10-15%)
   - Cost-productivity trend
   - Any new coverage gaps
-- [ ] Write before/after report: which numbers changed, by how much, why
+- [x] Write before/after report: which numbers changed, by how much, why
 
 Test: estimation-heuristics.md has all new sections.
 
@@ -403,11 +403,11 @@ Commit: `docs: update estimation heuristics with phase 6 findings (3zr-P6-S10)`
 
 ### Step 11: Effort instruction rollout (Item 10)
 
-- [ ] Only if Step 8 validates that effort tiers are predictive (better than type alone):
+- [x] Only if Step 8 validates that effort tiers are predictive (better than type alone):
   - Update AGENTS.md bead creation instructions to include `--metadata '{"effort": "<tier>"}'`
   - Add to bd create examples alongside `--estimate` and `--metadata` impact
   - Add to Memory Hot Cache section
-- [ ] If effort is NOT predictive: note the finding, skip the rollout, update y53x bead with "effort dimension did not validate -- do not roll out"
+- [x] If effort is NOT predictive: note the finding, skip the rollout, update y53x bead with "effort dimension did not validate -- do not roll out"
 
 Test: AGENTS.md has effort tag in bead creation examples (or documented reason for skipping).
 
@@ -421,7 +421,7 @@ Commit: `docs: add effort dimension to bead creation instructions (3zr-P6-S11)` 
 
 ### Step 12: Present findings to user (Item 12)
 
-- [ ] This is not a script step -- it's the orchestrator presenting results after all steps complete
+- [x] This is not a script step -- it's the orchestrator presenting results after all steps complete
 - [ ] Walk through all new/changed numbers from new sections
 - [ ] Compare with phase 5 values -- what changed, what's new
 - [ ] Present decision matrix for each analysis area:
