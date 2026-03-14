@@ -1,7 +1,7 @@
 ---
 title: "Add origin metadata to /do:work bead creation"
 type: task
-status: active
+status: completed
 date: 2026-03-14
 bead: smy2
 ---
@@ -24,9 +24,9 @@ See: `docs/solutions/process-analysis/2026-03-14-inherited-assumption-blind-spot
 
 File: `plugins/compound-workflows/skills/do-work/SKILL.md`
 
-- [ ] Add `--metadata '{"origin": "work", "plan": "<plan-file>"}'` to both `bd create` example calls in Phase 1.3
-- [ ] Add prose instruction above the examples: "Every `bd create` call MUST include `--metadata '{"origin": "work", "plan": "<plan-file>"}'` where `<plan-file>` is the plan path from the skill arguments."
-- [ ] Keep the existing `Plan:` description prefix — it serves human readability. The metadata serves machine queryability. Both coexist.
+- [x] Add `--metadata '{"origin": "work", "plan": "<plan-file>"}'` to both `bd create` example calls in Phase 1.3
+- [x] Add prose instruction above the examples: "Every `bd create` call MUST include `--metadata '{"origin": "work", "plan": "<plan-file>"}'` where `<plan-file>` is the plan path from the skill arguments."
+- [x] Keep the existing `Plan:` description prefix — it serves human readability. The metadata serves machine queryability. Both coexist.
 
 The plan file path is available from `$ARGUMENTS` (the skill input) and from Phase 1.1.1 STEM derivation. Use the full path (e.g., `docs/plans/2026-03-14-my-plan.md`), not the stem.
 
@@ -34,14 +34,14 @@ The plan file path is available from `$ARGUMENTS` (the skill input) and from Pha
 
 File: `AGENTS.md`
 
-- [ ] In the bead creation guidance section, add `origin` to the `--metadata` example alongside `impact` and `impact_score`
-- [ ] Note that `origin` is auto-added by `/do:work` — users creating beads manually do not need to add it (absence = manual origin)
+- [x] In the bead creation guidance section, add `origin` to the `--metadata` example alongside `impact` and `impact_score`
+- [x] Note that `origin` is auto-added by `/do:work` — users creating beads manually do not need to add it (absence = manual origin)
 
 ### Step 3: Version bump + QA
 
-- [ ] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-- [ ] Update `plugins/compound-workflows/CHANGELOG.md`
-- [ ] Run `/compound-workflows:plugin-changes-qa`
+- [x] Bump version in `plugins/compound-workflows/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+- [x] Update `plugins/compound-workflows/CHANGELOG.md`
+- [x] Run `/compound-workflows:plugin-changes-qa`
 
 ## Constraints
 
