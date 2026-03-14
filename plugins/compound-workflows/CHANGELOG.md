@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.2.0] - 2026-03-14
+
+### Features
+
+- **Concurrent sessions no longer cross-contaminate commits** — each Claude Code session automatically gets its own git worktree (isolated index + working tree) via `EnterWorktree` at session start. Solo sessions fast-forward; concurrent sessions merge cleanly. Configurable via `session_worktree` key in `compound-workflows.local.md` (default: enabled).
+- **New `/do:merge` skill** — retry deferred worktree merges when automatic merge at session end is skipped or fails. Runs `session-merge.sh` with conflict detection and user-guided resolution.
+- **`safe-commit.sh` for opt-out users** — when worktree isolation is disabled, staging uses a temporary `GIT_INDEX_FILE` to prevent concurrent sessions from cross-contaminating each other's commits.
+- **SessionStart hook detects orphaned worktrees** — warns at session start if stale worktrees exist from crashed sessions. `/compound-workflows:recover` adds worktree recovery operations (detect, merge, discard, inspect).
+- **Compact-prep auto-merges worktree at session end** — commits in the worktree branch, merges to default branch, and calls `ExitWorktree` as part of the session-end flow.
+- **`/do:work` detects session worktrees** — skips nested worktree creation when already in a session worktree, avoiding worktree-inside-worktree complexity.
+
+### Changed
+
+- Skills: 29 to 30 (added do-merge)
+
 ## [3.1.8] - 2026-03-14
 
 ### Added
