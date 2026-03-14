@@ -118,21 +118,24 @@
 
 - **v3.1.6** — Compact-prep commit message scoping (bead je54): commit message files write to `.workflows/compact-prep/<run-id>/` instead of shared `.workflows/scratch/`. Removed `.workflows/scratch/*` blanket exemption from unslugged-paths.sh QA.
 
-## Session Analysis Infrastructure (2026-03-13)
-- Script: `.workflows/session-analysis/extract-timings.py` (~5200 lines) — parses all JSONL session logs + stats YAML
-- Raw data: `.workflows/session-analysis/raw-observations.jsonl` (93 sessions, 137 phases, 777 agents, 170 segments, 282 windowed attributions, 89 concurrent pairs, 859 AskUserQuestion events)
-- Summary: `.workflows/session-analysis/summary.md` (26 sections)
+## Session Analysis Infrastructure (2026-03-14)
+- Script: `.workflows/session-analysis/extract-timings.py` (~7,900 lines) — parses all JSONL session logs + stats YAML + hook audit log
+- Raw data: `.workflows/session-analysis/raw-observations.jsonl` (99 sessions)
+- Summary: `.workflows/session-analysis/summary.md` (31 sections)
 - Estimation heuristics: `.claude/memory/estimation-heuristics.md` (private, gitignored)
-- Stats YAML: 132 entries classified (complexity + output_type) across 34 files
+- Stats YAML: 210 entries classified (complexity + output_type) across 34+ files
 - **Phase 4 findings:** 66.25 hrs deduplicated active time, 369.6 hrs wall-clock, 17.5% overhead, 0.59x estimation accuracy, 28.6 beads/day, 70.1% phase skip rate, 238 confirmation prompts (20.8 hrs wait)
-- **Phase 5 complete:** `docs/plans/2026-03-13-task-session-analysis-phase5-plan.md` — 9 steps executed via `/do:work` in worktree. Key findings:
-  - **True project cost: $4,945** from JSONL (vs $310 ccusage — 16x correction). $72.38/active hr.
-  - **Estimation accuracy segmented:** bugs 2.36x under-estimated, tasks 0.55x over-estimated, multi-session 4.27x (strongest predictor), single-session 0.51x. Correction factors: bug 2.0x, task 0.6x, multi-session 3.0x, >60min estimate 3.0x.
-  - **Compaction:** 94 events, $0.31 median, 5.67 min median reorientation
-  - **Velocity:** 2.28 beads/hr steady-state
-  - **AUQ by workflow:** work confirmations wait 12.22 min avg, brainstorm 1.10 min
-  - **QA retry:** 0 sequences detected (insufficient data)
-- 8 bead labels in use: docs, github, observability, permissions, qa, robustness, setup, workflow
+- **Phase 5 complete:** `docs/plans/2026-03-13-task-session-analysis-phase5-plan.md` — 9 steps. Key findings: $4,945 project cost (wrong — see phase 6), estimation correction factors (bug 2.0x, task 0.6x, multi-session 3.0x, >60min 3.0x), 2.28 beads/hr velocity.
+- **Phase 6 complete:** `docs/plans/2026-03-14-task-session-analysis-phase6-plan.md` (bead y53x) — 11 steps via `/do:work` in worktree. Key findings:
+  - **Pricing fix (P0a):** Total cost $5,708 → $1,931 (-66%). Opus 4.6 cache_read was 3.75x overcharged. Effective rate $0.69/MTok.
+  - **Cache dominance:** 93.9% of all cost is cache tokens. Cost optimization = cache optimization.
+  - **Hook audit (S2):** 4,068 user-prompted (60.6% upper bound), 1,947 hook-suppressed, 695 ambiguous. Will improve as 5-field entries accumulate.
+  - **Classification (S4):** 55% analytical, 21% mechanical, 8% judgment. Analytical = 60% of tokens.
+  - **Cost/bead (S6):** $16.26 average, improving 76% over time. Pearson r=-0.252 (N=5).
+  - **Effort dimension (S8):** DID NOT VALIDATE (-2.8% vs +25% threshold). Session-count binary split is better. Rollout skipped.
+  - **Sonnet migration (S9):** Achievable savings via subagent routing: $1.08 (0.05%) — MEDIUM confidence. Theoretical 40%. Orchestrator dominates cost. 1.67x Opus-to-Sonnet ratio (was assumed 6x).
+  - **CAVEAT (rm84):** Bead-level analytics (estimation, cost/bead, effort, Sonnet achievable) may be muddied by mixing work-created vs manual bead populations. Phase 7 (rm84) will re-segment by origin. Re-present all findings after rm84.
+- 11 bead labels in use: brainstorm-skill, docs, github, observability, permissions, qa, robustness, setup, ux, workflow, workflow-quality
 - AGENTS.md has Memory Hot Cache section with critical preferences that survive compaction
 - AGENTS.md Interaction Rules and Routing moved to top for higher attention weight
 
