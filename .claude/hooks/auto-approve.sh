@@ -41,7 +41,10 @@ log_approval() {
   local detail="$1"
   # Only log if we have a project root with .workflows/
   if [ -n "$project_root" ] && [ -d "$project_root/.workflows" ]; then
-    printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$tool_name" "$detail" \
+    local tool_use_id session_id
+    tool_use_id="$(echo "$input" | jq -r '.tool_use_id // empty' 2>/dev/null)"
+    session_id="$(echo "$input" | jq -r '.session_id // empty' 2>/dev/null)"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$tool_name" "${tool_use_id:-none}" "${session_id:-none}" "$detail" \
       >> "$project_root/.workflows/.hook-audit.log" 2>/dev/null || true
   fi
 }
