@@ -1,0 +1,21 @@
+feat(session-analysis): effort dimension validation on closed beads (3zr-P6-S8)
+
+Add classify_bead_effort() function with 4-tier classification (routine,
+involved, exploratory, pioneering) based on session count + estimate size.
+Validate predictive power vs session-count and type segmentation using
+within-segment MAE comparison.
+
+Result: Effort tiers did NOT validate (-2.8% improvement vs session-count,
+threshold was +25%). The simple single/multi-session split remains the
+strongest predictor of estimation accuracy. Step 11 rollout skipped.
+
+Key findings (N=98 beads):
+- routine (17): median 0.88x, generally well-estimated
+- involved (60): median 0.34x, consistently over-estimated
+- exploratory (16): median 4.16x, severe underestimation
+- pioneering (5): median 4.30x, similar to exploratory
+- Session-count MAE: 57.59 min (baseline)
+- Effort tier MAE: 59.22 min (slightly worse)
+- Issue type MAE: 102.83 min (much worse)
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
