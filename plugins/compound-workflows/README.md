@@ -71,6 +71,8 @@ brainstorm -> plan -> [deepen-plan] -> work -> review -> compound
 
 Each step produces documents that feed the next. Solutions feed future brainstorms.
 
+**When is deepen-plan essential?** Plan researches the *problem space* — deepen researches *the plan itself*. For changes that touch multiple files or add new components, deepen catches integration gaps that plan misses: wiring into existing systems, missing migration steps, cross-cutting concerns. Treat it as non-optional for plans that go beyond a single-file fix.
+
 ## Dependencies
 
 | Tool | Required? | What it enables |
