@@ -1,5 +1,9 @@
 # Compound Workflows Plugin Development
 
+## Design Philosophy
+
+**AI mistakes become diagnosable.** Every workflow phase writes its full reasoning to `.workflows/`. When the pipeline produces a bad output — a plan that won't work despite multiple rounds of brainstorm, red team, and deepening — the agent can trace its own reasoning back through the artifacts to find where things diverged. The user asks "where did things go wrong?" and the agent does the archaeology, not the user. This principle justifies disk persistence, committing `.workflows/` in user projects, and the context-lean architecture generally.
+
 ## Versioning
 
 Every change MUST update all four files:
