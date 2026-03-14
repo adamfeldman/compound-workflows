@@ -156,10 +156,13 @@ If issues already exist for this plan, this is a **resumed session**. Skip to Ph
   - What tests to write or run
   - The plan file path for reference
 
+**Origin metadata (mandatory):** Every `bd create` call MUST include `--metadata '{"origin": "work", "plan": "<plan-file>"}'` where `<plan-file>` is the full plan file path from the skill arguments. This makes work-created beads structurally distinguishable from manually-created beads for analytics. The `Plan:` description prefix is kept for human readability; the metadata serves machine queryability. Both coexist.
+
 **Example:**
 
 ```bash
 bd create --title="Set up project structure" --type=task --priority=1 \
+  --metadata '{"origin": "work", "plan": "docs/plans/YYYY-MM-DD-feat-example-plan.md"}' \
   --description="Plan: docs/plans/YYYY-MM-DD-feat-example-plan.md
 Origin: docs/brainstorms/YYYY-MM-DD-example-brainstorm.md
 
@@ -172,6 +175,7 @@ Test: Run existing test suite to verify no regressions.
 Commit when done with: feat(scaffold): set up project structure"
 
 bd create --title="Implement core logic" --type=task --priority=2 \
+  --metadata '{"origin": "work", "plan": "docs/plans/YYYY-MM-DD-feat-example-plan.md"}' \
   --description="Plan: docs/plans/YYYY-MM-DD-feat-example-plan.md
 
 Tasks:
