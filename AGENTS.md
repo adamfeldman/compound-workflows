@@ -186,6 +186,22 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
   - **Full table** (`show me the full table`) — all open beads sorted by priority then impact score. Columns: Pri, Score, Est, Eff, Title, Cost, Quality, Friction. Mark blocked beads with ⊘.
   - **What's next table** (`what's next`) — actionable beads only (not blocked, not P4), sorted by efficiency descending. Columns: Rank, Title, Est, Score, Eff.
 
+## Session Worktree Isolation
+
+When the SessionStart hook instructs you to call `EnterWorktree`, do so BEFORE any
+other action — before reading files, running commands, or processing other tasks.
+This isolates your session's git index and working tree from concurrent sessions.
+
+- Call `EnterWorktree` as your FIRST action at session start (hook will prompt you)
+- If you know the primary bead or task, use a descriptive name: `EnterWorktree(name: "s7qj-worktree-isolation")` — makes merge commit messages more informative in git log
+- User can say "stay on main" / "skip worktree" to opt out for the session
+- At session end, `/do:compact-prep` handles the merge back to the default branch
+- When compact-prep or abandon instructs you to call `ExitWorktree`, comply — this is a programmatic exit, not a proactive one
+- If you're already in a worktree (post-compact resume), continue working there
+- Any git operations before EnterWorktree happen on the default branch — the contamination scenario this exists to prevent
+
+**Beads database (.beads/) is shared across all sessions.** Worktree isolation covers git state only. Bead operations are concurrency-safe at the SQL level (Dolt) but not coordination-safe at the business logic level.
+
 ## Bash Generation Rules
 
 > Injected by `/do:setup` — teaches the model to generate bash that avoids Claude Code's permission prompt heuristics.
