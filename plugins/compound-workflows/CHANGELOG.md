@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.1.8] - 2026-03-14
+
+### Added
+
+- **Work-created beads now carry origin metadata** — `/do:work` adds `{"origin": "work", "plan": "<plan-file>"}` to `--metadata` when creating beads from plan decomposition, enabling analytics to segment work-created vs manually-created bead populations without relying on description-prefix heuristics.
+
 ## [3.1.7] - 2026-03-13
 
 ### Fixed
