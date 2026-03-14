@@ -82,6 +82,32 @@ Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, W
 
 **NEVER call `git worktree add` directly.** Always use `bd worktree` or the `worktree-manager.sh` script. Raw `git worktree add` creates worktrees in the wrong location and requires manual `.gitignore` entries.
 
+#### Session Worktree Detection
+
+Before any worktree creation, check if the current working directory is already inside a session worktree (created by the SessionStart hook via `EnterWorktree`). Session worktrees live in `.claude/worktrees/` — a different namespace from bd-managed `.worktrees/`.
+
+```bash
+git worktree list --porcelain
+```
+
+Parse the output: find the worktree entry whose path matches the current working directory. If that path contains `.claude/worktrees/`, this is a session worktree.
+
+**Why `git worktree list --porcelain` not `pwd`:** `pwd` is not in the auto-approve hook's `is_safe_prefix()` list and would trigger a permission prompt on every `/do:work` invocation inside a session worktree. `git worktree list --porcelain` auto-approves via the `git` first-token rule and provides the same information.
+
+**Why not `bd worktree info`:** `bd worktree info` detects bd-managed worktrees in `.worktrees/` (used by `/do:work`). Session worktrees live in `.claude/worktrees/` (different namespace). Path-based detection is correct.
+
+**If CWD is inside a session worktree (`.claude/worktrees/`):**
+- **Skip:** `bd worktree create` and `cd` into worktree — already in one. Do NOT create a nested worktree.
+- **Keep:** `.work-in-progress.d` sentinel setup in the session worktree's `.workflows/` directory (Phase 1.2.1)
+- **Keep:** Branch detection for informational purposes — report current branch name
+- Announce: "Already in session worktree — working directly here (no nested worktree)."
+- Set `IN_SESSION_WORKTREE=true` (tracked in orchestrator context for Phase 2.2 safe-commit.sh decision)
+- Continue to Phase 1.2.1 (Create QA Hook Sentinel)
+
+**If CWD is NOT inside a session worktree**, proceed with the normal worktree detection below.
+
+#### Normal Worktree Detection
+
 Check current branch and worktree state. The STEM value from init-values.sh output contains the auto-detected branch name (slugified). For branch display, run `git branch --show-current` as a separate command:
 
 ```bash
@@ -96,14 +122,14 @@ command -v bd >/dev/null 2>&1 && echo "BD=available" || echo "BD=not_available"
 bd worktree info 2>/dev/null
 ```
 
-**If already in a worktree:** Continue working there. No setup needed.
+**If already in a bd-managed worktree (`.worktrees/`):** Continue working there. No setup needed. Set `IN_BD_WORKTREE=true`.
 
 **If already on a feature branch** (not the default branch):
 - **AskUserQuestion:** "Continue working on `[current_branch]`, or create a worktree for isolated development?"
 
 **If on the default branch**, create a worktree (default) or opt out:
-- **Default:** Create a worktree — provides isolated development. Then `cd` into the worktree path.
-- **Opt-out:** Work directly on a feature branch (`git checkout -b feat/...`) — only if user explicitly prefers this.
+- **Default:** Create a worktree — provides isolated development. Then `cd` into the worktree path. Set `IN_BD_WORKTREE=true`.
+- **Opt-out:** Work directly on a feature branch (`git checkout -b feat/...`) — only if user explicitly prefers this. Set `IN_ANY_WORKTREE=false`.
 
 ```bash
 # Primary: bd worktree (beads handles db redirect automatically)
@@ -286,6 +312,16 @@ Return a summary with:
 - Any issues encountered or concerns for subsequent steps
 - If you could NOT complete the task, explain what blocked you
 ```
+
+**safe-commit.sh integration (non-worktree mode):**
+
+If the orchestrator detected that it is NOT in any worktree (neither session worktree nor bd-managed worktree — i.e., `IN_SESSION_WORKTREE` and `IN_BD_WORKTREE` are both false/unset), append this instruction to the subagent prompt template's Instructions section:
+
+> Use `bash ${PLUGIN_ROOT}/scripts/safe-commit.sh` instead of raw `git commit` for all commits. Pass the same arguments: `bash ${PLUGIN_ROOT}/scripts/safe-commit.sh -F <msg-file> <files...>`
+
+The `${PLUGIN_ROOT}` path is resolved at dispatch time by the orchestrator (already available from init-values.sh). The blanket instruction ("for all commits") is intentionally non-enumerative: the template is LLM-interpreted, so the model follows the instruction across all commit operations without needing a callsite list.
+
+When in a worktree (session or bd-managed), do NOT add this instruction — worktrees already provide index isolation, so `safe-commit.sh` is unnecessary.
 
 **Dispatch with:**
 
