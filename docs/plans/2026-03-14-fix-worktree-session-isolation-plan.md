@@ -567,7 +567,7 @@ Add test for `/do:merge`:
 Verify these scenarios before shipping:
 
 - [x] **A1: ExitWorktree post-compact** — Enter worktree → compact → call ExitWorktree. PASSED (2026-03-14). Tool-level session state survives compaction.
-- [ ] **A2: EnterWorktree via hook instruction** — Does model call EnterWorktree when instructed by SessionStart hook despite tool description saying "only when user asks"?
+- [x] **A2: EnterWorktree via hook instruction** — PASS WITH ONE-CONFIRM (2026-03-14). Model understands the hook instruction and correctly summarizes it, but asks user for confirmation before calling EnterWorktree (resolves conflict between hook instruction and tool description "only when user asks" by deferring to user). User says "yes, enter worktree" → EnterWorktree called successfully → worktree created. One "yes" per session = minimal friction.
 - [ ] **A3: ExitWorktree via compact-prep instruction** — Does model call ExitWorktree when instructed by compact-prep Step 4.5 despite tool description saying "only when user asks"?
 - [ ] **T1: Solo session, no conflicts** — Enter worktree → edit files → compact-prep → merge (should fast-forward) → push from main
 - [ ] **T2: Concurrent sessions, disjoint files** — Two worktrees, different files → both merge → clean

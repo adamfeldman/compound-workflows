@@ -21,7 +21,7 @@ The LLM reads `<arguments>` and determines:
 
 ### Read Config
 
-Read `compound-workflows.local.md` for these 5 config keys. For each key: if the file doesn't exist, the key is absent, or the value is unreadable, use the default.
+Read `compound-workflows.local.md` for these 6 config keys. For each key: if the file doesn't exist, the key is absent, or the value is unreadable, use the default.
 
 | Key | Default | Effect when `false` |
 |-----|---------|-------------------|
@@ -30,6 +30,7 @@ Read `compound-workflows.local.md` for these 5 config keys. For each key: if the
 | `compact_auto_commit` | `false` | N/A — this is an auto-execute toggle, not a skip toggle (see below) |
 | `compact_compound_check` | `true` | Skip compound assessment entirely |
 | `compact_push` | `true` | Skip push remote detection entirely |
+| `session_worktree` | `true` | Skip worktree merge step entirely |
 
 **`compact_auto_commit` semantics:** Unlike the other 4 toggles which are skip toggles (false = step doesn't run), `compact_auto_commit` is an auto-execute toggle. When `true`: git status check still runs in the check phase, "Skip commit" does NOT appear in the batch action list, and commit executes automatically with a suggested message in the execute phase.
 
@@ -46,6 +47,18 @@ Read the output and track these values for use throughout: PLUGIN_ROOT, VERSION_
 ### Generate Run ID
 
 Generate a short run ID (e.g., 8 hex chars) for scoping state files if needed later (see Step 3).
+
+### Detect Worktree Status
+
+Run once at compact-prep start to determine if the session is in a worktree:
+
+```bash
+git worktree list --porcelain
+```
+
+Parse the output: the first `worktree <path>` entry is the main repo root. If CWD matches a subsequent worktree entry (i.e., CWD is inside a `.worktrees/` or `.claude/worktrees/` path), set `in_worktree = true`. Otherwise, set `in_worktree = false`.
+
+Track `in_worktree` as a flag for use in commit steps (Steps 2 and 4) and the worktree merge step (Step 4.5).
 
 ---
 
@@ -256,9 +269,10 @@ Each batch item maps to one or more execute steps:
 | "Skip memory updates" | Step 1 (write memory updates) |
 | "Skip commit" | Step 2 (commit pre-compound) only |
 | "Skip compound" | Step 3 (compound) + Step 4 (commit compound docs) |
+| (not in batch) | Step 4.5 (worktree merge) — always runs when applicable, controlled by config + worktree detection |
 | "Skip push" | Step 6 (push) |
 
-Skipping "compound" skips both the compound run AND its post-compound commit (one logical unit). Skipping "commit" skips only the pre-compound commit (Step 2). Step 4 (commit compound docs) is always tied to compound — if compound ran and produced output, its docs are committed regardless of the "Skip commit" selection.
+Skipping "compound" skips both the compound run AND its post-compound commit (one logical unit). Skipping "commit" skips only the pre-compound commit (Step 2). Step 4 (commit compound docs) is always tied to compound — if compound ran and produced output, its docs are committed regardless of the "Skip commit" selection. Step 4.5 (worktree merge) is not part of the batch skip-list — it always runs when the session is in a worktree and `session_worktree` config is not false.
 
 ### Commit Message Handling
 
@@ -293,8 +307,10 @@ Ensure the run directory exists for commit message files:
 mkdir -p .workflows/compact-prep/<run-id>/
 ```
 
-- If **auto-commit** (`compact_auto_commit: true`): suggest a commit message and execute without prompting. Use the **Write tool** to write the message to `.workflows/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and `git commit -F .workflows/compact-prep/<run-id>/commit-msg.txt`.
-- If **manual**: ask the user for a message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and `git commit -F .workflows/compact-prep/<run-id>/commit-msg.txt`.
+**Commit tool selection:** When `in_worktree` is false (session not in a worktree — opt-out or not applicable), use `bash ${CLAUDE_SKILL_DIR}/../../scripts/safe-commit.sh` instead of raw `git commit` for staging isolation. When `in_worktree` is true, use raw `git commit` as normal (the worktree already provides index isolation).
+
+- If **auto-commit** (`compact_auto_commit: true`): suggest a commit message and execute without prompting. Use the **Write tool** to write the message to `.workflows/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and commit (using `safe-commit.sh` or `git commit -F` per the commit tool selection above).
+- If **manual**: ask the user for a message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and commit (using `safe-commit.sh` or `git commit -F` per the commit tool selection above).
 - If no uncommitted changes exist at this point: no-op, proceed silently.
 
 ### Step 3: Run Compound
@@ -313,9 +329,60 @@ Before pausing:
 
 Check `git status` for new files from compound.
 
+**Commit tool selection:** Same as Step 2 — when `in_worktree` is false, use `bash ${CLAUDE_SKILL_DIR}/../../scripts/safe-commit.sh` instead of raw `git commit`. When `in_worktree` is true, use raw `git commit`.
+
 - If **no new files** (compound ran but produced nothing): no-op, proceed silently. Do NOT trigger retry/skip/abort.
-- If **new files** and auto-commit: commit automatically with a suggested message (e.g., "docs: compound solution -- [topic]"). Use the **Write tool** to write the message to `.workflows/compact-prep/<run-id>/commit-msg-compound.txt`, then run `git add` for the new files and `git commit -F .workflows/compact-prep/<run-id>/commit-msg-compound.txt`.
-- If **new files** and manual: commit with a suggested or user-provided message using the same Write-then-commit-F pattern.
+- If **new files** and auto-commit: commit automatically with a suggested message (e.g., "docs: compound solution -- [topic]"). Use the **Write tool** to write the message to `.workflows/compact-prep/<run-id>/commit-msg-compound.txt`, then run `git add` for the new files and commit (using `safe-commit.sh` or `git commit -F` per the commit tool selection above).
+- If **new files** and manual: commit with a suggested or user-provided message using the same Write-then-commit-F and commit tool selection pattern.
+
+### Step 4.5: Session Worktree Merge
+
+**Skip if:** `session_worktree: false` in config, OR `in_worktree` is false (session is not in a worktree).
+
+This step merges the worktree branch back to the default branch and cleans up the worktree.
+
+#### 4.5.1: Record worktree info before exiting
+
+Capture these values before exiting the worktree:
+- **Worktree branch name:** `git branch --show-current`
+- **Worktree path:** from the `git worktree list --porcelain` output already obtained in the Detect Worktree Status initialization step
+
+#### 4.5.2: Exit worktree
+
+Call `ExitWorktree(action: "keep")`.
+
+**Verify exit succeeded:** After ExitWorktree returns, run `git worktree list --porcelain` and check that CWD is the main repo root (first worktree entry), not a `.worktrees/` or `.claude/worktrees/` path. If still in a worktree, trigger the fallback path below.
+
+**Fallback if ExitWorktree failed or was a no-op:** Extract the main repo path from the `git worktree list --porcelain` output already obtained (first line — strip the `worktree ` prefix). Then run `cd <extracted-path>` via the Bash tool (CWD persists between Bash calls). Do NOT combine with `awk`/`sed` in a pipe — triggers permission prompt. Do NOT combine `cd` with any other command (`cd && echo > file`) — after `cd <main-repo-path>`, all subsequent writes must use absolute paths in separate Bash calls.
+
+#### 4.5.3: Run merge script
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <worktree-branch-name>
+```
+
+#### 4.5.4: Handle merge script result
+
+- **Exit 0 (success):** Announce "Session worktree merged and cleaned up." Proceed to Step 5.
+
+- **Exit 2 (conflict):** Claude reads conflicted files, auto-resolves (keep both sides for additive markdown, attempt semantic merge for others). Present resolution summary: "Resolved N conflicts: [file: resolution summary]."
+  - **Normal mode:** AskUserQuestion: "Accept merge resolutions?" Options: "Accept" / "Review specific files" / "Abort merge (keep worktree)". If accepted: `git add` resolved files + `git commit --no-edit`. If aborted: run `git merge --abort` to clean up mid-merge state, then verify abort succeeded (`test -f "$(git rev-parse --git-dir)/MERGE_HEAD"` — if still present, warn user). Warn that worktree branch is unmerged.
+  - **Abandon mode:** Auto-proceed — `git add` all conflicted files after auto-resolution and `git commit --no-edit`. Git's conflict markers are the safety net; if auto-resolution fails (unresolvable conflict), run `git merge --abort`, verify abort succeeded (`test -f "$(git rev-parse --git-dir)/MERGE_HEAD"` — if still present, warn user), preserve worktree branch, warn: "Merge conflict during abandon — worktree preserved. Run `/do:merge` to resolve later." Do NOT block with AskUserQuestion during abandon.
+
+- **Exit 3 (retry exhaustion):** Warn: "Could not merge — another session is merging. Worktree branch `<name>` is unmerged. Merge manually or run `/do:merge`."
+
+- **Exit 4 (dirty main):** Warn: "Main has uncommitted changes. Cannot merge safely. Worktree branch `<name>` preserved — clean up main and retry with `/do:merge`."
+
+- **Exit 5 (file overlap warning):** AskUserQuestion: "N files modified on both this worktree and main. Git may auto-merge cleanly. Proceed?"
+  - **Proceed:** re-run merge script with `--skip-overlap` flag: `bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <worktree-branch-name> --skip-overlap`
+  - **Abort:** preserve worktree branch, warn user to run `/do:merge` later
+  - **Abandon mode:** Auto-proceed — skip overlap warning, re-run with `--skip-overlap`. If the subsequent merge produces actual conflicts (exit 2), apply abandon-mode conflict resolution as specified above.
+
+- **Exit 1 (other error):** Show error, offer retry/skip/abort per standard per-step retry semantics.
+
+#### 4.5.5: Branch guard
+
+Verify `git branch --show-current` returns the default branch before proceeding to Step 5. If not on the default branch (e.g., still on a worktree branch), warn and skip remaining steps (version actions and push cannot safely run from a non-default branch).
 
 ### Step 5: Version Actions
 
@@ -346,6 +413,8 @@ If versions match or version check is unavailable: no-op, proceed silently.
 ### Step 6: Push
 
 **Skip if:** user selected "Skip push" OR has_remote is false OR `compact_push: false`.
+
+**Branch guard:** Verify `git branch --show-current` returns the default branch. If not on the default branch (e.g., still on a worktree branch after a failed or skipped merge), warn and skip push — pushing a worktree branch to the remote is not the intended behavior.
 
 ```bash
 git push -u origin HEAD
@@ -392,6 +461,7 @@ Ready to compact.
 - Beads: [N issues in_progress / clean / no beads]
 - Compound: [done / nothing to compound / failed -- run manually before compacting / skipped / skipped (config)]
 - Git: [clean / uncommitted -- user skipped commit / auto-committed]
+- Worktree: [merged / conflict resolved / deferred (branch-name) / not in worktree / skipped (config)]
 - Versions: [all match / updated / released / user skipped / skipped (config)]
 - Cost: [today $X.XX, saved ~$Y.YY / ccusage not installed / skipped (config)]
 - After compaction: [task description / general resume]
@@ -407,6 +477,7 @@ Session captured.
 - Beads: [N issues in_progress / clean / no beads]
 - Compound: [done / nothing to compound / skipped / skipped (config)]
 - Git: [clean / uncommitted -- user skipped commit / auto-committed]
+- Worktree: [merged / conflict resolved / deferred (branch-name) / not in worktree / skipped (config)]
 - Versions: [all match / updated / released / user skipped / skipped (config)]
 - Cost: [today $X.XX, saved ~$Y.YY / ccusage not installed / skipped (config)]
 
