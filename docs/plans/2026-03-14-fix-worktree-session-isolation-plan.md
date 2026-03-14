@@ -1,7 +1,7 @@
 ---
 title: "Worktree-Per-Session Isolation"
 type: fix
-status: active
+status: completed
 date: 2026-03-14
 origin: docs/brainstorms/2026-03-13-git-index-isolation-brainstorm.md
 ---
