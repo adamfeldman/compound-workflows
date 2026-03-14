@@ -823,6 +823,135 @@ def compute_request_cost(usage, model_name):
     return input_cost + cache_create_cost + cache_read_cost + output_cost
 
 
+def compute_cost_components(request_cost_entry):
+    """Compute per-token-type cost components for a single request_cost entry.
+
+    Returns dict with input_cost, cache_creation_cost, cache_read_cost,
+    output_cost, and total_cost (all in USD).
+    """
+    model = request_cost_entry.get("model", "")
+    rates = get_model_pricing(model)
+    input_cost = request_cost_entry["input_tokens"] * rates[0] / 1_000_000
+    cache_creation_cost = request_cost_entry["cache_creation_input_tokens"] * rates[1] / 1_000_000
+    cache_read_cost = request_cost_entry["cache_read_input_tokens"] * rates[2] / 1_000_000
+    output_cost = request_cost_entry["output_tokens"] * rates[3] / 1_000_000
+    return {
+        "input_cost": input_cost,
+        "cache_creation_cost": cache_creation_cost,
+        "cache_read_cost": cache_read_cost,
+        "output_cost": output_cost,
+        "total_cost": input_cost + cache_creation_cost + cache_read_cost + output_cost,
+    }
+
+
+def _add_cost_components(target, components):
+    """Accumulate cost components into a target dict (mutates target)."""
+    for key in ("input_cost", "cache_creation_cost", "cache_read_cost", "output_cost", "total_cost"):
+        target[key] = target.get(key, 0.0) + components[key]
+
+
+def _empty_cost_breakdown():
+    """Return a zeroed cost breakdown dict."""
+    return {
+        "input_cost": 0.0,
+        "cache_creation_cost": 0.0,
+        "cache_read_cost": 0.0,
+        "output_cost": 0.0,
+        "total_cost": 0.0,
+    }
+
+
+def compute_phase_cost_by_token_type(all_session_results):
+    """Compute per-phase, per-model, and global cost breakdowns by token type.
+
+    Iterates request_costs per session within phase time windows (same loop
+    pattern as existing phase_cost accumulation in process_session).
+
+    Args:
+        all_session_results: list of result dicts from process_session()
+
+    Returns:
+        dict with keys:
+        - by_phase: {phase_name: {input_cost, cache_creation_cost, cache_read_cost, output_cost, total_cost}}
+        - by_model: {model_prefix: {input_cost, cache_creation_cost, cache_read_cost, output_cost, total_cost}}
+        - global_totals: {input_cost, cache_creation_cost, cache_read_cost, output_cost, total_cost}
+        - per_session: [{session_id, cache_cost, non_cache_cost, total_cost, cache_pct}]
+    """
+    by_phase = defaultdict(_empty_cost_breakdown)
+    by_model = defaultdict(_empty_cost_breakdown)
+    global_totals = _empty_cost_breakdown()
+    per_session = []
+
+    for result in all_session_results:
+        session_id = result["session"]["session_id"]
+        request_costs = result.get("request_costs", [])
+        skill_invocations = result.get("skill_invocations", [])
+        last_ts = result.get("last_ts")
+
+        session_cache = 0.0
+        session_non_cache = 0.0
+        session_total = 0.0
+
+        # Build phase windows from skill invocations (same logic as process_session)
+        phase_windows = []
+        for idx, inv in enumerate(skill_invocations):
+            phase_start = inv["timestamp"]
+            if idx + 1 < len(skill_invocations):
+                phase_end = skill_invocations[idx + 1]["timestamp"]
+            else:
+                phase_end = last_ts
+            if phase_start and phase_end:
+                phase_windows.append((inv["phase"], phase_start, phase_end))
+
+        for rc in request_costs:
+            components = compute_cost_components(rc)
+            _add_cost_components(global_totals, components)
+
+            cache_cost = components["cache_creation_cost"] + components["cache_read_cost"]
+            non_cache_cost = components["input_cost"] + components["output_cost"]
+            session_cache += cache_cost
+            session_non_cache += non_cache_cost
+            session_total += components["total_cost"]
+
+            # Model accumulation
+            model = rc.get("model", "")
+            model_prefix = ""
+            for prefix, _ in _MODEL_PRICING_SORTED:
+                if model.startswith(prefix):
+                    model_prefix = prefix
+                    break
+            if model_prefix:
+                _add_cost_components(by_model[model_prefix], components)
+
+            # Phase assignment
+            rc_ts = rc["timestamp"]
+            assigned_phase = None
+            if rc_ts:
+                for phase_name, p_start, p_end in phase_windows:
+                    if p_start <= rc_ts <= p_end:
+                        assigned_phase = phase_name
+                        break
+            if not assigned_phase:
+                assigned_phase = "non-workflow"
+            _add_cost_components(by_phase[assigned_phase], components)
+
+        if session_total > 0:
+            per_session.append({
+                "session_id": session_id,
+                "cache_cost": round(session_cache, 6),
+                "non_cache_cost": round(session_non_cache, 6),
+                "total_cost": round(session_total, 6),
+                "cache_pct": round(session_cache / session_total * 100, 1) if session_total > 0 else 0.0,
+            })
+
+    return {
+        "by_phase": dict(by_phase),
+        "by_model": dict(by_model),
+        "global_totals": global_totals,
+        "per_session": per_session,
+    }
+
+
 # Configuration file patterns for "configuration" segment classification
 CONFIG_PATTERNS = re.compile(
     r"(CLAUDE\.md|AGENTS\.md|settings\.json|memory/|\.claude/|compound-workflows\.md|compound-workflows\.local\.md)",
@@ -3532,6 +3661,42 @@ def main():
         for mp, mc in sorted(project_cost_by_model.items(), key=lambda x: x[1], reverse=True):
             print(f"    {mp}: ${mc:.2f}", file=sys.stderr)
 
+        # --- P6-S3: Cache vs non-cache cost split ---
+        print("Computing cache vs non-cache cost split...", file=sys.stderr)
+        cost_by_token_type = compute_phase_cost_by_token_type(all_session_results)
+        gt = cost_by_token_type["global_totals"]
+        cache_total = gt["cache_creation_cost"] + gt["cache_read_cost"]
+        non_cache_total = gt["input_cost"] + gt["output_cost"]
+        cache_pct = (cache_total / gt["total_cost"] * 100) if gt["total_cost"] > 0 else 0
+        # Stderr validation checkpoint (compare after Step 9 to verify only Sonnet projections changed)
+        print(f"  [S3 VALIDATION CHECKPOINT] Section 19 cost totals:", file=sys.stderr)
+        print(f"    Total: ${gt['total_cost']:.2f}", file=sys.stderr)
+        print(f"    Input: ${gt['input_cost']:.2f}", file=sys.stderr)
+        print(f"    Cache creation: ${gt['cache_creation_cost']:.2f}", file=sys.stderr)
+        print(f"    Cache read: ${gt['cache_read_cost']:.2f}", file=sys.stderr)
+        print(f"    Output: ${gt['output_cost']:.2f}", file=sys.stderr)
+        print(f"    Cache (creation+read): ${cache_total:.2f} ({cache_pct:.1f}%)", file=sys.stderr)
+        print(f"    Non-cache (input+output): ${non_cache_total:.2f} ({100-cache_pct:.1f}%)", file=sys.stderr)
+        for phase, bd in sorted(cost_by_token_type["by_phase"].items(),
+                                key=lambda x: x[1]["total_cost"], reverse=True):
+            pc = bd["cache_creation_cost"] + bd["cache_read_cost"]
+            pnc = bd["input_cost"] + bd["output_cost"]
+            ppct = (pc / bd["total_cost"] * 100) if bd["total_cost"] > 0 else 0
+            print(f"    {phase}: ${bd['total_cost']:.2f} (cache ${pc:.2f} = {ppct:.1f}%)", file=sys.stderr)
+        cost_by_token_type_record = {
+            "record_type": "cost_by_token_type",
+            "global_totals": {k: round(v, 4) for k, v in gt.items()},
+            "by_phase": {
+                p: {k: round(v, 4) for k, v in bd.items()}
+                for p, bd in cost_by_token_type["by_phase"].items()
+            },
+            "by_model": {
+                m: {k: round(v, 4) for k, v in bd.items()}
+                for m, bd in cost_by_token_type["by_model"].items()
+            },
+        }
+        raw_out.write(json.dumps(cost_by_token_type_record) + "\n")
+
         # --- P5-S2: Stats YAML mining ---
         print("Mining stats YAML files...", file=sys.stderr)
         stats_entries = load_stats_yaml_entries()
@@ -4015,6 +4180,7 @@ def main():
         all_compaction_costs, velocity_trend_summary,
         permission_prompt_data, qa_retry_data,
         hook_audit_data,
+        cost_by_token_type=cost_by_token_type,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
     print(f"Wrote {SUMMARY_OUTPUT}", file=sys.stderr)
@@ -4031,7 +4197,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      velocity_trend_data=None,
                      permission_prompt_data=None,
                      qa_retry_data=None,
-                     hook_audit_data=None):
+                     hook_audit_data=None,
+                     cost_by_token_type=None):
     """Generate the summary.md file."""
     lines = []
     lines.append("# Session Analysis Summary")
@@ -5169,56 +5336,141 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             )
             lines.append("")
 
-        # Token totals
+        # Token totals with cost contribution from token-type breakdown
         tt = pc.get("token_totals", {})
+        gt = cost_by_token_type["global_totals"] if cost_by_token_type else None
         lines.append("### Token Totals")
         lines.append("")
-        lines.append("| Token Type | Count | Cost Contribution |")
-        lines.append("|-----------|-------|-------------------|")
-        # Compute contribution per token type across all models (approximate using weighted average)
-        # For a simpler approach, just show counts
-        lines.append(f"| Input | {tt.get('input_tokens', 0):,} | — |")
-        lines.append(f"| Cache creation | {tt.get('cache_creation_input_tokens', 0):,} | — |")
-        lines.append(f"| Cache read | {tt.get('cache_read_input_tokens', 0):,} | — |")
-        lines.append(f"| Output | {tt.get('output_tokens', 0):,} | — |")
+        lines.append("| Token Type | Count | Cost | % of Total |")
+        lines.append("|-----------|-------|------|-----------|")
+        if gt and gt["total_cost"] > 0:
+            for label, tok_key, cost_key in [
+                ("Input", "input_tokens", "input_cost"),
+                ("Cache creation", "cache_creation_input_tokens", "cache_creation_cost"),
+                ("Cache read", "cache_read_input_tokens", "cache_read_cost"),
+                ("Output", "output_tokens", "output_cost"),
+            ]:
+                count = tt.get(tok_key, 0)
+                cost_val = gt[cost_key]
+                cost_pct = cost_val / gt["total_cost"] * 100
+                lines.append(f"| {label} | {count:,} | ${cost_val:.2f} | {cost_pct:.1f}% |")
+        else:
+            lines.append(f"| Input | {tt.get('input_tokens', 0):,} | — | — |")
+            lines.append(f"| Cache creation | {tt.get('cache_creation_input_tokens', 0):,} | — | — |")
+            lines.append(f"| Cache read | {tt.get('cache_read_input_tokens', 0):,} | — | — |")
+            lines.append(f"| Output | {tt.get('output_tokens', 0):,} | — | — |")
         lines.append("")
 
-        # Per-model breakdown
+        # Cache vs non-cache summary
+        if gt and gt["total_cost"] > 0:
+            cache_total = gt["cache_creation_cost"] + gt["cache_read_cost"]
+            non_cache_total = gt["input_cost"] + gt["output_cost"]
+            cache_pct_val = cache_total / gt["total_cost"] * 100
+            lines.append("### Cache vs Non-Cache Cost")
+            lines.append("")
+            lines.append("| Category | Cost | % of Total |")
+            lines.append("|----------|------|-----------|")
+            lines.append(f"| Cache (creation + read) | ${cache_total:.2f} | {cache_pct_val:.1f}% |")
+            lines.append(f"| Non-cache (input + output) | ${non_cache_total:.2f} | {100-cache_pct_val:.1f}% |")
+            lines.append("")
+
+        # Per-model breakdown with cache split
         lines.append("### Cost by Model")
         lines.append("")
-        lines.append("| Model | Cost | % of Total |")
-        lines.append("|-------|------|-----------|")
-        for model, cost in pc.get("cost_by_model", {}).items():
-            pct = (cost / pc["total_cost_usd"] * 100) if pc["total_cost_usd"] > 0 else 0
-            lines.append(f"| {model} | ${cost:.2f} | {pct:.1f}% |")
+        cbt_by_model = cost_by_token_type.get("by_model", {}) if cost_by_token_type else {}
+        if cbt_by_model:
+            lines.append("| Model | Total | Cache | Non-Cache | Cache % |")
+            lines.append("|-------|-------|-------|-----------|---------|")
+            # Use cost_by_token_type totals for consistency (cache + non-cache = total)
+            for model, mbd in sorted(cbt_by_model.items(),
+                                     key=lambda x: x[1]["total_cost"], reverse=True):
+                m_cache = mbd.get("cache_creation_cost", 0) + mbd.get("cache_read_cost", 0)
+                m_noncache = mbd.get("input_cost", 0) + mbd.get("output_cost", 0)
+                m_total = mbd.get("total_cost", 0)
+                m_cache_pct = (m_cache / m_total * 100) if m_total > 0 else 0
+                lines.append(
+                    f"| {model} | ${m_total:.2f} | ${m_cache:.2f} | ${m_noncache:.2f} | {m_cache_pct:.1f}% |"
+                )
+        else:
+            lines.append("| Model | Cost | % of Total |")
+            lines.append("|-------|------|-----------|")
+            for model, cost in pc.get("cost_by_model", {}).items():
+                pct = (cost / pc["total_cost_usd"] * 100) if pc["total_cost_usd"] > 0 else 0
+                lines.append(f"| {model} | ${cost:.2f} | {pct:.1f}% |")
         lines.append("")
 
-        # Per-phase breakdown
+        # Per-phase breakdown with cache split
         lines.append("### Cost by Phase")
         lines.append("")
-        lines.append("| Phase | Cost | % of Total |")
-        lines.append("|-------|------|-----------|")
-        for phase, cost in pc.get("cost_by_phase", {}).items():
-            pct = (cost / pc["total_cost_usd"] * 100) if pc["total_cost_usd"] > 0 else 0
-            lines.append(f"| {phase} | ${cost:.2f} | {pct:.1f}% |")
+        cbt_by_phase = cost_by_token_type.get("by_phase", {}) if cost_by_token_type else {}
+        if cbt_by_phase:
+            lines.append("| Phase | Total | Cache | Non-Cache | Cache % |")
+            lines.append("|-------|-------|-------|-----------|---------|")
+            # Use cost_by_token_type totals for consistency (cache + non-cache = total)
+            for phase, pbd in sorted(cbt_by_phase.items(),
+                                     key=lambda x: x[1]["total_cost"], reverse=True):
+                p_cache = pbd.get("cache_creation_cost", 0) + pbd.get("cache_read_cost", 0)
+                p_noncache = pbd.get("input_cost", 0) + pbd.get("output_cost", 0)
+                p_total = pbd.get("total_cost", 0)
+                p_cache_pct = (p_cache / p_total * 100) if p_total > 0 else 0
+                lines.append(
+                    f"| {phase} | ${p_total:.2f} | ${p_cache:.2f} | ${p_noncache:.2f} | {p_cache_pct:.1f}% |"
+                )
+        else:
+            lines.append("| Phase | Cost | % of Total |")
+            lines.append("|-------|------|-----------|")
+            for phase, cost in pc.get("cost_by_phase", {}).items():
+                pct = (cost / pc["total_cost_usd"] * 100) if pc["total_cost_usd"] > 0 else 0
+                lines.append(f"| {phase} | ${cost:.2f} | {pct:.1f}% |")
         lines.append("")
 
-        # Per-session cost stats
+        # Per-session cost stats with cache split
         session_costs = [s.get("session_cost_usd", 0) for s in sessions if s.get("session_cost_usd", 0) > 0]
+        cbt_per_session = cost_by_token_type.get("per_session", []) if cost_by_token_type else []
         if session_costs:
             sc_stats = compute_stats(session_costs)
             lines.append("### Per-Session Cost Distribution")
             lines.append("")
-            lines.append("| Metric | Value |")
-            lines.append("|--------|-------|")
-            lines.append(f"| Sessions with cost > $0 | {sc_stats['n']} |")
-            lines.append(f"| Min | ${sc_stats['min']:.2f} |")
-            lines.append(f"| Median | ${sc_stats['median']:.2f} |")
-            lines.append(f"| Mean | ${sc_stats['mean']:.2f} |")
-            lines.append(f"| Max | ${sc_stats['max']:.2f} |")
+            lines.append("| Metric | Total | Cache | Non-Cache |")
+            lines.append("|--------|-------|-------|-----------|")
+            lines.append(f"| Sessions with cost > $0 | {sc_stats['n']} | | |")
+            lines.append(f"| Min | ${sc_stats['min']:.2f} | | |")
+            lines.append(f"| Median | ${sc_stats['median']:.2f} | | |")
+            lines.append(f"| Mean | ${sc_stats['mean']:.2f} | | |")
+            lines.append(f"| Max | ${sc_stats['max']:.2f} | | |")
             if "p90" in sc_stats:
-                lines.append(f"| P90 | ${sc_stats['p90']:.2f} |")
+                lines.append(f"| P90 | ${sc_stats['p90']:.2f} | | |")
             lines.append("")
+
+            # Cache/non-cache distribution from per-session data
+            if cbt_per_session:
+                cache_costs = [s["cache_cost"] for s in cbt_per_session]
+                noncache_costs = [s["non_cache_cost"] for s in cbt_per_session]
+                cache_pcts = [s["cache_pct"] for s in cbt_per_session]
+                cache_stats = compute_stats(cache_costs)
+                noncache_stats = compute_stats(noncache_costs)
+                cache_pct_stats = compute_stats(cache_pcts)
+                lines.append("### Per-Session Cache vs Non-Cache")
+                lines.append("")
+                lines.append("| Metric | Cache $ | Non-Cache $ | Cache % |")
+                lines.append("|--------|---------|-------------|---------|")
+                lines.append(
+                    f"| Median | ${cache_stats['median']:.2f} | "
+                    f"${noncache_stats['median']:.2f} | {cache_pct_stats['median']:.1f}% |"
+                )
+                lines.append(
+                    f"| Mean | ${cache_stats['mean']:.2f} | "
+                    f"${noncache_stats['mean']:.2f} | {cache_pct_stats['mean']:.1f}% |"
+                )
+                lines.append(
+                    f"| Min | ${cache_stats['min']:.2f} | "
+                    f"${noncache_stats['min']:.2f} | {cache_pct_stats['min']:.1f}% |"
+                )
+                lines.append(
+                    f"| Max | ${cache_stats['max']:.2f} | "
+                    f"${noncache_stats['max']:.2f} | {cache_pct_stats['max']:.1f}% |"
+                )
+                lines.append("")
     else:
         lines.append("*No cost data available from JSONL.*")
         lines.append("")
@@ -5543,15 +5795,44 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             )
             lines.append("")
 
-        # Per-event detail table
+        # Cache vs non-cache breakdown for compaction events
+        if compaction_cost_details:
+            # Compute aggregate cache/non-cache across all compaction events
+            comp_cache_total = 0.0
+            comp_noncache_total = 0.0
+            for cc in compaction_cost_details:
+                rates = get_model_pricing(cc["model"])
+                cc_cache = (
+                    cc.get("cache_creation_tokens", 0) * rates[1] / 1_000_000
+                    + cc.get("cache_read_tokens", 0) * rates[2] / 1_000_000
+                )
+                cc_noncache = (
+                    cc.get("input_tokens", 0) * rates[0] / 1_000_000
+                    + cc.get("output_tokens", 0) * rates[3] / 1_000_000
+                )
+                comp_cache_total += cc_cache
+                comp_noncache_total += cc_noncache
+            comp_total = comp_cache_total + comp_noncache_total
+            comp_cache_pct = (comp_cache_total / comp_total * 100) if comp_total > 0 else 0
+
+            lines.append("### Compaction Cache vs Non-Cache")
+            lines.append("")
+            lines.append("| Category | Cost | % |")
+            lines.append("|----------|------|---|")
+            lines.append(f"| Cache (creation + read) | ${comp_cache_total:.2f} | {comp_cache_pct:.1f}% |")
+            lines.append(f"| Non-cache (input + output) | ${comp_noncache_total:.2f} | {100-comp_cache_pct:.1f}% |")
+            lines.append(f"| Total | ${comp_total:.2f} | 100% |")
+            lines.append("")
+
+        # Per-event detail table with cache breakdown
         if compaction_cost_details:
             lines.append("### Per-Event Detail")
             lines.append("")
             lines.append(
-                "| Session | Timestamp | Cost | Reorientation (Raw) | Reorientation (Active) | Model |"
+                "| Session | Timestamp | Cost | Cache | Non-Cache | Cache % | Reorientation (Raw) | Reorientation (Active) | Model |"
             )
             lines.append(
-                "|---------|-----------|------|---------------------|------------------------|-------|"
+                "|---------|-----------|------|-------|-----------|---------|---------------------|------------------------|-------|"
             )
             for cc in sorted(compaction_cost_details, key=lambda x: x["timestamp"]):
                 session_short = cc["session"][-8:] if len(cc["session"]) > 8 else cc["session"]
@@ -5567,9 +5848,22 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                     else "N/A"
                 )
                 model_short = cc["model"].split("-")[-1] if cc["model"] else "-"
+                # Compute per-event cache/non-cache cost
+                rates = get_model_pricing(cc["model"])
+                ev_cache = (
+                    cc.get("cache_creation_tokens", 0) * rates[1] / 1_000_000
+                    + cc.get("cache_read_tokens", 0) * rates[2] / 1_000_000
+                )
+                ev_noncache = (
+                    cc.get("input_tokens", 0) * rates[0] / 1_000_000
+                    + cc.get("output_tokens", 0) * rates[3] / 1_000_000
+                )
+                ev_total = ev_cache + ev_noncache
+                ev_cache_pct = (ev_cache / ev_total * 100) if ev_total > 0 else 0
                 lines.append(
                     f"| ...{session_short} | {ts_short} | "
-                    f"${cc['token_cost']:.4f} | {reorient_raw} | {reorient_active} | {model_short} |"
+                    f"${cc['token_cost']:.4f} | ${ev_cache:.4f} | ${ev_noncache:.4f} | {ev_cache_pct:.0f}% | "
+                    f"{reorient_raw} | {reorient_active} | {model_short} |"
                 )
             lines.append("")
     else:
