@@ -374,26 +374,52 @@ USAGE_XML_RE = re.compile(
 )
 
 # --- Model pricing (per million tokens) ---
-# Source: Anthropic pricing page, March 2026
+# Source: Anthropic pricing page, verified 2026-03-14
 # Format: {model_prefix: (input, cache_creation, cache_read, output)}
+# Keys are prefix strings — get_model_pricing() sorts by length descending
+# so "claude-opus-4-6" matches before "claude-opus-4".
 MODEL_PRICING = {
-    "claude-opus-4":   (15.00, 3.75, 1.875, 75.00),
-    "claude-sonnet-4": (3.00, 3.75, 0.30, 15.00),
-    "claude-haiku-3":  (0.25, 0.30, 0.03, 1.25),
+    "claude-opus-4-6":   (5.00,  6.25,  0.50, 25.00),   # Opus 4.6
+    "claude-opus-4-5":   (5.00,  6.25,  0.50, 25.00),   # Opus 4.5
+    "claude-opus-4-1":   (15.00, 18.75, 1.50, 75.00),   # Opus 4.1
+    "claude-opus-4":     (15.00, 18.75, 1.50, 75.00),   # Opus 4
+    "claude-sonnet-4-6": (3.00,  3.75,  0.30, 15.00),   # Sonnet 4.6
+    "claude-sonnet-4-5": (3.00,  3.75,  0.30, 15.00),   # Sonnet 4.5
+    "claude-sonnet-4":   (3.00,  3.75,  0.30, 15.00),   # Sonnet 4
+    "claude-haiku-4-5":  (1.00,  1.25,  0.10,  5.00),   # Haiku 4.5
+    "claude-haiku-3":    (0.25,  0.30,  0.03,  1.25),   # Haiku 3
 }
+
+# Sort prefixes by length descending for longest-prefix-first matching
+_MODEL_PRICING_SORTED = sorted(MODEL_PRICING.items(), key=lambda x: -len(x[0]))
+
 
 def get_model_pricing(model_name):
     """Return (input, cache_creation, cache_read, output) rates per million tokens.
 
-    Matches model_name against known prefixes (e.g. 'claude-opus-4-6' -> 'claude-opus-4').
+    Matches model_name against known prefixes using longest-prefix-first order
+    (e.g. 'claude-opus-4-6-20260101' matches 'claude-opus-4-6', not 'claude-opus-4').
     Returns (0,0,0,0) for unknown/<synthetic> models.
     """
     if not model_name or model_name.startswith("<"):
         return (0.0, 0.0, 0.0, 0.0)
-    for prefix, rates in MODEL_PRICING.items():
+    for prefix, rates in _MODEL_PRICING_SORTED:
         if model_name.startswith(prefix):
             return rates
     return (0.0, 0.0, 0.0, 0.0)
+
+
+# Inline assertions: verify longest-prefix-first matching is correct
+assert get_model_pricing("claude-opus-4-6-20260101") == (5.00, 6.25, 0.50, 25.00), \
+    "Opus 4.6 should match claude-opus-4-6, not claude-opus-4"
+assert get_model_pricing("claude-opus-4-20250101") == (15.00, 18.75, 1.50, 75.00), \
+    "Opus 4 should match claude-opus-4"
+assert get_model_pricing("claude-opus-4-6") == (5.00, 6.25, 0.50, 25.00), \
+    "Opus 4.6 exact prefix should match"
+assert get_model_pricing("claude-sonnet-4-6") == (3.00, 3.75, 0.30, 15.00), \
+    "Sonnet 4.6 should match claude-sonnet-4-6"
+assert get_model_pricing("<synthetic>") == (0.0, 0.0, 0.0, 0.0), \
+    "Synthetic model should return zero rates"
 
 
 def compute_request_cost(usage, model_name):
@@ -1480,9 +1506,9 @@ def process_session(filepath):
                 if usage:
                     cost = compute_request_cost(usage, model)
                     session_total_cost += cost
-                    # Map to model prefix for grouping
+                    # Map to model prefix for grouping (longest prefix first)
                     model_prefix = ""
-                    for prefix in MODEL_PRICING:
+                    for prefix, _ in _MODEL_PRICING_SORTED:
                         if model.startswith(prefix):
                             model_prefix = prefix
                             break
