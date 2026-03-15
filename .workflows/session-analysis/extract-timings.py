@@ -1907,6 +1907,7 @@ def compute_estimation_segments(closed_bead_estimates, bead_attribution_windowed
             "issue_type": est_data.get("issue_type") or "unknown",
             "priority": est_data.get("priority"),
             "impact_score": est_data.get("impact_score"),
+            "origin": est_data.get("origin") or "manual",
             "estimated_minutes": estimated,
             "actual_minutes": round(actual, 1),
             "ratio": round(ratio, 2),
@@ -1965,6 +1966,12 @@ def compute_estimation_segments(closed_bead_estimates, bead_attribution_windowed
     segments["by_estimate_bucket"] = {
         b: segment_stats(by_bucket[b]) for b in bucket_order if b in by_bucket
     }
+
+    # Segment by origin (work vs manual)
+    by_origin = defaultdict(list)
+    for rec in bead_records:
+        by_origin[rec["origin"]].append(rec["ratio"])
+    segments["by_origin"] = {o: segment_stats(ratios) for o, ratios in sorted(by_origin.items())}
 
     # Overall stats
     all_ratios = [rec["ratio"] for rec in bead_records]
@@ -6780,15 +6787,16 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         render_segment_table(
             "By Estimate Size", segs.get("by_estimate_bucket", {}), "Bucket"
         )
+        render_segment_table("By Origin", segs.get("by_origin", {}), "Origin")
 
         # Per-bead detail table (sorted by ratio descending)
         lines.append("### Per-Bead Detail")
         lines.append("")
         lines.append(
-            "| Bead | Type | Pri | Est | Actual | Ratio | Sessions | Bucket |"
+            "| Bead | Type | Pri | Origin | Est | Actual | Ratio | Sessions | Bucket |"
         )
         lines.append(
-            "|------|------|-----|-----|--------|-------|----------|--------|"
+            "|------|------|-----|--------|-----|--------|-------|----------|--------|"
         )
         detail_records = sorted(
             estimation_segment_data["records"],
@@ -6801,6 +6809,7 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             pri = f"P{rec['priority']}" if rec["priority"] is not None else "-"
             lines.append(
                 f"| {rec['bead_id']} | {rec['issue_type']} | {pri} | "
+                f"{rec.get('origin', 'manual')} | "
                 f"{rec['estimated_minutes']} | {rec['actual_minutes']} | "
                 f"{rec['ratio']}x | {rec['session_count']} | "
                 f"{rec['estimate_bucket']} |"
