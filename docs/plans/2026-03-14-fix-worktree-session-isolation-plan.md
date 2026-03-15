@@ -1,7 +1,8 @@
 ---
 title: "Worktree-Per-Session Isolation"
 type: fix
-status: completed
+status: superseded
+superseded_by: docs/plans/2026-03-15-fix-worktree-session-isolation-v2-plan.md
 date: 2026-03-14
 origin: docs/brainstorms/2026-03-13-git-index-isolation-brainstorm.md
 ---
