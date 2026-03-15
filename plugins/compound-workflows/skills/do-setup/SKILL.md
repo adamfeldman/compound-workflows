@@ -622,17 +622,17 @@ Write the merged result back to `.claude/settings.json`. Validate it is well-for
 
 Record: `SESSION_HOOK_STATUS=registered` or `SESSION_HOOK_STATUS=already_present`
 
-### 7k: Add .claude/worktrees/ to .gitignore
+### 7k: Verify .worktrees/ in .gitignore
 
 **CRITICAL: This step MUST run at orchestrator level. Do NOT delegate to a subagent.** Subagents cannot reliably write to `.gitignore` in the project root.
 
-Check if `.claude/worktrees/` is already in `.gitignore` (use escaped dot to avoid false positives from unescaped `.` matching any character):
+Session worktrees live in `.worktrees/` (managed by bd). This directory should already be gitignored for bd-managed worktrees. Verify it is present:
 
 ```bash
-grep -q '\.claude/worktrees/' .gitignore && echo "WORKTREE_GITIGNORE=present" || echo "WORKTREE_GITIGNORE=missing"
+grep -q '\.worktrees/' .gitignore && echo "WORKTREE_GITIGNORE=present" || echo "WORKTREE_GITIGNORE=missing"
 ```
 
-If missing: append `.claude/worktrees/` to `.gitignore` using the **Edit tool**. Silent addition, no user prompt.
+If missing: append `.worktrees/` to `.gitignore` using the **Edit tool**. Silent addition, no user prompt.
 
 ### 7l: Install Pre-Commit Worktree Check Hook
 
@@ -803,24 +803,32 @@ When you detect session-end language ("done for today", "wrapping up for the day
 
 **Gate:** Only add this block if `session_worktree` in `compound-workflows.local.md` is NOT `false`. If the key is missing (not yet configured), include the block (default is `true`).
 
-**Idempotent:** Check if the AGENTS.md already contains `## Session Worktree Isolation` — if present, skip.
+**v1→v2 migration:** Check if the AGENTS.md contains `## Session Worktree Isolation`. If the heading exists, check whether any of the next 5 non-empty lines contain `EnterWorktree` (this distinguishes v1 blocks from v2 or user-written sections). If v1 detected:
+1. Replace the entire section (from `## Session Worktree Isolation` up to but not including the next `##` heading) with the v2 canonical text below.
+2. Note `v1→v2 updated` in the setup summary report (Step 9, Worktree line).
 
-If the block should be added, append the following after the routing section (after the Session-End Detection suppression rules):
+**Idempotent (v2):** If `## Session Worktree Isolation` exists but does NOT contain `EnterWorktree` in the next 5 non-empty lines, it is already v2 (or user-customized). Skip injection.
+
+**Fresh install:** If `## Session Worktree Isolation` is not present at all, append the v2 block after the routing section (after the Session-End Detection suppression rules).
+
+**v2 canonical text:**
 
 ```markdown
 ## Session Worktree Isolation
 
-When the SessionStart hook instructs you to call `EnterWorktree`, do so BEFORE any
-other action — before reading files, running commands, or processing other tasks.
-This isolates your session's git index and working tree from concurrent sessions.
+**At session start, before doing anything else, create a session worktree.**
+Run `bd worktree create .worktrees/session-<name>` and `cd` into it.
+Do not read files, run commands, or respond to the user first.
 
-- Call `EnterWorktree` as your FIRST action at session start (hook will prompt you)
-- If you know the primary bead or task, use a descriptive name: `EnterWorktree(name: "s7qj-worktree-isolation")` — makes merge commit messages more informative in git log
-- User can say "stay on main" / "skip worktree" to opt out for the session
-- At session end, `/do:compact-prep` handles the merge back to the default branch
-- When compact-prep or abandon instructs you to call `ExitWorktree`, comply — this is a programmatic exit, not a proactive one
-- If you're already in a worktree (post-compact resume), continue working there
-- Any git operations before EnterWorktree happen on the default branch — the contamination scenario this exists to prevent
+- Name the worktree after the task if known: `session-s7qj` or `session-fix-typo`
+- User can say "stay on main" / "skip worktree" to opt out
+- If you're already in a worktree (post-compact resume), skip — you're already isolated
+- If `bd worktree create` fails, warn the user and proceed on main
+- If the hook warns that bd is unavailable, skip worktree creation
+- At session end, `/do:compact-prep` merges back to the default branch
+- Any git operations before creating the worktree happen on the default branch
+- Before committing, if session_worktree is enabled and you're NOT in a worktree,
+  warn the user: "You're committing to main without worktree isolation. Continue?"
 
 **Beads database (.beads/) is shared across all sessions.** Worktree isolation covers git state only. Bead operations are concurrency-safe at the SQL level (Dolt) but not coordination-safe at the business logic level.
 ```
@@ -970,6 +978,7 @@ Bash rules:      [enabled — rules added to CLAUDE.md | already present | skipp
                  [+ which, echo, mkdir static rules | Permissive covers these | declined]
 Worktree:        Hook: .claude/hooks/session-worktree.sh [installed | updated | current | skipped]
                  SessionStart hook: [registered | already present]
+                 AGENTS.md isolation block: [added | v1→v2 updated | already present | skipped]
                  Pre-commit hook: [installed | already present | appended to existing | skipped]
                  session_worktree: true (edit compound-workflows.local.md to disable)
 
