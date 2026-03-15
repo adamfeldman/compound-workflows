@@ -1,0 +1,184 @@
+#!/bin/bash
+# csr — Claude Session Resume
+#
+# List and restore named Claude Code sessions into tmux windows.
+# Reads session names from ~/.claude/projects/ JSONL files (set by /rename).
+#
+# Usage:
+#   csr list [dir]         List named sessions for a directory (default: cwd)
+#   csr restore <name>     Restore a named session into a tmux window
+#   csr version            Print version
+#   csr help               Print usage
+#
+# Dependencies: jq, tmux, realpath
+#
+# If this script exceeds 200 lines, rewrite in Python.
+
+set -uo pipefail
+
+VERSION="0.1.0"
+CLAUDE_PROJECTS="$HOME/.claude/projects"
+
+# --- helpers ---
+
+check_deps() {
+  local missing=()
+  command -v jq >/dev/null 2>&1 || missing+=("jq")
+  command -v tmux >/dev/null 2>&1 || missing+=("tmux")
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    printf 'csr: missing required commands: %s\n' "${missing[*]}" >&2
+    exit 1
+  fi
+}
+
+encode_path() {
+  local dir="$1"
+  dir="${dir/#\~/$HOME}"
+  local resolved
+  resolved=$(realpath "$dir" 2>/dev/null || printf '%s' "$dir")
+  resolved="${resolved%/}"
+  printf '%s' "$resolved" | tr '/' '-'
+}
+
+relative_time() {
+  local mtime="$1"
+  local now
+  now=$(date +%s)
+  local diff=$(( now - mtime ))
+  if (( diff < 60 )); then
+    printf '%ds ago' "$diff"
+  elif (( diff < 3600 )); then
+    printf '%dm ago' $(( diff / 60 ))
+  elif (( diff < 86400 )); then
+    printf '%dh ago' $(( diff / 3600 ))
+  else
+    printf '%dd ago' $(( diff / 86400 ))
+  fi
+}
+
+sanitize_tmux_name() {
+  local name="$1"
+  printf '%s' "$name" | tr -c '[:alnum:] _-' '_' | cut -c1-30
+}
+
+usage() {
+  cat <<'USAGE'
+csr — Claude Session Resume
+
+Usage:
+  csr list [dir]         List named sessions (default: current directory)
+  csr restore <name>     Restore a named session into a tmux window
+  csr version            Print version
+  csr help               Print this help
+
+Examples:
+  csr list                       # List sessions for cwd
+  csr list ~/Work/Strategy       # List sessions for specific dir
+  csr restore intellect          # Open tmux window with resumed session
+USAGE
+}
+
+# --- subcommands ---
+
+cmd_list() {
+  local dir="${1:-.}"
+  local encoded
+  encoded=$(encode_path "$dir")
+  local projects_dir="$CLAUDE_PROJECTS/$encoded"
+
+  if [[ ! -d "$projects_dir" ]]; then
+    printf 'No sessions found for %s\n' "$dir" >&2
+    return 0
+  fi
+
+  # Collect named sessions: grep for custom-title records, take last per file
+  local found=0
+  local -a names=()
+  local -a mtimes=()
+
+  for f in "$projects_dir"/*.jsonl; do
+    [[ -f "$f" ]] || continue
+    local title
+    title=$(grep '"type":"custom-title"' "$f" 2>/dev/null | tail -1 | jq -r '.customTitle // empty' 2>/dev/null)
+    if [[ -n "$title" ]]; then
+      local mtime
+      mtime=$(stat -f %m "$f" 2>/dev/null || echo "0")
+      names+=("$title")
+      mtimes+=("$mtime")
+      found=1
+    fi
+  done
+
+  if [[ "$found" -eq 0 ]]; then
+    printf 'No named sessions for %s\n' "$dir" >&2
+    return 0
+  fi
+
+  # Sort by mtime descending (most recent first)
+  local -a indices=()
+  for i in "${!mtimes[@]}"; do
+    indices+=("$i")
+  done
+  IFS=$'\n' sorted=($(for i in "${indices[@]}"; do printf '%s\t%s\n' "${mtimes[$i]}" "$i"; done | sort -t$'\t' -k1 -rn))
+  unset IFS
+
+  for entry in "${sorted[@]}"; do
+    local idx="${entry##*$'\t'}"
+    local name="${names[$idx]}"
+    local mtime="${mtimes[$idx]}"
+    local rel
+    rel=$(relative_time "$mtime")
+    printf '  %-30s %s\n' "$name" "$rel"
+  done
+}
+
+cmd_restore() {
+  local session_name="${1:-}"
+  if [[ -z "$session_name" ]]; then
+    printf 'csr: restore requires a session name\n' >&2
+    printf 'Usage: csr restore <name>\n\n' >&2
+    printf 'Available sessions:\n' >&2
+    cmd_list >&2
+    return 1
+  fi
+
+  if [[ -z "${TMUX:-}" ]]; then
+    printf 'csr: not in a tmux session. Start tmux first.\n' >&2
+    return 1
+  fi
+
+  local safe_name
+  safe_name=$(sanitize_tmux_name "$session_name")
+  local tmux_session
+  tmux_session=$(tmux display-message -p '#S')
+
+  tmux new-window -t "$tmux_session" -n "$safe_name"
+  tmux set-option -t "$tmux_session:$safe_name" -p remain-on-exit on
+  tmux send-keys -t "$tmux_session:$safe_name" "claude --resume $(printf '%q' "$session_name")" C-m
+}
+
+# --- main ---
+
+check_deps
+
+case "${1:-help}" in
+  list)
+    shift
+    cmd_list "$@"
+    ;;
+  restore)
+    shift
+    cmd_restore "$@"
+    ;;
+  version|--version|-v)
+    printf 'csr %s\n' "$VERSION"
+    ;;
+  help|--help|-h)
+    usage
+    ;;
+  *)
+    printf 'csr: unknown command: %s\n' "$1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
