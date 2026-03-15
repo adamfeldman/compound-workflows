@@ -49,6 +49,7 @@ resources/
 
 templates/
 ├── auto-approve.sh          # PreToolUse hook template — installed to .claude/hooks/ by /do:setup
+├── pre-commit-worktree-check.sh  # Git pre-commit hook template — blocks commits to main when session_worktree enabled
 └── session-worktree.sh      # SessionStart hook template — installed to .claude/hooks/ by /do:setup
 
 skills/
