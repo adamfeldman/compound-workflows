@@ -45,7 +45,7 @@ if [[ "$CURRENT_BRANCH" != "$DEFAULT_BRANCH" ]]; then
 fi
 
 # ── Step 2: Check dirty default branch ───────────────────────────────────────
-if [[ -n "$(git status --porcelain)" ]]; then
+if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
   echo "$DEFAULT_BRANCH has uncommitted changes. Cannot merge safely — another session may be working on $DEFAULT_BRANCH. Clean up and retry. Your worktree branch is preserved." >&2
   exit 4
 fi
@@ -135,16 +135,20 @@ fi
 # ── Step 8: Cleanup (on success only) ────────────────────────────────────────
 # Extract worktree name from branch (convention: <id>-<name> or just <name>)
 # Use absolute path for worktree removal
-WORKTREE_DIR="$REPO_ROOT/.claude/worktrees"
+WORKTREE_DIR="$REPO_ROOT/.worktrees"
 
 # Find the worktree directory associated with this branch
+# Two-stage filter: match .worktrees/*, then only clean up session-* worktrees
 worktree_path=""
 while IFS= read -r line; do
   if [[ "$line" == "$WORKTREE_DIR"/* ]]; then
     current_wt_path="$line"
   fi
   if [[ "$line" == *"branch refs/heads/$BRANCH"* ]] && [[ -n "${current_wt_path:-}" ]]; then
-    worktree_path="$current_wt_path"
+    # Only clean up session worktrees — don't remove /do:work worktrees
+    if [[ "$(basename "$current_wt_path")" == session-* ]]; then
+      worktree_path="$current_wt_path"
+    fi
     break
   fi
 done < <(git worktree list --porcelain 2>/dev/null || true)

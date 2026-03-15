@@ -16,10 +16,10 @@ Merge an unmerged session worktree branch into main. Used when compact-prep's me
 
 ### 1. Detect unmerged worktrees
 
-Run `git worktree list` and filter for entries whose path contains `.claude/worktrees/` (session worktrees only — NOT `.worktrees/` which are bd-managed). For each session worktree, check if its branch has unmerged commits:
+Run `git worktree list` and filter for entries whose path contains `.worktrees/session-` (session worktrees use the `session-` prefix). For each session worktree, check if its branch has unmerged commits:
 
     git worktree list
-    # Filter output: only lines containing .claude/worktrees/
+    # Filter output: only lines containing .worktrees/session-
     # For each matching worktree, extract branch name and check:
     git log main..<branch> --oneline | head -1
 
@@ -39,7 +39,7 @@ Worktrees whose branch has unmerged commits (non-empty `git log` output) are can
 Verify CWD is the main repo (not inside a worktree). If inside a worktree,
 warn: "Cannot merge from inside a worktree. Exit the worktree first." Stop.
 
-To check: `git rev-parse --show-toplevel` should NOT point to a `.claude/worktrees/` path.
+To check: `git rev-parse --show-toplevel` should NOT contain `.worktrees/session-`.
 
 ### 4. Run merge script
 

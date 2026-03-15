@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.3.0] - 2026-03-15
+
+### Fixed
+- Session worktree isolation now works — hook output delivered via stdout (not stderr), worktrees persist across sessions via `bd worktree` (not EnterWorktree)
+- session-merge.sh no longer false-positives on untracked files
+- session-merge.sh cleanup now uses two-stage filter to avoid removing /do:work worktrees
+
+### Added
+- Git pre-commit hook template blocks commits to main when session_worktree enabled (deterministic enforcement)
+- PID-based concurrent session detection in SessionStart hook
+- Legacy .claude/worktrees/ one-time migration cleanup
+
+### Changed
+- Worktree path namespace: `.claude/worktrees/` → `.worktrees/session-*`
+- Exit mechanism: `ExitWorktree` → `cd` (CWD-based)
+- Resume detection: CWD-based → `ls -d .worktrees/session-*`
+- AGENTS.md wording: conditional → unconditional ("before doing anything else, create a session worktree")
+- do-setup AGENTS.md injection includes v1→v2 migration detection
+
 ## [3.2.2] - 2026-03-15
 
 ### Fixes

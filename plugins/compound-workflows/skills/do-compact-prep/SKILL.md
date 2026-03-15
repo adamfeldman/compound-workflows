@@ -56,7 +56,15 @@ Run once at compact-prep start to determine if the session is in a worktree:
 git worktree list --porcelain
 ```
 
-Parse the output: the first `worktree <path>` entry is the main repo root. If CWD matches a subsequent worktree entry (i.e., CWD is inside a `.worktrees/` or `.claude/worktrees/` path), set `in_worktree = true`. Otherwise, set `in_worktree = false`.
+Parse the output: the first `worktree <path>` entry is the main repo root. If CWD matches a subsequent worktree entry (i.e., CWD is inside a `.worktrees/session-*` path), set `in_worktree = true`. Otherwise, set `in_worktree = false`.
+
+Also read the `session_worktree` config value:
+
+```bash
+grep -m1 '^session_worktree:' compound-workflows.local.md | sed 's/#.*//' | awk -F: '{print $2}' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]'
+```
+
+If the file is missing or the key is absent, treat `session_worktree` as disabled (no warning needed).
 
 Track `in_worktree` as a flag for use in commit steps (Steps 2 and 4) and the worktree merge step (Step 4.5).
 
@@ -341,6 +349,22 @@ Check `git status` for new files from compound.
 
 This step merges the worktree branch back to the default branch and cleans up the worktree.
 
+#### Gate: Check for uncommitted changes
+
+Before proceeding with the merge, check if the worktree has uncommitted changes:
+
+```bash
+git -C <worktree-path> status --porcelain
+```
+
+Behavior depends on mode and whether the user skipped the commit step (Step 2):
+
+- **(a) Regular mode, user did not skip commit:** Uncommitted changes shouldn't exist at this point (Step 2 already committed). If any are found, warn ("Unexpected: N uncommitted changes in worktree after commit step") and proceed with the merge.
+- **(b) Regular mode, user skipped commit:** Warn via AskUserQuestion: "Worktree has N uncommitted changes that will NOT be included in the merge. Continue?" If the user declines, skip the merge (worktree preserved, summary shows "deferred").
+- **(c) Abandon mode:** Note uncommitted changes in the summary ("N uncommitted changes not merged") but proceed without prompting — abandon auto-proceeds, doesn't prompt.
+
+No auto-commit in any mode — committing without user consent risks capturing broken state.
+
 #### 4.5.1: Record worktree info before exiting
 
 Capture these values before exiting the worktree:
@@ -349,11 +373,7 @@ Capture these values before exiting the worktree:
 
 #### 4.5.2: Exit worktree
 
-Call `ExitWorktree(action: "keep")`.
-
-**Verify exit succeeded:** After ExitWorktree returns, run `git worktree list --porcelain` and check that CWD is the main repo root (first worktree entry), not a `.worktrees/` or `.claude/worktrees/` path. If still in a worktree, trigger the fallback path below.
-
-**Fallback if ExitWorktree failed or was a no-op:** Extract the main repo path from the `git worktree list --porcelain` output already obtained (first line — strip the `worktree ` prefix). Then run `cd <extracted-path>` via the Bash tool (CWD persists between Bash calls). Do NOT combine with `awk`/`sed` in a pipe — triggers permission prompt. Do NOT combine `cd` with any other command (`cd && echo > file`) — after `cd <main-repo-path>`, all subsequent writes must use absolute paths in separate Bash calls.
+Extract the main repo path from the `git worktree list --porcelain` output already obtained in the Detect Worktree Status initialization step (first line — strip the `worktree ` prefix). Then run `cd <extracted-path>` via the Bash tool (CWD persists between Bash calls). Do NOT combine with `awk`/`sed` in a pipe — triggers permission prompt. Do NOT combine `cd` with any other command (`cd && echo > file`) — after `cd <main-repo-path>`, all subsequent writes must use absolute paths in separate Bash calls.
 
 #### 4.5.3: Run merge script
 
@@ -383,6 +403,10 @@ bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <worktree-branch-name>
 #### 4.5.5: Branch guard
 
 Verify `git branch --show-current` returns the default branch before proceeding to Step 5. If not on the default branch (e.g., still on a worktree branch), warn and skip remaining steps (version actions and push cannot safely run from a non-default branch).
+
+#### 4.5.6: Manual cleanup (deferred merges only)
+
+When a merge is deferred or aborted (exit 2 abort, exit 3, exit 4), the worktree and branch are preserved. Include in the summary the manual cleanup command: `bd worktree remove .worktrees/session-<name>`. This tells the user how to discard the worktree later if they don't want to retry the merge via `/do:merge`.
 
 ### Step 5: Version Actions
 
@@ -461,7 +485,7 @@ Ready to compact.
 - Beads: [N issues in_progress / clean / no beads]
 - Compound: [done / nothing to compound / failed -- run manually before compacting / skipped / skipped (config)]
 - Git: [clean / uncommitted -- user skipped commit / auto-committed]
-- Worktree: [merged / conflict resolved / deferred (branch-name) / not in worktree / skipped (config)]
+- Worktree: [merged / conflict resolved / deferred (branch-name) / not in worktree / not in worktree (WARNING — session_worktree enabled but no worktree entered) / skipped (config)]
 - Versions: [all match / updated / released / user skipped / skipped (config)]
 - Cost: [today $X.XX, saved ~$Y.YY / ccusage not installed / skipped (config)]
 - After compaction: [task description / general resume]
@@ -477,7 +501,7 @@ Session captured.
 - Beads: [N issues in_progress / clean / no beads]
 - Compound: [done / nothing to compound / skipped / skipped (config)]
 - Git: [clean / uncommitted -- user skipped commit / auto-committed]
-- Worktree: [merged / conflict resolved / deferred (branch-name) / not in worktree / skipped (config)]
+- Worktree: [merged / conflict resolved / deferred (branch-name) / not in worktree / not in worktree (WARNING — session_worktree enabled but no worktree entered) / skipped (config)]
 - Versions: [all match / updated / released / user skipped / skipped (config)]
 - Cost: [today $X.XX, saved ~$Y.YY / ccusage not installed / skipped (config)]
 
