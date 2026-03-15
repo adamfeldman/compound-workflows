@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.2.2] - 2026-03-15
+
+### Fixes
+
+- **Compact-prep cost summary now shows accurate Sonnet savings** — corrected Opus:Sonnet ratio from 5x to 1.67x (Opus 4.6 pricing)
+
 ## [3.2.1] - 2026-03-15
 
 ### Improvements

@@ -156,7 +156,7 @@ Parse the JSON output defensively — field naming varies across ccusage version
 
 Check for all three field names when extracting cost data.
 
-**Sonnet savings estimate:** If breakdown data shows both Opus and Sonnet usage, calculate estimated savings: `sonnet_cost * 4` (what those tokens would have cost on Opus minus what they actually cost on Sonnet — Sonnet is ~5x cheaper, so savings = sonnet_cost * 4). Calculate percentage: `savings / (total_cost + savings) * 100`.
+**Sonnet savings estimate:** If breakdown data shows both Opus and Sonnet usage, calculate estimated savings: `sonnet_cost * 0.67` (Opus 4.6 cache read is 1.67x Sonnet, so savings = sonnet_cost * 0.67). Calculate percentage: `savings / (total_cost + savings) * 100`.
 
 Record: cost string, savings string. Display-only in summary — no associated batch action.
 
