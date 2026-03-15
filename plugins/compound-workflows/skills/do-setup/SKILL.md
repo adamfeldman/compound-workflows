@@ -634,6 +634,46 @@ grep -q '\.claude/worktrees/' .gitignore && echo "WORKTREE_GITIGNORE=present" ||
 
 If missing: append `.claude/worktrees/` to `.gitignore` using the **Edit tool**. Silent addition, no user prompt.
 
+### 7l: Install Pre-Commit Worktree Check Hook
+
+Install a git-level pre-commit hook that blocks commits to the default branch when `session_worktree: true`. This is defense-in-depth alongside the AGENTS.md prose instruction — the prose tells the model to create a worktree, the git hook catches failures.
+
+Use the PLUGIN_ROOT value from init-values.sh output:
+
+```bash
+PRECOMMIT_TEMPLATE="<PLUGIN_ROOT>/templates/pre-commit-worktree-check.sh"
+[[ -f "$PRECOMMIT_TEMPLATE" ]] && echo "PRECOMMIT_TEMPLATE=found" || echo "PRECOMMIT_TEMPLATE=missing"
+```
+
+**If template is missing:** Skip silently — the template may not exist in older plugin versions. Record: `PRECOMMIT_HOOK_STATUS=skipped`.
+
+**If template is found:**
+
+Three scenarios for `.git/hooks/pre-commit`:
+
+1. **No existing pre-commit hook** — copy the template and set executable:
+   ```bash
+   cp "$PRECOMMIT_TEMPLATE" .git/hooks/pre-commit
+   chmod +x .git/hooks/pre-commit
+   ```
+   Record: `PRECOMMIT_HOOK_STATUS=installed`
+
+2. **Existing pre-commit hook already contains the worktree check** — detect by grepping for the unique marker `session_worktree`:
+   ```bash
+   grep -q 'session_worktree' .git/hooks/pre-commit && echo "WORKTREE_CHECK=present" || echo "WORKTREE_CHECK=missing"
+   ```
+   If present, skip. Record: `PRECOMMIT_HOOK_STATUS=already_present`
+
+3. **Existing pre-commit hook WITHOUT the worktree check** — append the check to the existing hook, separated by a comment marker:
+   ```bash
+   printf '\n# ── session-worktree pre-commit check (added by /do:setup) ──────────────\n' >> .git/hooks/pre-commit
+   # Append the template content, skipping the shebang line (line 1) and set -e (already in existing hook)
+   tail -n +3 "$PRECOMMIT_TEMPLATE" >> .git/hooks/pre-commit
+   ```
+   Record: `PRECOMMIT_HOOK_STATUS=appended`
+
+**User escape hatch:** `git commit --no-verify` bypasses the hook for intentional main-branch commits.
+
 ## Step 8: Write Config Files
 
 Write two config files — one shared (committed), one personal (gitignored).
@@ -930,6 +970,7 @@ Bash rules:      [enabled — rules added to CLAUDE.md | already present | skipp
                  [+ which, echo, mkdir static rules | Permissive covers these | declined]
 Worktree:        Hook: .claude/hooks/session-worktree.sh [installed | updated | current | skipped]
                  SessionStart hook: [registered | already present]
+                 Pre-commit hook: [installed | already present | appended to existing | skipped]
                  session_worktree: true (edit compound-workflows.local.md to disable)
 
 Ready to go:
