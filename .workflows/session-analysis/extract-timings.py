@@ -2060,6 +2060,7 @@ def compute_effort_validation(closed_bead_estimates, bead_attribution_windowed):
             "bead_id": bid,
             "title": est_data["title"],
             "issue_type": est_data.get("issue_type") or "unknown",
+            "origin": est_data.get("origin") or "manual",
             "estimated_minutes": estimated,
             "actual_minutes": round(actual, 1),
             "ratio": round(ratio, 2),
@@ -4922,6 +4923,7 @@ def main():
                 bead_effort_record = {
                     "record_type": "effort_validation_detail",
                     "bead_id": rec["bead_id"],
+                    "origin": rec.get("origin", "manual"),
                     "effort_tier": rec["effort_tier"],
                     "estimated_minutes": rec["estimated_minutes"],
                     "actual_minutes": rec["actual_minutes"],
@@ -4934,6 +4936,34 @@ def main():
                   file=sys.stderr)
         else:
             print("  No beads available for effort validation", file=sys.stderr)
+
+        # --- P7-S4: Per-population effort validation ---
+        MIN_POPULATION_N = 20
+        effort_validation_by_origin = {}
+        for origin_label in ["work", "manual"]:
+            filtered_estimates = {
+                bid: data for bid, data in closed_bead_estimates.items()
+                if (data.get("origin") or "manual") == origin_label
+            }
+            pop_result = compute_effort_validation(
+                filtered_estimates, bead_attribution_windowed
+            )
+            if pop_result and pop_result["bead_count"] >= MIN_POPULATION_N:
+                effort_validation_by_origin[origin_label] = pop_result
+                print(f"  Effort validation ({origin_label}): N={pop_result['bead_count']}, "
+                      f"validates={pop_result['validates']}, "
+                      f"improvement={pop_result['improvement_vs_session']:.1%}",
+                      file=sys.stderr)
+            else:
+                n = pop_result["bead_count"] if pop_result else 0
+                effort_validation_by_origin[origin_label] = {
+                    "insufficient_data": True,
+                    "bead_count": n,
+                    "min_required": MIN_POPULATION_N,
+                }
+                print(f"  Effort validation ({origin_label}): insufficient data "
+                      f"(N={n}, need {MIN_POPULATION_N})",
+                      file=sys.stderr)
 
         # --- P6-S9: Sonnet migration analysis ---
         print("Computing Sonnet migration analysis...", file=sys.stderr)
@@ -5282,6 +5312,7 @@ def main():
         cost_by_token_type=cost_by_token_type,
         cost_productivity_data=cost_productivity_data,
         effort_validation_data=effort_validation_data,
+        effort_validation_by_origin=effort_validation_by_origin,
         sonnet_migration_data=sonnet_migration_data,
     )
     print(f"\nWrote {RAW_OUTPUT}", file=sys.stderr)
@@ -5303,6 +5334,7 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                      cost_by_token_type=None,
                      cost_productivity_data=None,
                      effort_validation_data=None,
+                     effort_validation_by_origin=None,
                      sonnet_migration_data=None):
     """Generate the summary.md file."""
     lines = []
@@ -7919,6 +7951,116 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
                     f"{stats['under_estimated']} | {stats['over_estimated']} |"
                 )
         lines.append("")
+
+        # Per-bead detail table with Origin column
+        lines.append("### Per-Bead Detail")
+        lines.append("")
+        lines.append(
+            "| Bead | Origin | Effort Tier | Est | Actual | Ratio | Sessions |"
+        )
+        lines.append(
+            "|------|--------|-------------|-----|--------|-------|----------|"
+        )
+        detail_records = sorted(
+            ev["records"], key=lambda x: x["ratio"], reverse=True
+        )
+        for rec in detail_records:
+            title = rec["title"][:30] + "..." if len(rec["title"]) > 30 else rec["title"]
+            title = title.replace("|", "\\|")
+            lines.append(
+                f"| {rec['bead_id']} | {rec.get('origin', 'manual')} | "
+                f"{rec['effort_tier']} | {rec['estimated_minutes']} | "
+                f"{rec['actual_minutes']} | {rec['ratio']}x | "
+                f"{rec['session_count']} |"
+            )
+        lines.append("")
+
+        # --- Per-population effort validation subsections ---
+        if effort_validation_by_origin:
+            for origin_label, origin_title in [
+                ("work", "Work-Created Beads Only"),
+                ("manual", "Manual Beads Only"),
+            ]:
+                pop_data = effort_validation_by_origin.get(origin_label, {})
+                lines.append(f"### Effort Validation -- {origin_title}")
+                lines.append("")
+
+                if pop_data.get("insufficient_data"):
+                    lines.append(
+                        f"*Insufficient data: {pop_data['bead_count']} beads with estimates "
+                        f"and attribution (minimum {pop_data['min_required']} required).*"
+                    )
+                    lines.append("")
+                    continue
+
+                pop_n = pop_data["bead_count"]
+                pop_validates = pop_data["validates"]
+                pop_improvement = pop_data["improvement_vs_session"]
+
+                if pop_validates:
+                    lines.append(
+                        f"**VALIDATED** -- N={pop_n}. Effort tiers reduce MAE by "
+                        f"{pop_improvement:.1%} vs session-count segmentation "
+                        f"(threshold: 25%)."
+                    )
+                else:
+                    lines.append(
+                        f"**DID NOT VALIDATE** -- N={pop_n}. Effort tiers reduce MAE by only "
+                        f"{pop_improvement:.1%} vs session-count segmentation "
+                        f"(threshold: 25%)."
+                    )
+                lines.append("")
+
+                # Tier distribution for this population
+                lines.append(
+                    f"| Effort Tier | N | Median | Mean | MAE (min) |"
+                )
+                lines.append(
+                    f"|-------------|---|--------|------|-----------|"
+                )
+                for tier in ["routine", "involved", "exploratory", "pioneering"]:
+                    stats = pop_data["effort_segments"].get(tier)
+                    if stats and stats["n"] > 0:
+                        lines.append(
+                            f"| {tier} | {stats['n']} | "
+                            f"{stats['median_ratio']}x | {stats['mean_ratio']}x | "
+                            f"{stats['mean_abs_error']} |"
+                        )
+                lines.append("")
+
+                # Segmentation comparison for this population
+                lines.append(
+                    f"| Segmentation | MAE (min) | Improvement vs Session-Count |"
+                )
+                lines.append(
+                    f"|-------------|-----------|------------------------------|"
+                )
+                lines.append(
+                    f"| Session-count (baseline) | {pop_data['session_mae']} | - |"
+                )
+                lines.append(
+                    f"| **Effort tier** | **{pop_data['effort_mae']}** | "
+                    f"**{pop_data['improvement_vs_session']:+.1%}** |"
+                )
+                lines.append("")
+
+            # Population mixing note
+            manual_data = effort_validation_by_origin.get("manual", {})
+            if (not manual_data.get("insufficient_data")
+                    and manual_data.get("improvement_vs_session", 0) >= 0.25
+                    and not ev["validates"]):
+                lines.append("### Population Mixing Note")
+                lines.append("")
+                lines.append(
+                    "**Effort tiers validate on manual beads alone** "
+                    f"(improvement: {manual_data['improvement_vs_session']:.1%}) "
+                    "but did not validate on the full population. "
+                    "Effort tier signal may have been masked by population mixing -- "
+                    "work-created beads (auto-decomposed, narrow scope) may have "
+                    "different estimation dynamics that dilute the effort signal."
+                )
+                lines.append("")
+
     else:
         lines.append("*No effort validation data available.*")
         lines.append("")
