@@ -54,6 +54,11 @@ Align Ctrl-b direct bindings with tmux-which-key's category-based layout
 | `t` | Fingers (hint copy) |
 | `Tab` | Extrakto |
 | `Ctrl-s` / `Ctrl-r` | Save / restore session (resurrect) |
+| `b` | Beads dashboard (floating popup) |
+| `g` | Switch session by name (sessionist) |
+| `C` | Create new session (sessionist) |
+| `X` | Kill current session (sessionist) |
+| `@` | Promote pane to session (sessionist) |
 | `:` | Command prompt |
 | `?` | List keys |
 | `Space` | which-key menu |
@@ -98,6 +103,7 @@ fails silently or hangs. Native tmux commands (like sync panes toggle) work fine
 | extrakto | Fuzzy scrollback search | `Ctrl-b Tab` |
 | tmux-which-key | Discoverable keybinding menus | `Ctrl-b Space`. Config must be rebuilt after YAML edits. |
 | tmux-fingers | Easymotion-style hint copy | `Ctrl-b t` |
+| tmux-sessionist | Session management | `g`=switch, `C`=create, `X`=kill, `@`=promote. `S` overridden to sync panes post-TPM. |
 
 ## Applied: Status bar (Dracula)
 
@@ -120,6 +126,8 @@ Modules (left to right): git, ssh-session, continuum, synchronize-panes
 - **Vi copy mode:** `v` to select, `y` to yank
 - **zsh alias:** `tg` = `tmux new-session -t` (grouped sessions)
 - **oh-my-zsh tmux plugin:** Kept for aliases and auto-attach wrapper
+- **Beads popup:** `Ctrl-b b` opens a floating `display-popup` with a `bd sql` query showing open beads sorted by priority and impact score. Piped through `less -S`. Bead `7th3` tracks adding a `next` column once workflow skills persist next-action in metadata.
+- **Post-plugin override:** `bind S setw synchronize-panes` after TPM runs — sessionist binds `S` to `switch-client -l`, which we override back to sync panes.
 
 ## Full .tmux.conf reference
 
@@ -285,7 +293,7 @@ Reference: [sethdford/tmux-claude-code](https://github.com/sethdford/tmux-claude
 ## Future work
 
 - [ ] Restart tmux to enable `sync` terminal feature — potential scroll fix
-- [ ] tmux-sessionist — better session management (mainly for `@` promote-pane)
-- [ ] Popup scripts — floating lazygit, htop, etc.
-- [ ] Evaluate `Ctrl-Space` as prefix (test over Mosh first)
+- [x] tmux-sessionist — installed. `g`=switch, `C`=create, `X`=kill, `@`=promote pane. `S` overridden back to sync panes.
+- [x] Popup scripts — beads dashboard (`Ctrl-b b`). Declined lazygit (uses Cursor/Claude instead) and htop (not needed).
+- [x] ~~Evaluate `Ctrl-Space` as prefix~~ — declined. Potential Mosh/input method conflicts, and `Ctrl-b` is the universal standard.
 - [ ] Bead `tetl` — plugin-ize the tmux config for portability
