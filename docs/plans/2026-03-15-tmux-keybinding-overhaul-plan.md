@@ -262,6 +262,14 @@ unattached sessions to prevent clutter. `tmux kill-session -t <name>` or `tkss <
   continuum's save trigger. Continuum must load after Dracula.
 - **Prefix can get wiped** — if not explicitly set in config, plugin reloads can
   reset it to `None`. Always set `set -g prefix C-b` explicitly.
+- **`rename-window` implicitly sets `automatic-rename off`** — tmux design quirk.
+  Any escape sequence or command that names a window (including Claude Code's title
+  updates and resurrect's restore) silently disables auto-rename per-window. Fixed
+  with three hooks: `after-new-window`, `window-renamed` (re-enables auto-rename
+  immediately after any rename), and resurrect's `@resurrect-hook-pre-restore-pane-processes`
+  (catches post-restore). The `window-renamed` hook is the key — without it, Claude
+  Code's first title emission disables auto-rename and subsequent pane title changes
+  never propagate to the window tab.
 - **tmux-thumbs is abandoned** — last commit 2023. tmux-fingers (Feb 2026) is the
   actively maintained alternative. Fingers installed via Homebrew, not compiled.
 - **`-as` terminal-overrides appends on every reload** — duplicated `*:Tc` 35+ times.
