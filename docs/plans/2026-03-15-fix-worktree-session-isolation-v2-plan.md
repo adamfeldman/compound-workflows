@@ -1,7 +1,7 @@
 ---
 title: "Session Worktree Isolation v2 — Fix Hook Delivery + Worktree Persistence"
 type: fix
-status: active
+status: completed
 date: 2026-03-15
 origin: docs/brainstorms/2026-03-14-session-worktree-v2-brainstorm.md
 ---
@@ -64,18 +64,18 @@ Session worktrees isolate git operations, but some writes must always target mai
 
 The core fix. Rewrite the SessionStart hook template:
 
-- [ ] Change output mechanism from `printf '%s\n' "$OUTPUT" >&2` to `printf '%s\n' "$OUTPUT"` (stdout)
-- [ ] Change all `exit 2` to `exit 0` for model-facing output paths. True error conditions (e.g., `set -e` failures) may retain non-zero exits.
-- [ ] Update comment block (lines 6-8) to document new exit behavior: "stdout + exit 0 = output delivered as system-reminder"
-- [ ] Bump version comment from `v1.0.0` to `v2.0.0`
-- [ ] Add hook self-version check: near the top (after config read), compare the hook's own version comment against the template version shipped with the plugin. If stale (e.g., installed hook is v1.0.0 but template is v2.0.0), output warning: "Session worktree hook is outdated (v1.0.0, current: v2.0.0). Run /do:setup to update." Exit 0 after warning. Implementation: hook reads its own first line for version, reads the template version from a known path (plugin cache or a version file). (red team MINOR — adoption guard for stale hooks)
-- [ ] Add bd availability check: if `command -v bd` fails, output warning ("Session worktree isolation requires bd (beads). Install beads or set session_worktree: false to disable this warning.") and exit 0. Place after config read (Step 1), before worktree detection. (see brainstorm: Decision 9 — "warn over silent skip")
-- [ ] Replace Step 3 resume detection: remove `*/.claude/worktrees/*` CWD case match. Replace with: `EXISTING=$(ls -d .worktrees/session-* 2>/dev/null | head -1)`. If non-empty, extract branch name via `git -C $EXISTING branch --show-current` and output resume instruction with path and branch. (see brainstorm: Decision 12)
-- [ ] Add PID-based active session detection: on worktree creation, write `$PPID` (Claude Code process PID) to `.worktrees/session-<name>/.session.pid`. On resume detection, read the PID file and check `kill -0 $PID 2>/dev/null`. If process alive → append to output: "Warning: another session may be actively using this worktree. Say 'skip worktree' to avoid conflicts." If process dead → safe to resume, remove stale PID file. (red team Finding 5 — concurrent session detection)
-- [ ] Replace Step 7 new-session instruction: remove `EnterWorktree` reference. New text: "Session worktree isolation is enabled. Before doing anything else — before reading files, running commands, or responding to the user — create a session worktree: run bd worktree create .worktrees/session-\<name\> (pick a short descriptive name) then cd into it. If the user says 'stay on main' or 'skip worktree', skip it."
-- [ ] Update all GC paths from `.claude/worktrees/` to `.worktrees/session-*` (Step 2 disabled-feature GC at lines 30-40, Step 4 GC at lines 63-72, Step 5 orphan detection at lines 75-116)
-- [ ] Update orphan display paths: `git -C .claude/worktrees/${wt_name}` → appropriate `.worktrees/session-*` paths
-- [ ] Update orphan remediation instructions: discard command should use `bd worktree remove .worktrees/session-<name>` instead of `git worktree remove .claude/worktrees/<name>`
+- [x] Change output mechanism from `printf '%s\n' "$OUTPUT" >&2` to `printf '%s\n' "$OUTPUT"` (stdout)
+- [x] Change all `exit 2` to `exit 0` for model-facing output paths. True error conditions (e.g., `set -e` failures) may retain non-zero exits.
+- [x] Update comment block (lines 6-8) to document new exit behavior: "stdout + exit 0 = output delivered as system-reminder"
+- [x] Bump version comment from `v1.0.0` to `v2.0.0`
+- [x] Add hook self-version check: near the top (after config read), compare the hook's own version comment against the template version shipped with the plugin. If stale (e.g., installed hook is v1.0.0 but template is v2.0.0), output warning: "Session worktree hook is outdated (v1.0.0, current: v2.0.0). Run /do:setup to update." Exit 0 after warning. Implementation: hook reads its own first line for version, reads the template version from a known path (plugin cache or a version file). (red team MINOR — adoption guard for stale hooks)
+- [x] Add bd availability check: if `command -v bd` fails, output warning ("Session worktree isolation requires bd (beads). Install beads or set session_worktree: false to disable this warning.") and exit 0. Place after config read (Step 1), before worktree detection. (see brainstorm: Decision 9 — "warn over silent skip")
+- [x] Replace Step 3 resume detection: remove `*/.claude/worktrees/*` CWD case match. Replace with: `EXISTING=$(ls -d .worktrees/session-* 2>/dev/null | head -1)`. If non-empty, extract branch name via `git -C $EXISTING branch --show-current` and output resume instruction with path and branch. (see brainstorm: Decision 12)
+- [x] Add PID-based active session detection: on worktree creation, write `$PPID` (Claude Code process PID) to `.worktrees/session-<name>/.session.pid`. On resume detection, read the PID file and check `kill -0 $PID 2>/dev/null`. If process alive → append to output: "Warning: another session may be actively using this worktree. Say 'skip worktree' to avoid conflicts." If process dead → safe to resume, remove stale PID file. (red team Finding 5 — concurrent session detection)
+- [x] Replace Step 7 new-session instruction: remove `EnterWorktree` reference. New text: "Session worktree isolation is enabled. Before doing anything else — before reading files, running commands, or responding to the user — create a session worktree: run bd worktree create .worktrees/session-\<name\> (pick a short descriptive name) then cd into it. If the user says 'stay on main' or 'skip worktree', skip it."
+- [x] Update all GC paths from `.claude/worktrees/` to `.worktrees/session-*` (Step 2 disabled-feature GC at lines 30-40, Step 4 GC at lines 63-72, Step 5 orphan detection at lines 75-116)
+- [x] Update orphan display paths: `git -C .claude/worktrees/${wt_name}` → appropriate `.worktrees/session-*` paths
+- [x] Update orphan remediation instructions: discard command should use `bd worktree remove .worktrees/session-<name>` instead of `git worktree remove .claude/worktrees/<name>`
 
 **Resume instruction text:**
 ```
@@ -96,8 +96,8 @@ Session worktree exists at .worktrees/session-<name> (branch: <branch>). Before 
 
 Two fixes:
 
-- [ ] Line 48: Change `git status --porcelain` to `git status --porcelain --untracked-files=no`. This fixes false exit 4 (dirty main) when untracked files are present. Untracked files don't affect merge safety. (see brainstorm: Section 4 — discovered 2026-03-15)
-- [ ] Line 138: Change `WORKTREE_DIR="$REPO_ROOT/.claude/worktrees"` to `WORKTREE_DIR="$REPO_ROOT/.worktrees"`. Additionally, update the cleanup match pattern from `"$WORKTREE_DIR"/*` to a two-stage filter: first match `"$WORKTREE_DIR"/*` (any worktree in `.worktrees/`), then check `[[ "$(basename "$wt_path")" == session-* ]]` to only clean up session worktrees. This prevents accidental removal of `/do:work` worktrees while working correctly with the glob pattern. (specflow G7, red team Finding 2 — original `session-` prefix approach broke the `/*` glob)
+- [x] Line 48: Change `git status --porcelain` to `git status --porcelain --untracked-files=no`. This fixes false exit 4 (dirty main) when untracked files are present. Untracked files don't affect merge safety. (see brainstorm: Section 4 — discovered 2026-03-15)
+- [x] Line 138: Change `WORKTREE_DIR="$REPO_ROOT/.claude/worktrees"` to `WORKTREE_DIR="$REPO_ROOT/.worktrees"`. Additionally, update the cleanup match pattern from `"$WORKTREE_DIR"/*` to a two-stage filter: first match `"$WORKTREE_DIR"/*` (any worktree in `.worktrees/`), then check `[[ "$(basename "$wt_path")" == session-* ]]` to only clean up session worktrees. This prevents accidental removal of `/do:work` worktrees while working correctly with the glob pattern. (specflow G7, red team Finding 2 — original `session-` prefix approach broke the `/*` glob)
 
 **Note:** The `git status --porcelain` at line 126 in session-worktree.sh (Step 6 dirty-main warning) should keep showing untracked files — that's a user warning, not a merge safety gate. Only the merge script's check needs `--untracked-files=no`.
 
@@ -107,7 +107,7 @@ Two fixes:
 
 Replace the "Session Worktree Isolation" section (lines 189-203) with the v2 canonical wording from the brainstorm:
 
-- [ ] Replace entire section with this v2 text:
+- [x] Replace entire section with this v2 text:
 
 ```markdown
 ## Session Worktree Isolation
@@ -135,13 +135,13 @@ Do not read files, run commands, or respond to the user first.
 
 Update Step 4.5 (session worktree merge) and related detection:
 
-- [ ] Update "Detect Worktree Status" description: remove `.claude/worktrees/` from accepted paths. Detection should check if CWD is inside a `.worktrees/session-*` path.
-- [ ] Step 4.5.2 (Exit worktree): Replace `ExitWorktree(action: "keep")` with: "Extract the main repo path from `git worktree list --porcelain` output (first line, strip `worktree ` prefix). Run `cd <extracted-path>` via Bash tool." Make this the primary method, not a fallback.
-- [ ] Remove ExitWorktree fallback text — `cd` is now the only exit method
-- [ ] Step 4.5.8 or cleanup: Update cleanup command from `git worktree remove .claude/worktrees/<name>` to `bd worktree remove .worktrees/session-<name>`
-- [ ] Read `session_worktree` value from `compound-workflows.local.md` using: `grep -m1 '^session_worktree:' compound-workflows.local.md | sed 's/#.*//' | awk -F: '{print $2}' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]'`. If file missing or key absent, treat as disabled (no warning needed).
-- [ ] Summary line enhancement: When `session_worktree: true` but session is NOT in a worktree, the summary should read: `Worktree: not in worktree (WARNING — session_worktree enabled but no worktree entered)` instead of just `not in worktree`
-- [ ] Make Step 2→Step 4.5 ordering explicit: Add a gate before Step 4.5 that checks `git -C <worktree-path> status --porcelain` for uncommitted changes. Gate behavior by mode: (a) **Regular mode, user did not skip commit:** uncommitted changes shouldn't exist — warn and proceed. (b) **Regular mode, user skipped commit:** warn "Worktree has N uncommitted changes that will NOT be included in the merge. Continue?" via AskUserQuestion. (c) **Abandon mode:** warn in summary but proceed (abandon auto-proceeds, doesn't prompt). No auto-commit in any mode — committing without user consent risks capturing broken state. (specflow G2, red team Finding 4)
+- [x] Update "Detect Worktree Status" description: remove `.claude/worktrees/` from accepted paths. Detection should check if CWD is inside a `.worktrees/session-*` path.
+- [x] Step 4.5.2 (Exit worktree): Replace `ExitWorktree(action: "keep")` with: "Extract the main repo path from `git worktree list --porcelain` output (first line, strip `worktree ` prefix). Run `cd <extracted-path>` via Bash tool." Make this the primary method, not a fallback.
+- [x] Remove ExitWorktree fallback text — `cd` is now the only exit method
+- [x] Step 4.5.8 or cleanup: Update cleanup command from `git worktree remove .claude/worktrees/<name>` to `bd worktree remove .worktrees/session-<name>`
+- [x] Read `session_worktree` value from `compound-workflows.local.md` using: `grep -m1 '^session_worktree:' compound-workflows.local.md | sed 's/#.*//' | awk -F: '{print $2}' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]'`. If file missing or key absent, treat as disabled (no warning needed).
+- [x] Summary line enhancement: When `session_worktree: true` but session is NOT in a worktree, the summary should read: `Worktree: not in worktree (WARNING — session_worktree enabled but no worktree entered)` instead of just `not in worktree`
+- [x] Make Step 2→Step 4.5 ordering explicit: Add a gate before Step 4.5 that checks `git -C <worktree-path> status --porcelain` for uncommitted changes. Gate behavior by mode: (a) **Regular mode, user did not skip commit:** uncommitted changes shouldn't exist — warn and proceed. (b) **Regular mode, user skipped commit:** warn "Worktree has N uncommitted changes that will NOT be included in the merge. Continue?" via AskUserQuestion. (c) **Abandon mode:** warn in summary but proceed (abandon auto-proceeds, doesn't prompt). No auto-commit in any mode — committing without user consent risks capturing broken state. (specflow G2, red team Finding 4)
 
 ### Step 5: Update do-work/SKILL.md
 **Files:** `plugins/compound-workflows/skills/do-work/SKILL.md`
@@ -149,11 +149,11 @@ Update Step 4.5 (session worktree merge) and related detection:
 
 Update Phase 1.2 (session worktree detection):
 
-- [ ] Line 87: Change "created by the SessionStart hook via `EnterWorktree`" to "created by the SessionStart hook via `bd worktree create`"
-- [ ] Line 87: Change "Session worktrees live in `.claude/worktrees/` — a different namespace from bd-managed `.worktrees/`" to "Session worktrees live in `.worktrees/` with a `session-` prefix, distinguishing them from `/do:work` worktrees in the same directory"
-- [ ] Update detection logic: Check for `session-` prefix in the worktree path instead of `.claude/worktrees/` in the path
-- [ ] Line 97 comment: Update "Why not `bd worktree info`" explanation — the namespace distinction is now prefix-based (`session-` vs work worktrees), not directory-based
-- [ ] Line 99: Update condition from "If CWD is inside a session worktree (`.claude/worktrees/`)" to "If CWD is inside a session worktree (`.worktrees/session-*`)"
+- [x] Line 87: Change "created by the SessionStart hook via `EnterWorktree`" to "created by the SessionStart hook via `bd worktree create`"
+- [x] Line 87: Change "Session worktrees live in `.claude/worktrees/` — a different namespace from bd-managed `.worktrees/`" to "Session worktrees live in `.worktrees/` with a `session-` prefix, distinguishing them from `/do:work` worktrees in the same directory"
+- [x] Update detection logic: Check for `session-` prefix in the worktree path instead of `.claude/worktrees/` in the path
+- [x] Line 97 comment: Update "Why not `bd worktree info`" explanation — the namespace distinction is now prefix-based (`session-` vs work worktrees), not directory-based
+- [x] Line 99: Update condition from "If CWD is inside a session worktree (`.claude/worktrees/`)" to "If CWD is inside a session worktree (`.worktrees/session-*`)"
 
 ### Step 6: Update do-setup/SKILL.md
 **Files:** `plugins/compound-workflows/skills/do-setup/SKILL.md`
@@ -161,24 +161,24 @@ Update Phase 1.2 (session worktree detection):
 
 Three areas to update:
 
-- [ ] Step 7k (.gitignore): Change from checking/adding `.claude/worktrees/` to verifying `.worktrees/` is present (it should already be there for bd-managed worktrees). Remove the `.claude/worktrees/` specific logic.
-- [ ] Step 8c (AGENTS.md injection): Replace the v1 Session Worktree Isolation block with the v2 canonical text from the brainstorm. The injected block must match what Step 3 puts in this repo's AGENTS.md.
-- [ ] Step 8c idempotency: The existing check (`grep -q '## Session Worktree Isolation'`) will find v1 blocks and skip injection. Add v1→v2 migration: check if `## Session Worktree Isolation` heading exists AND any of the next 5 non-empty lines contain `EnterWorktree` (tighter detection — avoids false matches on user notes elsewhere in the file). If v1 detected, replace the entire section up to the next `##` heading with v2 canonical text. Note 'v1→v2 updated' in the setup summary report. (red team MINOR — tighter migration detection per Opus Finding 8)
+- [x] Step 7k (.gitignore): Change from checking/adding `.claude/worktrees/` to verifying `.worktrees/` is present (it should already be there for bd-managed worktrees). Remove the `.claude/worktrees/` specific logic.
+- [x] Step 8c (AGENTS.md injection): Replace the v1 Session Worktree Isolation block with the v2 canonical text from the brainstorm. The injected block must match what Step 3 puts in this repo's AGENTS.md.
+- [x] Step 8c idempotency: The existing check (`grep -q '## Session Worktree Isolation'`) will find v1 blocks and skip injection. Add v1→v2 migration: check if `## Session Worktree Isolation` heading exists AND any of the next 5 non-empty lines contain `EnterWorktree` (tighter detection — avoids false matches on user notes elsewhere in the file). If v1 detected, replace the entire section up to the next `##` heading with v2 canonical text. Note 'v1→v2 updated' in the setup summary report. (red team MINOR — tighter migration detection per Opus Finding 8)
 
 ### Step 7: Update recover/SKILL.md + do-merge/SKILL.md
 **Files:** `plugins/compound-workflows/skills/recover/SKILL.md`, `plugins/compound-workflows/skills/do-merge/SKILL.md`
 **Estimate:** 20 min
 
 **recover/SKILL.md — Phase 6 (worktree recovery):**
-- [ ] Step 6.2: Change filter from "path contains `.claude/worktrees/`" to "path contains `.worktrees/session-`"
-- [ ] Step 6.3: Update all `.claude/worktrees/` references to `.worktrees/session-*`
-- [ ] Step 6.4 (orphan branch detection): Change branch pattern from `worktree-*` to `session-*` (bd worktree creates branches matching the worktree name)
-- [ ] Step 6.3 discard option: use `bd worktree remove .worktrees/session-<name>` (consistent with Step 1 remediation instructions)
-- [ ] Step 6.5 (state-snapshot.md): Update path references
+- [x] Step 6.2: Change filter from "path contains `.claude/worktrees/`" to "path contains `.worktrees/session-`"
+- [x] Step 6.3: Update all `.claude/worktrees/` references to `.worktrees/session-*`
+- [x] Step 6.4 (orphan branch detection): Change branch pattern from `worktree-*` to `session-*` (bd worktree creates branches matching the worktree name)
+- [x] Step 6.3 discard option: use `bd worktree remove .worktrees/session-<name>` (consistent with Step 1 remediation instructions)
+- [x] Step 6.5 (state-snapshot.md): Update path references
 
 **do-merge/SKILL.md:**
-- [ ] Line 19: Change filter from `.claude/worktrees/` to `.worktrees/session-` (session worktrees distinguished by `session-` prefix, not directory)
-- [ ] Line 43: Change "should NOT point to a `.claude/worktrees/` path" to "should NOT contain `.worktrees/session-`"
+- [x] Line 19: Change filter from `.claude/worktrees/` to `.worktrees/session-` (session worktrees distinguished by `session-` prefix, not directory)
+- [x] Line 43: Change "should NOT point to a `.claude/worktrees/` path" to "should NOT contain `.worktrees/session-`"
 
 ### Step 8: Add git pre-commit hook template
 **Files:** `plugins/compound-workflows/templates/pre-commit-worktree-check.sh`, `plugins/compound-workflows/skills/do-setup/SKILL.md`
@@ -186,15 +186,15 @@ Three areas to update:
 
 Deterministic enforcement: a git-level pre-commit hook that blocks commits to main when `session_worktree: true`. Defense-in-depth alongside the AGENTS.md prose instruction — the prose tells the model to create a worktree, the git hook catches failures. (red team Finding 1 — all 3 providers flagged prose-only enforcement)
 
-- [ ] Create `plugins/compound-workflows/templates/pre-commit-worktree-check.sh` (~15 lines):
+- [x] Create `plugins/compound-workflows/templates/pre-commit-worktree-check.sh` (~15 lines):
   - Read `session_worktree` from `compound-workflows.local.md` (same grep pattern as SessionStart hook)
   - If not `true`, exit 0 (feature disabled, allow commit)
   - Check if CWD is inside `.worktrees/session-*`
   - If yes, exit 0 (in a session worktree, commit is safe)
   - If no, print warning to stderr: "session_worktree is enabled but you're committing to the default branch. Use --no-verify to bypass." Exit 1 (block commit).
-- [ ] Update do-setup to install this as `.git/hooks/pre-commit` (or append to existing pre-commit hook if one exists)
-- [ ] Update do-setup summary to report pre-commit hook status
-- [ ] User escape hatch: `git commit --no-verify` bypasses the hook for intentional main commits
+- [x] Update do-setup to install this as `.git/hooks/pre-commit` (or append to existing pre-commit hook if one exists)
+- [x] Update do-setup summary to report pre-commit hook status
+- [x] User escape hatch: `git commit --no-verify` bypasses the hook for intentional main commits
 
 **Why git hook, not Claude Code hook:** PreToolUse exit 2 doesn't block when auto-approve.sh returns "allow" first (empirically proven). PostToolUse fires after the commit. A `.git/hooks/pre-commit` runs at the git level before the commit — it can abort it. (see brainstorm: process lesson — enumerate all available mechanisms)
 
@@ -203,21 +203,21 @@ Deterministic enforcement: a git-level pre-commit hook that blocks commits to ma
 **Estimate:** 30 min
 
 **Integration test (red team Finding 7 — script test ≠ hook delivery test):**
-- [ ] Install the updated session-worktree.sh template to a test project's `.claude/hooks/`
-- [ ] Start a new Claude Code session and verify the system-reminder appears in model context
-- [ ] Verify model creates worktree and cd's into it before responding
-- [ ] Test resume: exit session, start new session, verify model cd's into existing worktree
-- [ ] Test pre-commit hook: attempt `git commit` on main with `session_worktree: true`, verify it blocks
-- [ ] Test abandon mode: verify worktree merge works via `/do:abandon`
+- [x] Install the updated session-worktree.sh template to a test project's `.claude/hooks/`
+- [x] Start a new Claude Code session and verify the system-reminder appears in model context
+- [x] Verify model creates worktree and cd's into it before responding
+- [x] Test resume: exit session, start new session, verify model cd's into existing worktree
+- [x] Test pre-commit hook: attempt `git commit` on main with `session_worktree: true`, verify it blocks
+- [x] Test abandon mode: verify worktree merge works via `/do:abandon`
 
 **Version + QA:**
-- [ ] Bump version in plugin.json (MINOR bump → v3.3.0)
-- [ ] Bump version in marketplace.json (match)
-- [ ] Add CHANGELOG entry: lead with user benefit ("Session worktree isolation now works — hook output delivered, worktrees persist across sessions"). Frame as "Fixed" not "Added" despite MINOR bump.
-- [ ] Verify README component counts (template count increases by 1 for pre-commit-worktree-check.sh)
-- [ ] Run Tier 1 QA scripts — verify no stale `EnterWorktree`, `ExitWorktree`, or `.claude/worktrees/` references remain in plugin files
-- [ ] Run Tier 2 semantic QA agents
-- [ ] Fix any QA findings
+- [x] Bump version in plugin.json (MINOR bump → v3.3.0)
+- [x] Bump version in marketplace.json (match)
+- [x] Add CHANGELOG entry: lead with user benefit ("Session worktree isolation now works — hook output delivered, worktrees persist across sessions"). Frame as "Fixed" not "Added" despite MINOR bump.
+- [x] Verify README component counts (template count increases by 1 for pre-commit-worktree-check.sh)
+- [x] Run Tier 1 QA scripts — verify no stale `EnterWorktree`, `ExitWorktree`, or `.claude/worktrees/` references remain in plugin files
+- [x] Run Tier 2 semantic QA agents
+- [x] Fix any QA findings
 
 **QA note:** `stale-references.sh` should flag any remaining v1 references. After this change, `EnterWorktree`, `ExitWorktree`, and `.claude/worktrees/` in plugin files are stale patterns. Brainstorm docs and the superseded plan are excluded from stale checks (they're historical records).
 
