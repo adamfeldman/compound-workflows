@@ -84,19 +84,19 @@ Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, W
 
 #### Session Worktree Detection
 
-Before any worktree creation, check if the current working directory is already inside a session worktree (created by the SessionStart hook via `EnterWorktree`). Session worktrees live in `.claude/worktrees/` — a different namespace from bd-managed `.worktrees/`.
+Before any worktree creation, check if the current working directory is already inside a session worktree (created by the SessionStart hook via `bd worktree create`). Session worktrees live in `.worktrees/` with a `session-` prefix, distinguishing them from `/do:work` worktrees in the same directory.
 
 ```bash
 git worktree list --porcelain
 ```
 
-Parse the output: find the worktree entry whose path matches the current working directory. If that path contains `.claude/worktrees/`, this is a session worktree.
+Parse the output: find the worktree entry whose path matches the current working directory. If that path contains `.worktrees/session-`, this is a session worktree.
 
 **Why `git worktree list --porcelain` not `pwd`:** `pwd` is not in the auto-approve hook's `is_safe_prefix()` list and would trigger a permission prompt on every `/do:work` invocation inside a session worktree. `git worktree list --porcelain` auto-approves via the `git` first-token rule and provides the same information.
 
-**Why not `bd worktree info`:** `bd worktree info` detects bd-managed worktrees in `.worktrees/` (used by `/do:work`). Session worktrees live in `.claude/worktrees/` (different namespace). Path-based detection is correct.
+**Why not `bd worktree info`:** `bd worktree info` detects bd-managed worktrees but doesn't distinguish session worktrees from `/do:work` worktrees. The `session-` prefix in the worktree path is the distinguishing signal — path-based detection with prefix matching is correct.
 
-**If CWD is inside a session worktree (`.claude/worktrees/`):**
+**If CWD is inside a session worktree (`.worktrees/session-*`):**
 - **Skip:** `bd worktree create` and `cd` into worktree — already in one. Do NOT create a nested worktree.
 - **Keep:** `.work-in-progress.d` sentinel setup in the session worktree's `.workflows/` directory (Phase 1.2.1)
 - **Keep:** Branch detection for informational purposes — report current branch name
@@ -107,7 +107,7 @@ Parse the output: find the worktree entry whose path matches the current working
 **If CWD is NOT inside a session worktree**, proceed with the normal worktree detection below.
 
 **Worktree state summary (for safe-commit.sh decision in Phase 2.2):**
-- `IN_SESSION_WORKTREE=true` → set when CWD is in `.claude/worktrees/`
+- `IN_SESSION_WORKTREE=true` → set when CWD is in `.worktrees/session-*`
 - `IN_BD_WORKTREE=true` → set when already in `.worktrees/` OR after `bd worktree create`
 - Both unset → not in any worktree (opt-out or TodoWrite mode) → use safe-commit.sh
 
