@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.2.1] - 2026-03-15
+
+### Improvements
+
+- **Work step scoping based on coherence, not time** — changed from "15-60 minutes of focused work" to "one coherent unit of work completable in a single subagent dispatch." Time was a poor proxy that inflated estimates 3x.
+- **Subagents no longer commit regenerated outputs** — work subagent template now instructs agents to only stage files they directly edited, preventing side-effect files (summary.md, raw-observations.jsonl) from leaking into commits.
+- **Estimation heuristics split into rules + analysis** — actionable estimation guidance (beads vs work steps) separated from 400 lines of backing analysis data, reducing context load.
+
 ## [3.2.0] - 2026-03-14
 
 ### Features

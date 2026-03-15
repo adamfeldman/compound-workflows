@@ -179,7 +179,7 @@ If issues already exist for this plan, this is a **resumed session**. Skip to Ph
 **If no existing issues**, decompose the plan into beads issues:
 
 - One issue per implementation step/phase (5-10 issues typical)
-- Each issue should represent 15-60 minutes of focused work
+- Each issue should be one coherent unit of work completable in a single subagent dispatch
 - Set up dependencies with `bd dep add` where tasks are sequential
 - **Critical:** Each issue description MUST be self-contained enough for a subagent to execute independently. Include:
   - What to build/change
@@ -187,7 +187,7 @@ If issues already exist for this plan, this is a **resumed session**. Skip to Ph
   - What tests to write or run
   - The plan file path for reference
 
-**Origin metadata (mandatory):** Every `bd create` call MUST include `--metadata '{"origin": "work", "plan": "<plan-file>"}'` where `<plan-file>` is the full plan file path from the skill arguments. This makes work-created beads structurally distinguishable from manually-created beads for analytics. The `Plan:` description prefix is kept for human readability; the metadata serves machine queryability. Both coexist.
+**Origin metadata (mandatory):** Every `bd create` call MUST include `--metadata '{"origin": "work", "plan": "<plan-file>"}'` where `<plan-file>` is the full plan file path from the skill arguments. This makes work steps structurally distinguishable from beads for analytics. The `Plan:` description prefix is kept for human readability; the metadata serves machine queryability. Both coexist.
 
 **Example:**
 
@@ -303,7 +303,7 @@ You are executing one step of a larger work plan. Your job is to implement ONLY 
    - Are strategies consistent across layers? (error handling, retry alignment)
    Skip if trivial (leaf-node change, no callbacks, no state persistence).
 8. Run tests to verify your changes work
-9. Stage and commit your changes: use the commit message suggested in the task description (or write an appropriate conventional commit message). Use the **Write tool** to write the message to `.workflows/scratch/commit-msg-<TASK_ID>.txt`, then run `git commit -F .workflows/scratch/commit-msg-<TASK_ID>.txt`.
+9. Stage and commit your changes: only stage files you directly created or edited — do NOT stage regenerated outputs, build artifacts, or files modified as a side effect of running scripts. Use the commit message suggested in the task description (or write an appropriate conventional commit message). Use the **Write tool** to write the message to `.workflows/scratch/commit-msg-<TASK_ID>.txt`, then run `git commit -F .workflows/scratch/commit-msg-<TASK_ID>.txt`.
 10. Do NOT push to remote — the orchestrator handles that
 11. Do NOT create PRs
 12. Do NOT modify beads issues (bd commands) — the orchestrator handles that

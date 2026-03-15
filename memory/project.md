@@ -134,7 +134,7 @@
   - **Cost/bead (S6):** $16.26 average, improving 76% over time. Pearson r=-0.252 (N=5).
   - **Effort dimension (S8):** DID NOT VALIDATE (-2.8% vs +25% threshold). Session-count binary split is better. Rollout skipped.
   - **Sonnet migration (S9):** Achievable savings via subagent routing: $1.08 (0.05%) — MEDIUM confidence. Theoretical 40%. Orchestrator dominates cost. 1.67x Opus-to-Sonnet ratio (was assumed 6x).
-  - **CAVEAT (rm84):** Bead-level analytics (estimation, cost/bead, effort, Sonnet achievable) may be muddied by mixing work-created vs manual bead populations. Phase 7 (rm84) will re-segment by origin. Re-present all findings after rm84.
+  - **RESOLVED (rm84, phase 7):** Analytics re-segmented by origin. Work steps (median 0.33x) and beads (median 2.29x) have opposite estimation biases — Simpson's paradox confirmed. Effort tiers do not validate on any population. See `.claude/memory/estimation-analysis.md`.
 - 11 bead labels in use: brainstorm-skill, docs, github, observability, permissions, qa, robustness, setup, ux, workflow, workflow-quality
 - AGENTS.md has Memory Hot Cache section with critical preferences that survive compaction
 - AGENTS.md Interaction Rules and Routing moved to top for higher attention weight
