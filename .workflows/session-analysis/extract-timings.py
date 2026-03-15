@@ -1756,21 +1756,35 @@ def extract_bead_ids_from_session(filepath, known_bead_ids):
     return found_ids, dict(bead_timestamps), {k: v for k, v in bead_ref_types.items()}
 
 
+def _clean_json_extract(value):
+    """Clean a JSON_EXTRACT string value from bd sql --json output.
+
+    JSON_EXTRACT returns string values wrapped in double quotes (e.g., '"work"').
+    This strips those outer quotes. Returns None for null/None values.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str) and value.startswith('"') and value.endswith('"'):
+        return value[1:-1]
+    return value
+
+
 def load_known_bead_ids():
     """Load all known bead IDs from the beads database."""
     try:
         result = subprocess.run(
-            ["bd", "sql", "SELECT id FROM issues"],
+            ["bd", "sql", "--json", "SELECT id FROM issues"],
             capture_output=True,
             text=True,
             timeout=10,
         )
         ids = set()
         prefix = "compound-workflows-marketplace-"
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if line.startswith(prefix):
-                short_id = line[len(prefix):]
+        rows = json.loads(result.stdout) if result.stdout.strip() else []
+        for row in rows:
+            full_id = row.get("id", "")
+            if full_id.startswith(prefix):
+                short_id = full_id[len(prefix):]
                 if short_id:
                     ids.add(short_id)
         return ids
@@ -1780,13 +1794,19 @@ def load_known_bead_ids():
 
 
 def load_closed_bead_estimates():
-    """Load estimated_minutes and metadata for closed beads from the database."""
+    """Load estimated_minutes and metadata for closed beads from the database.
+
+    Includes origin field from metadata. After the S0 migration, most beads have
+    origin set in metadata. For any remaining unset beads, falls back to
+    description LIKE 'Plan:%' as a safety net.
+    """
     try:
         result = subprocess.run(
             [
-                "bd", "sql",
-                "SELECT id, title, estimated_minutes, issue_type, priority, "
-                "JSON_EXTRACT(metadata, '$.impact_score') AS score "
+                "bd", "sql", "--json",
+                "SELECT id, title, description, estimated_minutes, issue_type, priority, "
+                "JSON_EXTRACT(metadata, '$.impact_score') AS score, "
+                "JSON_EXTRACT(metadata, '$.origin') AS origin "
                 "FROM issues WHERE status = 'closed' AND estimated_minutes IS NOT NULL"
             ],
             capture_output=True,
@@ -1795,40 +1815,50 @@ def load_closed_bead_estimates():
         )
         beads = {}
         prefix = "compound-workflows-marketplace-"
-        lines = result.stdout.strip().splitlines()
-        # Skip header and separator lines
-        for line in lines:
-            if line.startswith("-") or line.startswith("id") or not line.strip():
-                continue
-            # Parse pipe-separated output
-            parts = [p.strip() for p in line.split("|")]
-            if len(parts) < 6:
-                continue
-            full_id = parts[0].strip()
+        rows = json.loads(result.stdout) if result.stdout.strip() else []
+        for row in rows:
+            full_id = row.get("id", "")
             if not full_id.startswith(prefix):
                 continue
             short_id = full_id[len(prefix):]
-            title = parts[1].strip()
-            try:
-                est_min = int(parts[2].strip())
-            except (ValueError, IndexError):
+            title = row.get("title", "")
+            est_min = row.get("estimated_minutes")
+            if est_min is None:
                 continue
-            issue_type = parts[3].strip() if parts[3].strip() != "<nil>" else None
             try:
-                priority = int(parts[4].strip())
-            except (ValueError, IndexError):
-                priority = None
-            score_str = parts[5].strip()
-            try:
-                impact_score = int(score_str) if score_str and score_str != "<nil>" else None
-            except ValueError:
+                est_min = int(est_min)
+            except (ValueError, TypeError):
+                continue
+            issue_type = row.get("issue_type")  # null -> None naturally
+            priority = row.get("priority")
+            if priority is not None:
+                try:
+                    priority = int(priority)
+                except (ValueError, TypeError):
+                    priority = None
+            score_raw = row.get("score")
+            if score_raw is not None:
+                score_raw = _clean_json_extract(score_raw)
+                try:
+                    impact_score = int(score_raw) if score_raw else None
+                except (ValueError, TypeError):
+                    impact_score = None
+            else:
                 impact_score = None
+            # Determine origin: prefer metadata, fall back to Plan: prefix heuristic
+            origin_raw = _clean_json_extract(row.get("origin"))
+            if origin_raw:
+                origin = origin_raw
+            else:
+                description = row.get("description", "") or ""
+                origin = "work" if description.startswith("Plan:") else None
             beads[short_id] = {
                 "title": title,
                 "estimated_minutes": est_min,
                 "issue_type": issue_type,
                 "priority": priority,
                 "impact_score": impact_score,
+                "origin": origin,
             }
         return beads
     except Exception as e:
@@ -4181,7 +4211,7 @@ def load_bead_closures_by_date():
     try:
         result = subprocess.run(
             [
-                "bd", "sql",
+                "bd", "sql", "--json",
                 "SELECT DATE(closed_at) as date, COUNT(*) as count "
                 "FROM issues WHERE status='closed' AND closed_at IS NOT NULL "
                 "GROUP BY DATE(closed_at) ORDER BY date"
@@ -4191,21 +4221,21 @@ def load_bead_closures_by_date():
             timeout=10,
         )
         closures = {}  # date_str -> count
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if not line or line.startswith("-") or line.startswith("date"):
-                continue
-            parts = [p.strip() for p in line.split("|")]
-            if len(parts) < 2:
-                continue
-            date_str = parts[0].strip()
-            # Extract just the date portion (YYYY-MM-DD) from full timestamp
-            if " " in date_str:
-                date_str = date_str.split(" ")[0]
+        rows = json.loads(result.stdout) if result.stdout.strip() else []
+        for row in rows:
+            date_val = row.get("date", "")
+            # JSON mode returns ISO timestamps like "2026-02-25T00:00:00Z"
+            # Extract just the date portion (YYYY-MM-DD)
+            if "T" in str(date_val):
+                date_str = str(date_val).split("T")[0]
+            elif " " in str(date_val):
+                date_str = str(date_val).split(" ")[0]
+            else:
+                date_str = str(date_val)
+            count = row.get("count", 0)
             try:
-                count = int(parts[1].strip())
-                closures[date_str] = count
-            except (ValueError, IndexError):
+                closures[date_str] = int(count)
+            except (ValueError, TypeError):
                 continue
         return closures
     except Exception as e:
@@ -4213,19 +4243,65 @@ def load_bead_closures_by_date():
         return {}
 
 
-def count_closed_beads():
-    """Count closed beads from the database."""
+def load_bead_closures_by_date_and_origin():
+    """Load bead closure counts grouped by date and origin from the database.
+
+    Returns: dict[date_str -> dict[origin_str -> count]]
+    Origin is 'work' for work-created beads, None for manual beads.
+    """
     try:
         result = subprocess.run(
-            ["bd", "sql", "SELECT COUNT(*) FROM issues WHERE status = 'closed'"],
+            [
+                "bd", "sql", "--json",
+                "SELECT DATE(closed_at) AS date, "
+                "JSON_EXTRACT(metadata, '$.origin') AS origin, "
+                "COUNT(*) AS count "
+                "FROM issues WHERE status='closed' AND closed_at IS NOT NULL "
+                "GROUP BY DATE(closed_at), JSON_EXTRACT(metadata, '$.origin') "
+                "ORDER BY date"
+            ],
             capture_output=True,
             text=True,
             timeout=10,
         )
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if line.isdigit():
-                return int(line)
+        closures = {}  # date_str -> {origin_str -> count}
+        rows = json.loads(result.stdout) if result.stdout.strip() else []
+        for row in rows:
+            date_val = row.get("date", "")
+            if "T" in str(date_val):
+                date_str = str(date_val).split("T")[0]
+            elif " " in str(date_val):
+                date_str = str(date_val).split(" ")[0]
+            else:
+                date_str = str(date_val)
+            origin = _clean_json_extract(row.get("origin"))
+            count = row.get("count", 0)
+            try:
+                count = int(count)
+            except (ValueError, TypeError):
+                continue
+            if date_str not in closures:
+                closures[date_str] = {}
+            closures[date_str][origin] = count
+        return closures
+    except Exception as e:
+        print(f"  WARNING: Could not load bead closures by date and origin: {e}", file=sys.stderr)
+        return {}
+
+
+def count_closed_beads():
+    """Count closed beads from the database."""
+    try:
+        result = subprocess.run(
+            ["bd", "sql", "--json",
+             "SELECT COUNT(*) AS cnt FROM issues WHERE status = 'closed'"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        rows = json.loads(result.stdout) if result.stdout.strip() else []
+        if rows:
+            return int(rows[0].get("cnt", 0))
     except Exception:
         pass
     return None
