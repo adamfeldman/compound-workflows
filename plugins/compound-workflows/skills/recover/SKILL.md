@@ -487,7 +487,7 @@ Read the output as `DEFAULT_BRANCH`. If the command fails (no remote HEAD config
 git worktree list
 ```
 
-Parse the output. Filter for entries whose path contains `.claude/worktrees/`. Exclude the current working directory if it is already a session worktree. Track the remaining entries as orphaned session worktrees.
+Parse the output. Filter for entries whose path contains `.worktrees/session-`. Exclude the current working directory if it is already a session worktree. Track the remaining entries as orphaned session worktrees.
 
 If no session worktrees are found (other than possibly the current CWD), skip to Step 6.4 (Orphan Branch Detection).
 
@@ -518,7 +518,7 @@ Present each worktree to the user via **AskUserQuestion**:
 Options:
 - **Merge** — "Run `/do:merge <branch>` to merge into `<DEFAULT_BRANCH>`." Output the exact command string for the user to copy-paste. Do not invoke it programmatically.
 - **Inspect** — Show `git -C <path> status` and `git -C <path> log --oneline -5` output, then re-present the same AskUserQuestion with the same options.
-- **Discard** — Confirm first: "This will delete all uncommitted work in this worktree. Proceed?" If the user confirms, run `git worktree remove <path> --force` and `git branch -D <branch>`.
+- **Discard** — Confirm first: "This will delete all uncommitted work in this worktree. Proceed?" If the user confirms, run `bd worktree remove .worktrees/session-<name>` to clean up.
 - **Skip** — Leave for later. Move to the next worktree.
 
 ### Step 6.4: Orphan Branch Detection
@@ -526,14 +526,14 @@ Options:
 Check for branches matching the session worktree naming pattern that have no corresponding worktree directory. These may contain committed data that was never merged back.
 
 ```bash
-git branch --list 'worktree-*'
+git branch --list 'session-*'
 ```
 
 ```bash
 git worktree list
 ```
 
-Compare the two outputs: any branch in the `worktree-*` list that does NOT have a corresponding live worktree is an orphan branch. For each orphan branch found:
+Compare the two outputs: any branch in the `session-*` list that does NOT have a corresponding live worktree is an orphan branch. For each orphan branch found:
 
 ```bash
 git log <DEFAULT_BRANCH>..<orphan-branch> --oneline | wc -l
@@ -560,11 +560,11 @@ Add a `## Worktrees` section to the `state-snapshot.md` file (Phase 4, File 3) w
 ## Worktrees
 
 ### Session Worktrees
-[List of session worktrees found in .claude/worktrees/, with branch, uncommitted file count, unmerged commit count, and action taken (merged/discarded/skipped), or:]
+[List of session worktrees found in .worktrees/session-*, with branch, uncommitted file count, unmerged commit count, and action taken (merged/discarded/skipped), or:]
 "No session worktrees found."
 
 ### Orphan Branches
-[List of worktree-* branches with no corresponding worktree directory, with unmerged commit count and action taken, or:]
+[List of session-* branches with no corresponding worktree directory, with unmerged commit count and action taken, or:]
 "No orphan branches found."
 ```
 
