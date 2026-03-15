@@ -155,7 +155,9 @@ Every setting in the config, grouped by purpose.
 | Setting | Value | Why |
 |---------|-------|-----|
 | `default-terminal` | `tmux-256color` | Proper terminal type for 256 colors |
-| `terminal-overrides` | `*:Tc` | Enable true 24-bit color |
+| `terminal-overrides` | `*:Tc` | Enable true 24-bit color. Uses `-g` not `-as` to avoid duplicates on reload. |
+| `terminal-features` | `xterm*:...:sync` | Enables synchronized output (DEC 2026) — batches rapid redraws. Requires tmux restart (not just source). |
+| `extended-keys` | `on` | Fixes modifier key combos (Ctrl-Shift, etc.) in TUI apps |
 | `escape-time` | `0` | No delay after Escape — critical for vim/vi-mode |
 
 ### Clipboard (OSC 52)
@@ -167,6 +169,26 @@ Every setting in the config, grouped by purpose.
 
 Copy mode: `v` to select, `y` to yank. Works over SSH in modern terminals.
 Does NOT work over Mosh — tmux-yank provides `pbcopy` fallback.
+
+### Copy Mode Quick Reference
+Enter with `Ctrl-b c`, exit with `q`.
+
+| Key | Action |
+|-----|--------|
+| `h/j/k/l` | Move cursor |
+| `w/b` | Forward/back by word |
+| `0` / `$` | Start/end of line |
+| `g` / `G` | Top/bottom of scrollback |
+| `Ctrl-u/d` | Half page up/down |
+| `Ctrl-b/f` | Full page up/down (prefix doesn't fire in copy mode) |
+| `/` / `?` | Search forward/backward |
+| `n` / `N` | Next/previous match |
+| `v` | Start selection |
+| `V` | Select whole line |
+| `y` | Copy selection to system clipboard |
+| `q` | Exit copy mode (returns to bottom) |
+
+Note: `Escape` does not reliably exit copy mode when zsh-vi-mode is active — use `q`.
 
 ### Scrollback & Display
 | Setting | Value | Why |
@@ -189,6 +211,36 @@ use escape sequences that Mosh strips.
 - **zsh alias:** `tg` = `tmux new-session -t` (create grouped session)
 - **oh-my-zsh tmux plugin:** Kept for `ta`, `ts`, `tl`, `tds` aliases and auto-attach wrapper
 
+### Grouped Sessions
+`tg <session-name>` creates or reattaches to a grouped session — both tabs share
+the same windows but each can view a different window independently. This is how
+to have 2 terminal tabs with different tmux windows on the same session.
+
+`tg` is a zsh function (not a simple alias) that prevents session pile-up:
+1. If an unattached grouped session for `<name>` exists, reattaches to it
+2. If all grouped sessions are attached, creates a new one
+
+This stops the `plugin-41, plugin-42, ...` accumulation that happens with
+bare `tmux new-session -t` since each closed terminal tab leaves a detached
+group member that never gets reused.
+
+### Window Management
+- `Ctrl-b ,` — Rename current window (quick shortcut)
+- `Ctrl-b Space w .` — Move window before an index (reorder)
+- `Ctrl-b Space w s` — Swap window with another index
+- `Ctrl-b .` — Also prompts to move current window (direct binding)
+
+### Session Cleanup
+Resurrect + continuum restore old sessions on tmux start. Periodically kill stale
+unattached sessions to prevent clutter. `tmux kill-session -t <name>` or `tkss <name>`.
+
+### Evaluated and Declined
+- **tmux-open** — Open files/URLs from copy mode. Declined because fingers, extrakto,
+  fzf-url, and fpp already cover the same use cases with fewer steps.
+- **tmux-thumbs** — Easymotion-style hint copy. Abandoned (last commit 2023), no ARM Mac
+  binary, requires Rust to compile. Replaced by tmux-fingers.
+- **Zellij** — Same Claude Code scroll issues as tmux. tmux is 8x faster in benchmarks.
+
 ## Lessons learned
 
 - **`run-shell` in `display-menu` is broken** — commands that need pane context
@@ -204,6 +256,10 @@ use escape sequences that Mosh strips.
   reset it to `None`. Always set `set -g prefix C-b` explicitly.
 - **tmux-thumbs is abandoned** — last commit 2023. tmux-fingers (Feb 2026) is the
   actively maintained alternative. Fingers installed via Homebrew, not compiled.
+- **`-as` terminal-overrides appends on every reload** — duplicated `*:Tc` 35+ times.
+  Use `set -g` (replace) instead of `set -as` (append) for settings in sourced configs.
+- **which-key keys should prefer lowercase** — defaults used unnecessary capitals
+  (`R`, `X`, `D`, `N`, `S`). Changed to lowercase where no conflicts exist.
 
 ## Known upstream issue: Claude Code scroll jumping in tmux
 
@@ -218,15 +274,18 @@ jitter. Multiple open GitHub issues:
 
 **No tmux config fully fixes this.** Our config already includes all community-recommended
 mitigations: `allow-passthrough on`, `escape-time 0`, `history-limit 500000`,
-`mouse on`, `focus-events on`, `extended-keys on`. The fix needs to come from
-Claude Code throttling its terminal output.
+`mouse on`, `focus-events on`, `extended-keys on`, `terminal-features sync`.
+The fix needs to come from Claude Code throttling its terminal output.
+
+Tested disabling individually: `automatic-rename`, `pane-border-status`, `status-interval`,
+`allow-passthrough`, `focus-events`, `mouse` — none resolved the jumping.
 
 Reference: [sethdford/tmux-claude-code](https://github.com/sethdford/tmux-claude-code) — community optimized tmux config for Claude Code.
 
 ## Future work
 
-- [ ] tmux-sessionist — better session management
-- [ ] tmux-open — open files/URLs from copy mode
+- [ ] Restart tmux to enable `sync` terminal feature — potential scroll fix
+- [ ] tmux-sessionist — better session management (mainly for `@` promote-pane)
 - [ ] Popup scripts — floating lazygit, htop, etc.
 - [ ] Evaluate `Ctrl-Space` as prefix (test over Mosh first)
 - [ ] Bead `tetl` — plugin-ize the tmux config for portability
