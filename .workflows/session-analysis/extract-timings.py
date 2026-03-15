@@ -1121,7 +1121,8 @@ def compute_phase_cost_by_token_type(all_session_results):
 
 
 def compute_cost_productivity_correlation(all_session_results, cost_by_token_type,
-                                           bead_closures_by_date, active_minutes_by_date):
+                                           bead_closures_by_date, active_minutes_by_date,
+                                           bead_closures_by_date_and_origin=None):
     """Compute cost vs productivity correlation by date.
 
     Buckets session costs by date (from first_ts), joins with bead closures,
@@ -1138,6 +1139,8 @@ def compute_cost_productivity_correlation(all_session_results, cost_by_token_typ
         cost_by_token_type: output of compute_phase_cost_by_token_type()
         bead_closures_by_date: dict from load_bead_closures_by_date() {date_str: count}
         active_minutes_by_date: dict {date_str: float} of active minutes per date
+        bead_closures_by_date_and_origin: dict from load_bead_closures_by_date_and_origin()
+            {date_str: {origin_str: count}} — optional, adds work/manual split columns
 
     Returns:
         dict with keys:
@@ -1149,6 +1152,8 @@ def compute_cost_productivity_correlation(all_session_results, cost_by_token_typ
         - pearson_n: int (number of qualifying dates with both cost > 0 and closures > 0)
         - trend_direction: str describing cost/bead trend
     """
+    if bead_closures_by_date_and_origin is None:
+        bead_closures_by_date_and_origin = {}
     # Bucket session costs by date
     daily_cost = defaultdict(float)
     daily_cache_cost = defaultdict(float)
@@ -1198,12 +1203,19 @@ def compute_cost_productivity_correlation(all_session_results, cost_by_token_typ
         cost_per_bead = cost / closures if closures > 0 and cost > 0 else None
         beads_per_dollar = closures / cost if cost > 0 and closures > 0 else None
 
+        # Origin-segmented closure counts
+        origin_counts = bead_closures_by_date_and_origin.get(date_str, {})
+        work_closed = origin_counts.get("work", 0)
+        manual_closed = sum(v for k, v in origin_counts.items() if k != "work")
+
         rec = {
             "date": date_str,
             "cost": round(cost, 2),
             "cache_cost": round(cache_cost, 2),
             "non_cache_cost": round(non_cache_cost, 2),
             "beads_closed": closures,
+            "work_beads_closed": work_closed,
+            "manual_beads_closed": manual_closed,
             "active_hours": round(active_hrs, 2),
             "cost_per_bead": round(cost_per_bead, 2) if cost_per_bead is not None else None,
             "beads_per_dollar": round(beads_per_dollar, 2) if beads_per_dollar is not None else None,
@@ -5010,6 +5022,7 @@ def main():
         # --- P5-S6: Velocity trend ---
         print("Computing velocity trend...", file=sys.stderr)
         bead_closures_by_date = load_bead_closures_by_date()
+        bead_closures_by_date_and_origin = load_bead_closures_by_date_and_origin()
 
         # Bucket active time by date from session data
         active_minutes_by_date = defaultdict(float)
@@ -5031,10 +5044,16 @@ def main():
             active_min = round(active_minutes_by_date.get(date_str, 0), 1)
             active_hrs = round(active_min / 60.0, 2)
             beads_per_hour = round(beads_closed / active_hrs, 2) if active_hrs > 0 else None
+            # Origin-segmented closure counts
+            origin_counts = bead_closures_by_date_and_origin.get(date_str, {})
+            work_closed = origin_counts.get("work", 0)
+            manual_closed = sum(v for k, v in origin_counts.items() if k != "work")
             rec = {
                 "record_type": "velocity_trend",
                 "date": date_str,
                 "beads_closed": beads_closed,
+                "work_beads_closed": work_closed,
+                "manual_beads_closed": manual_closed,
                 "active_minutes": active_min,
                 "active_hours": active_hrs,
                 "beads_per_hour": beads_per_hour,
@@ -5044,6 +5063,8 @@ def main():
 
         # Compute overall velocity summary
         total_beads_closed = sum(r["beads_closed"] for r in velocity_trend_records)
+        total_work_beads_closed = sum(r["work_beads_closed"] for r in velocity_trend_records)
+        total_manual_beads_closed = sum(r["manual_beads_closed"] for r in velocity_trend_records)
         total_active_hrs = sum(r["active_hours"] for r in velocity_trend_records)
         beads_per_day_values = [r["beads_closed"] for r in velocity_trend_records if r["beads_closed"] > 0]
         active_hrs_per_day_values = [r["active_hours"] for r in velocity_trend_records if r["active_hours"] > 0]
@@ -5052,6 +5073,8 @@ def main():
             "record_type": "velocity_trend_summary",
             "date_count": len(all_trend_dates),
             "total_beads_closed": total_beads_closed,
+            "total_work_beads_closed": total_work_beads_closed,
+            "total_manual_beads_closed": total_manual_beads_closed,
             "total_active_hours": round(total_active_hrs, 2),
             "overall_beads_per_hour": round(total_beads_closed / total_active_hrs, 2) if total_active_hrs > 0 else None,
             "median_beads_per_day": round(statistics.median(beads_per_day_values), 1) if beads_per_day_values else None,
@@ -5062,7 +5085,8 @@ def main():
         }
         raw_out.write(json.dumps(velocity_trend_summary) + "\n")
         print(f"  Velocity: {len(all_trend_dates)} dates, "
-              f"{total_beads_closed} beads closed, "
+              f"{total_beads_closed} beads closed "
+              f"(work: {total_work_beads_closed}, manual: {total_manual_beads_closed}), "
               f"{round(total_active_hrs, 1)} active hours",
               file=sys.stderr)
 
@@ -5131,6 +5155,7 @@ def main():
         cost_productivity_data = compute_cost_productivity_correlation(
             all_session_results, cost_by_token_type,
             bead_closures_by_date, dict(active_minutes_by_date),
+            bead_closures_by_date_and_origin=bead_closures_by_date_and_origin,
         )
         for rec in cost_productivity_data["daily_records"]:
             cp_rec = {"record_type": "cost_productivity", **rec}
@@ -6984,7 +7009,9 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         vt = velocity_trend_data
         lines.append(
             f"**Date range:** {vt['date_count']} dates, "
-            f"{vt['total_beads_closed']} beads closed, "
+            f"{vt['total_beads_closed']} beads closed "
+            f"(work: {vt.get('total_work_beads_closed', 0)}, "
+            f"manual: {vt.get('total_manual_beads_closed', 0)}), "
             f"{vt['total_active_hours']} active hours"
         )
         lines.append("")
@@ -7022,10 +7049,10 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         lines.append("### Daily Trend")
         lines.append("")
         lines.append(
-            "| Date | Beads Closed | Active Hours | Beads/Hour |"
+            "| Date | Beads Closed | Work | Manual | Active Hours | Beads/Hour |"
         )
         lines.append(
-            "|------|-------------|-------------|------------|"
+            "|------|-------------|------|--------|-------------|------------|"
         )
         for rec in vt.get("records", []):
             bph = (
@@ -7035,6 +7062,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             )
             lines.append(
                 f"| {rec['date']} | {rec['beads_closed']} | "
+                f"{rec.get('work_beads_closed', 0)} | "
+                f"{rec.get('manual_beads_closed', 0)} | "
                 f"{rec['active_hours']} | {bph} |"
             )
         lines.append("")
@@ -7521,8 +7550,8 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         # Daily table
         lines.append("### Daily Cost-Productivity Table")
         lines.append("")
-        lines.append("| Date | Cost | Cache | Non-Cache | Beads Closed | Cost/Bead | Active Hours | Beads/$ |")
-        lines.append("|------|------|-------|-----------|--------------|-----------|--------------|---------|")
+        lines.append("| Date | Cost | Cache | Non-Cache | Beads Closed | Work | Manual | Cost/Bead | Active Hours | Beads/$ |")
+        lines.append("|------|------|-------|-----------|--------------|------|--------|-----------|--------------|---------|")
 
         for rec in cp["qualifying_records"]:
             cpb = f"${rec['cost_per_bead']:.2f}" if rec["cost_per_bead"] is not None else "-"
@@ -7530,6 +7559,7 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
             lines.append(
                 f"| {rec['date']} | ${rec['cost']:.2f} | ${rec['cache_cost']:.2f} | "
                 f"${rec['non_cache_cost']:.2f} | {rec['beads_closed']} | "
+                f"{rec.get('work_beads_closed', 0)} | {rec.get('manual_beads_closed', 0)} | "
                 f"{cpb} | {rec['active_hours']:.1f} | {bpd} |"
             )
 
@@ -7538,9 +7568,12 @@ def generate_summary(sessions, phases, agents, segments, bead_attribution_old,
         ov_cpb = f"${ov['cost_per_bead']:.2f}" if ov["cost_per_bead"] is not None else "-"
         ov_bpd = f"{ov['beads_per_dollar']:.2f}" if ov["beads_per_dollar"] is not None else "-"
         total_active_hrs = sum(r["active_hours"] for r in cp["qualifying_records"])
+        total_work = sum(r.get("work_beads_closed", 0) for r in cp["qualifying_records"])
+        total_manual = sum(r.get("manual_beads_closed", 0) for r in cp["qualifying_records"])
         lines.append(
             f"| **Overall** | **${ov['total_cost']:.2f}** | **${ov['total_cache_cost']:.2f}** | "
             f"**${ov['total_non_cache_cost']:.2f}** | **{ov['total_closures']}** | "
+            f"**{total_work}** | **{total_manual}** | "
             f"**{ov_cpb}** | **{total_active_hrs:.1f}** | **{ov_bpd}** |"
         )
         lines.append("")
