@@ -188,17 +188,19 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
 
 ## Session Worktree Isolation
 
-When the SessionStart hook instructs you to call `EnterWorktree`, do so BEFORE any
-other action — before reading files, running commands, or processing other tasks.
-This isolates your session's git index and working tree from concurrent sessions.
+**At session start, before doing anything else, create a session worktree.**
+Run `bd worktree create .worktrees/session-<name>` and `cd` into it.
+Do not read files, run commands, or respond to the user first.
 
-- Call `EnterWorktree` as your FIRST action at session start (hook will prompt you)
-- If you know the primary bead or task, use a descriptive name: `EnterWorktree(name: "s7qj-worktree-isolation")` — makes merge commit messages more informative in git log
-- User can say "stay on main" / "skip worktree" to opt out for the session
-- At session end, `/do:compact-prep` handles the merge back to the default branch
-- When compact-prep or abandon instructs you to call `ExitWorktree`, comply — this is a programmatic exit, not a proactive one
-- If you're already in a worktree (post-compact resume), continue working there
-- Any git operations before EnterWorktree happen on the default branch — the contamination scenario this exists to prevent
+- Name the worktree after the task if known: `session-s7qj` or `session-fix-typo`
+- User can say "stay on main" / "skip worktree" to opt out
+- If you're already in a worktree (post-compact resume), skip — you're already isolated
+- If `bd worktree create` fails, warn the user and proceed on main
+- If the hook warns that bd is unavailable, skip worktree creation
+- At session end, `/do:compact-prep` merges back to the default branch
+- Any git operations before creating the worktree happen on the default branch
+- Before committing, if session_worktree is enabled and you're NOT in a worktree,
+  warn the user: "You're committing to main without worktree isolation. Continue?"
 
 **Beads database (.beads/) is shared across all sessions.** Worktree isolation covers git state only. Bead operations are concurrency-safe at the SQL level (Dolt) but not coordination-safe at the business logic level.
 
