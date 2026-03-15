@@ -39,7 +39,7 @@ All steps modify `.workflows/session-analysis/extract-timings.py` unless noted. 
 
 ### Step 0: One-time database migration — set origin on historical beads
 
-- [ ] Run a one-time `bd sql` UPDATE to set `origin` metadata on all historical beads where `description LIKE 'Plan:%'` and origin is not already set. This permanently fixes the source data so the analytics script needs only one code path (metadata.origin).
+- [x] Run a one-time `bd sql` UPDATE to set `origin` metadata on all historical beads where `description LIKE 'Plan:%'` and origin is not already set. This permanently fixes the source data so the analytics script needs only one code path (metadata.origin).
   - Validate first: `bd sql "SELECT COUNT(*) FROM issues WHERE description LIKE 'Plan:%' AND (JSON_EXTRACT(metadata, '$.origin') IS NULL OR JSON_EXTRACT(metadata, '$.origin') = 'null')"` — confirm the count is reasonable (~170)
   - Cross-check: for the 3 beads that already have `origin` metadata, verify the `Plan:` heuristic agrees: `bd sql "SELECT SUBSTR(id, -4), description LIKE 'Plan:%' AS has_prefix, JSON_EXTRACT(metadata, '$.origin') AS origin FROM issues WHERE JSON_EXTRACT(metadata, '$.origin') IS NOT NULL"` [red-team--opus finding 2, finding 7 — validates heuristic against ground truth]
   - Spot-check: sample 5-10 beads classified as "manual" (no `Plan:` prefix) and verify they are genuinely manual-created [red-team--openai finding 1]
@@ -52,23 +52,23 @@ Commit: `fix(beads): retroactively set origin metadata on historical work-create
 
 ### Step 1: Switch bd sql parsing to JSON format and add origin to loaders
 
-- [ ] In ALL `bd sql` subprocess calls that parse structured output (`load_closed_bead_estimates`, `load_bead_closures_by_date`, `count_closed_beads`, `load_known_bead_ids`), switch from pipe-delimited tabular parsing (`split("|")`) to JSON format:
+- [x] In ALL `bd sql` subprocess calls that parse structured output (`load_closed_bead_estimates`, `load_bead_closures_by_date`, `count_closed_beads`, `load_known_bead_ids`), switch from pipe-delimited tabular parsing (`split("|")`) to JSON format:
   - Add `--result-format json` flag to `bd sql` calls
   - Replace `split("|")` positional parsing with `json.loads()` and key-based access
   - This eliminates: pipe characters in `description` breaking the parser [red-team--gemini CRITICAL], fragile positional index arithmetic [red-team--openai SERIOUS, red-team--opus finding 3], `bd sql` text truncation in tabular mode [red-team--gemini CRITICAL], and manual quote-stripping from JSON values [red-team--gemini MINOR]
 
-- [ ] Update `load_closed_bead_estimates()` to include `origin`:
+- [x] Update `load_closed_bead_estimates()` to include `origin`:
   - Add `JSON_EXTRACT(metadata, '$.origin') AS origin` to SQL query
   - With JSON parsing, access `row["origin"]` directly — no index arithmetic needed
   - After Step 0 migration, metadata origin covers historical beads. For any remaining unset beads, fall back to `description LIKE 'Plan:%'` as a safety net.
   - Store `"origin"` in the returned dict
 
-- [ ] Add companion function `load_bead_closures_by_date_and_origin()`:
+- [x] Add companion function `load_bead_closures_by_date_and_origin()`:
   - SQL: `SELECT DATE(closed_at) AS date, JSON_EXTRACT(metadata, '$.origin') AS origin, COUNT(*) AS count FROM issues WHERE status='closed' AND closed_at IS NOT NULL GROUP BY DATE(closed_at), JSON_EXTRACT(metadata, '$.origin') ORDER BY date` — uses SQL aggregation (origin is now in metadata after Step 0, no need for Python-side classification) [red-team--gemini MINOR]
   - Return: `dict[date_str -> dict[origin_str -> count]]`
   - Keep existing `load_bead_closures_by_date()` unchanged (other consumers use it)
 
-- [ ] Handle `bd sql --result-format json` edge cases:
+- [x] Handle `bd sql --result-format json` edge cases:
   - Verify the flag exists: test with a simple query first. If unavailable, fall back to `--result-format csv` with `csv.reader()`.
   - NULL/nil handling: JSON format returns `null` for SQL NULLs — simpler than `<nil>` sentinel [red-team--openai SERIOUS]
 
@@ -78,10 +78,10 @@ Commit: `refactor(session-analysis): switch bd sql parsing to JSON format + add 
 
 ### Step 2: Re-segment estimation accuracy by origin
 
-- [ ] In `compute_estimation_segments()`, add `"origin"` to per-bead records: `"origin": est_data.get("origin") or "manual"`
-- [ ] Add `by_origin` segment dimension (same pattern as `by_type`, `by_priority`, etc.)
-- [ ] In `generate_summary()` section 22, render `by_origin` segment table via `render_segment_table("By Origin", segs.get("by_origin", {}), "Origin")`
-- [ ] Add `Origin` column to per-bead detail table in section 22
+- [x] In `compute_estimation_segments()`, add `"origin"` to per-bead records: `"origin": est_data.get("origin") or "manual"`
+- [x] Add `by_origin` segment dimension (same pattern as `by_type`, `by_priority`, etc.)
+- [x] In `generate_summary()` section 22, render `by_origin` segment table via `render_segment_table("By Origin", segs.get("by_origin", {}), "Origin")`
+- [x] Add `Origin` column to per-bead detail table in section 22
 
 Test: Script runs clean, section 22 shows "By Origin" table with work/manual rows. Work-created beads should show tighter estimation accuracy than manual beads.
 
@@ -89,13 +89,13 @@ Commit: `feat(session-analysis): segment estimation accuracy by bead origin (rm8
 
 ### Step 3: Re-segment velocity and cost-productivity by origin
 
-- [ ] In `main()` velocity computation (line ~4927), use `load_bead_closures_by_date_and_origin()` alongside existing `load_bead_closures_by_date()`
-- [ ] Add `work_beads_closed` and `manual_beads_closed` to each velocity trend record
-- [ ] Add `total_work_beads_closed` and `total_manual_beads_closed` to velocity summary dict
-- [ ] In `generate_summary()` section 24, add `Work` and `Manual` columns to daily velocity table
-- [ ] In `compute_cost_productivity_correlation()`, accept origin-split closures and add `work_beads_closed`/`manual_beads_closed` to each daily record
-- [ ] In `generate_summary()` section 29, add `Work` and `Manual` columns to cost-productivity table
-- [ ] Keep aggregate `beads_closed` and `cost_per_bead` columns unchanged — the split columns are additive
+- [x] In `main()` velocity computation (line ~4927), use `load_bead_closures_by_date_and_origin()` alongside existing `load_bead_closures_by_date()`
+- [x] Add `work_beads_closed` and `manual_beads_closed` to each velocity trend record
+- [x] Add `total_work_beads_closed` and `total_manual_beads_closed` to velocity summary dict
+- [x] In `generate_summary()` section 24, add `Work` and `Manual` columns to daily velocity table
+- [x] In `compute_cost_productivity_correlation()`, accept origin-split closures and add `work_beads_closed`/`manual_beads_closed` to each daily record
+- [x] In `generate_summary()` section 29, add `Work` and `Manual` columns to cost-productivity table
+- [x] Keep aggregate `beads_closed` and `cost_per_bead` columns unchanged — the split columns are additive
 
 Test: Script runs clean, sections 24 and 29 show work/manual columns. Days with high total closures should show most from work-created beads.
 
@@ -103,12 +103,12 @@ Commit: `feat(session-analysis): segment velocity and cost-productivity by bead 
 
 ### Step 4: Re-run effort validation per population and add origin to section 31
 
-- [ ] Add `origin` field to per-bead records in `compute_effort_validation()`
-- [ ] After full-population validation, run validation separately on each origin population (filter `closed_bead_estimates` to origin="work" or origin="manual" before calling)
-- [ ] N<20 guard: compute N AFTER all filters used by `compute_effort_validation()` — this is beads with estimates AND attribution data, not total closed beads. The work population may have fewer beads with estimates than total work beads. Gate subsection rendering on the actual filtered N. [red-team--opus finding 4, red-team--openai finding 3, red-team--gemini finding 1]
-- [ ] In `generate_summary()` section 31, add origin column to per-bead detail table
-- [ ] Add subsection: "Effort Validation — Manual Beads Only" showing whether effort tiers validate when work-created beads are excluded
-- [ ] If manual-only `improvement_vs_session` >= 0.25 (same metric as full-population validation): note that effort tiers may have been masked by population mixing
+- [x] Add `origin` field to per-bead records in `compute_effort_validation()`
+- [x] After full-population validation, run validation separately on each origin population (filter `closed_bead_estimates` to origin="work" or origin="manual" before calling)
+- [x] N<20 guard: compute N AFTER all filters used by `compute_effort_validation()` — this is beads with estimates AND attribution data, not total closed beads. The work population may have fewer beads with estimates than total work beads. Gate subsection rendering on the actual filtered N. [red-team--opus finding 4, red-team--openai finding 3, red-team--gemini finding 1]
+- [x] In `generate_summary()` section 31, add origin column to per-bead detail table
+- [x] Add subsection: "Effort Validation — Manual Beads Only" showing whether effort tiers validate when work-created beads are excluded
+- [x] If manual-only `improvement_vs_session` >= 0.25 (same metric as full-population validation): note that effort tiers may have been masked by population mixing
 
 Test: Script runs clean, section 31 shows per-population validation result. Manual-only MAE comparison may differ from full-population result.
 
