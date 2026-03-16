@@ -100,12 +100,29 @@ The hook outputs the recommendation and context. The model (or `/do:start`) pres
 
 Scope:
 - **Orphan cleanup** — list orphan worktrees, offer merge/remove/ignore
-- **Rename** current worktree (remove + recreate with new name)
+- **Rename** current worktree (`git branch -m` + remove + recreate, per Decision 2)
 - **Switch** between existing worktrees
 - **Show session status** — current worktree, branch, uncommitted changes, other worktrees
 - **Interactive worktree creation** — ask for task name, create, cd
 
 Not a required first step — the hook handles the happy path deterministically. `/do:start` is for when the hook detects ambiguity, or when the user wants manual control.
+
+**Internal flow (specflow M1, resolved):**
+
+**Entry:** Re-scan worktree state from scratch (not parse hook output — state may have changed since hook fired). `ls .worktrees/session-*` + git commands for fresh data.
+
+**Interaction:** Single AskUserQuestion with full picture — a table of all session worktrees with status (freshness via mtime, PID liveness, uncommitted tracked-file count, unmerged commit count). User picks action per worktree. Matches compact-prep's batch prompt pattern — one decision point, all context visible. For single-worktree cases (common): same table with one row. Options: resume / clean up / create new / skip.
+
+**Argument handling:** Optional subcommand for direct action:
+- `/do:start` — interactive (full table)
+- `/do:start cleanup` — skip to orphan cleanup
+- `/do:start rename <new-name>` — rename current worktree
+- `/do:start status` — display only, no action
+No arguments = interactive. Arguments skip the menu for power users.
+
+**PID management:** When user switches worktrees or creates a new one, `/do:start` calls `write-session-pid.sh <worktree-name>` (helper script per Decision 9). When user removes a worktree, `/do:start` applies Decision 9 algorithm (PID liveness + state check), then `bd worktree remove` + `rm -rf .worktrees/.metadata/<name>`.
+
+**Return-to-work:** After any action that changes the active worktree (switch, create, rename), `/do:start` ends with `cd <absolute-path>` and a one-line summary: "Now in session-xxx. N uncommitted changes, M unmerged commits."
 
 **Justification vs v2 Decision 7:** Decision 7 rejected `/do:start` because the hook was sufficient. Testing revealed: (a) the hook can't handle existing-worktree cases interactively, (b) orphan cleanup requires user choices the hook can't present, (c) rename and switch require multi-step operations better structured as a skill. The model CAN do these via direct `bd` commands, but a skill provides structure and discoverability.
 
@@ -121,12 +138,40 @@ PID files stored at `.worktrees/.metadata/session-foo/pid.$PPID` (per-claimant, 
 
 ### Decision 8: /do:work cleans up session worktree before creating work worktree
 
-When `/do:work` starts and the user is in a session worktree:
-1. Merge session worktree back to default branch (via session-merge.sh)
-2. Remove session worktree
-3. Create work worktree with task-appropriate name
-
 **Rationale (red team — Gemini, Opus):** Session worktrees merge at compact-prep (session end). Work worktrees merge at Phase 4 (feature completion). These are different lifecycles. Running `/do:work` inside a session worktree conflates them — compact-prep would merge mid-task. Clean transition preserves lifecycle isolation.
+
+**Phase 1.2 transition flow (specflow M6, resolved):**
+
+**Step 1.2.1 — Check for uncommitted changes:**
+- `git status --porcelain --untracked-files=no`
+- If dirty: ask user — "Session worktree has N uncommitted changes. Commit with checkpoint message, or discard?"
+- If commit: `git add -A && git commit -m "session checkpoint before /do:work transition"`
+- If discard: `git checkout -- .`
+
+**Step 1.2.2 — Self-removal PID check:**
+- Verify own PID file exists: `.worktrees/.metadata/session-xxx/pid.$PPID`
+- If yes: skip liveness check (self-removal exception, Decision 9), proceed to merge
+- If no: warn "PID mismatch — this session may not own this worktree. Continue?" (defensive, shouldn't happen in normal flow)
+
+**Step 1.2.3 — Merge session worktree to default branch:**
+- `cd` to main repo root
+- Run `session-merge.sh`
+- Handle exit codes:
+  - **Exit 0 (success):** Continue to step 1.2.4
+  - **Exit 2 (conflict):** Create work worktree from default branch directly, leave session worktree as-is. Warn: "Session worktree session-xxx has merge conflicts with main. Work worktree created from main. Resolve session-xxx separately via `/do:start`." (Item 17 — lifecycle isolation preserved)
+  - **Exit 4 (dirty main):** Warn: "Main has uncommitted changes from another source. Cannot transition cleanly. Working inside session worktree." Fall back to current behavior (no transition). User resolves dirty main later.
+  - **Exit 1 (other error):** Same as exit 4 — fall back, warn.
+
+**Step 1.2.4 — Remove session worktree:**
+- `bd worktree remove .worktrees/session-xxx` (no `--force` — Decision 9)
+- `rm -rf .worktrees/.metadata/session-xxx`
+- If removal fails: warn, continue anyway (work worktree creation is independent)
+
+**Step 1.2.5 — Create work worktree:**
+- `bd worktree create .worktrees/work-<task-name>`
+- `cd` into work worktree
+- Recreate `.workflows/.work-in-progress.d/$RUN_ID` sentinel (was in session worktree's tree, needs to exist in work worktree)
+- Continue to Phase 1.3
 
 ### Decision 9: Combined PID + state cleanup (round 2 red team)
 
