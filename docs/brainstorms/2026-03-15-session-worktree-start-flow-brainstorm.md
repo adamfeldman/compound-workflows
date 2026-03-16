@@ -111,7 +111,7 @@ Not a required first step — the hook handles the happy path deterministically.
 
 **Entry:** Re-scan worktree state from scratch (not parse hook output — state may have changed since hook fired). `ls .worktrees/session-*` + git commands for fresh data.
 
-**Interaction:** Single AskUserQuestion with full picture — a table of all session worktrees with status (freshness via mtime, PID liveness, uncommitted tracked-file count, unmerged commit count). User picks action per worktree. Matches compact-prep's batch prompt pattern — one decision point, all context visible. For single-worktree cases (common): same table with one row. Options: resume / clean up / create new / skip.
+**Interaction:** Single AskUserQuestion with full picture — a table of all session worktrees with status (freshness via mtime, PID liveness, uncommitted tracked-file count, unmerged commit count). User picks action per worktree. Matches compact-prep's batch prompt pattern — one decision point, all context visible. For single-worktree cases (common): same table with one row. Options: resume / clean up / create new / skip. PID-alive worktrees show "resume" and "switch" but NOT "remove" — Decision 9 would block removal anyway; don't offer it.
 
 **Argument handling:** Optional subcommand for direct action:
 - `/do:start` — interactive (full table)
@@ -145,7 +145,7 @@ PID files stored at `.worktrees/.metadata/session-foo/pid.$PPID` (per-claimant, 
 **Step 1.2.1 — Check for uncommitted changes:**
 - `git status --porcelain --untracked-files=no`
 - If dirty: ask user — "Session worktree has N uncommitted changes. Commit with checkpoint message, or discard?"
-- If commit: `git add -A && git commit -m "session checkpoint before /do:work transition"`
+- If commit: `git add -u && git commit -m "session checkpoint before /do:work transition"` (`-u` not `-A` — consistent with `--untracked-files=no` philosophy; don't stage untracked files)
 - If discard: `git checkout -- .`
 
 **Step 1.2.2 — Self-removal PID check:**
