@@ -1,7 +1,7 @@
 ---
 title: "Session Worktree Start Flow — Hook + /do:start Redesign"
 type: improvement
-status: red-team-round-2-resolved
+status: ready-for-plan
 date: 2026-03-15
 origin: hb4a
 related:
@@ -78,7 +78,7 @@ AGENTS.md naming guidance for manual creation (when hook doesn't fire):
 - PID stored at `.worktrees/.metadata/session-foo.pid` (outside the worktree)
 - Written by hook at session start for ALL worktrees the hook creates or recommends (not by the model — see Decision 9)
 - `kill -0` check determines liveness
-- Known limitation: $PPID may be bash/tmux, not Claude Code. If so, worktree appears "active" indefinitely → orphan accumulates → user cleans via `/do:start`. Errs on the safe side.
+- **$PPID verified (2026-03-16):** In a SessionStart hook context, `$PPID` resolves to the `claude` process (confirmed via `ps -o pid,ppid,comm`). Process tree: `zsh → claude → zsh → hook`. `$PPID` is Claude Code's PID — long-lived for the session, dies when session ends. tmux/bash concern resolved: Claude is the direct parent, not tmux.
 
 **Combined cleanup algorithm (Decision 9):** See below. PID is the first check; state-based checks are the fallback.
 
@@ -156,8 +156,8 @@ When `/do:work` starts and the user is in a session worktree:
 - Happy path (Step 7): `mkdir -p .worktrees/.metadata/session-xxx && echo $PPID > .worktrees/.metadata/session-xxx/pid.$PPID`
 - Existing-worktree path (Step 3): same pattern, for the recommended worktree
 - Per-claimant files prevent concurrent hooks from overwriting each other (round 3 finding: two hooks claiming same worktree)
-- If user later switches worktrees via `/do:start`, the skill writes a new `pid.$PPID` in the target's metadata directory
-- The model NEVER writes PIDs — this avoids the #31872 model-compliance risk
+- If user later switches worktrees via `/do:start`, the skill invokes a helper script (`write-session-pid.sh <worktree-name>`) that writes the PID deterministically. The model calls the script, not the write itself — avoids #31872 model-compliance risk for the write operation while accepting model-compliance for script invocation (acceptable: script call is a single Bash tool use, much simpler than constructing the mkdir+echo sequence inline).
+- The model NEVER writes PIDs directly (no inline echo/mkdir) — this avoids the #31872 risk for the critical write. Script invocation is the carve-out.
 - Worst case of writing PID to a worktree the user doesn't choose: false "active" signal → prevents deletion → safe side
 
 **Self-removal exception:** When the caller's own PID file exists (`.metadata/session-xxx/pid.$PPID` matches current `$PPID`), skip the liveness check and proceed directly to state checks (step 3). This allows `/do:work` and compact-prep to remove their own session worktrees while still protecting other sessions' worktrees.
@@ -203,6 +203,9 @@ Per ytlk/fyg9 framework. Unverified assumptions must be verified before implemen
 | 6 | `session-merge.sh` works when called from `/do:work` Phase 1.2 (not just compact-prep) | **Assumed (same script, different caller)** | Session worktree merge fails mid-workflow. Low risk — the script is caller-agnostic. |
 | 7 | Random 4-char hex IDs don't collide in practice | **Assumed (65536 possibilities, <100 sessions)** | `bd worktree create` fails on name collision. Hook retries or falls back to model creation. Negligible risk. |
 | 8 | `.worktrees/.metadata/` directory persists and isn't cleaned by `bd worktree` or `git worktree` | **Assumed** | Metadata lost. Low risk — files are advisory, not load-bearing. |
+| 10 | `$PPID` in a SessionStart hook resolves to the Claude Code process | **Verified (2026-03-16)** | Process tree: `zsh → claude ($PPID) → zsh ($$) → hook`. `$PPID` is Claude Code's PID — long-lived for session, dies on exit. PID protection system works as designed. |
+| 11 | `git status` / `git log` do NOT update directory mtime on macOS/APFS | **Verified (2026-03-16)** | Three commands tested, mtime unchanged. Mtime freshness heuristic is safe from hook-read gamification. |
+| 12 | `git worktree move` leaves `.git/worktrees/` internal metadata with old name | **Verified (2026-03-16)** | Confirmed mismatch. Design uses `git branch -m` + remove/recreate instead. |
 | 9 | Concurrent Claude Code sessions in the same repo don't happen | **Falsified (2026-03-16)** | Item 22 dismissed the race as "negligible, unsupported." Reproduction proved it happens in normal usage: user starts a new session while prior session's `/do:abandon` is still running cleanup. Result: `bd worktree remove --force` deleted the new session's worktree, causing data loss. Concurrent sessions MUST be treated as a supported scenario. |
 
 **All blockers verified (2026-03-16).** Assumption 3 was corrected: SessionStart fires on both new and resumed sessions (not "does NOT fire on resume" as originally assumed). This means the existing-worktree check (Step 3) is critical — it prevents the hook from creating duplicate worktrees on resume. Assumption 9 was falsified: concurrent sessions are a real scenario, not theoretical.
