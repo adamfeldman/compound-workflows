@@ -1,7 +1,7 @@
 ---
 title: "Session Worktree Start Flow — Hook + /do:start Redesign"
 type: improvement
-status: draft
+status: specflow-complete
 date: 2026-03-15
 origin: hb4a
 related:
@@ -143,29 +143,64 @@ Per ytlk/fyg9 framework. Unverified assumptions must be verified before implemen
 
 ## Resolved Questions
 
-1. **Timestamp mechanism** — Use filesystem mtime (`stat -f '%m'`) on the worktree directory, not explicit timestamp writes. Survives crashes, no compact-prep dependency. Red team finding: explicit timestamps break in the crash case (the primary orphan scenario).
+> **Provenance tags:** Each resolution is tagged with how it was decided.
+> - **user-decided** — user explicitly chose this resolution during brainstorm discussion
+> - **model-resolved** — model proposed, user approved as a batch
+> - **specflow-default** — specflow analyzer's "assumption if unanswered" was adopted without individual discussion
 
-2. **Should /do:start auto-run when hook detects ambiguity?** — Auto-invoke with opt-out. AGENTS.md instructs the model to automatically invoke `/do:start` when the hook suggests it. User can say "skip" to bypass.
+### Original brainstorm session
 
-3. **How does /do:start interact with /do:work?** — /do:work Phase 1.2 cleans up the session worktree (merge + remove) before creating a work worktree. Two different lifecycles, two different worktrees. Current implementation (option a: work inside session worktree) is replaced by option b.
+1. **Timestamp mechanism** `[user-decided]` — Use filesystem mtime (`stat -f '%m'`) on the worktree directory, not explicit timestamp writes. Survives crashes, no compact-prep dependency. Red team finding: explicit timestamps break in the crash case (the primary orphan scenario).
+
+2. **Should /do:start auto-run when hook detects ambiguity?** `[user-decided]` — Auto-invoke with opt-out. AGENTS.md instructs the model to automatically invoke `/do:start` when the hook suggests it. User can say "skip" to bypass.
+
+3. **How does /do:start interact with /do:work?** `[user-decided]` — /do:work Phase 1.2 cleans up the session worktree (merge + remove) before creating a work worktree. Two different lifecycles, two different worktrees. Current implementation (option a: work inside session worktree) is replaced by option b.
 
 ### Specflow-resolved questions (Q1-Q3)
 
-4. **Hook vs template divergence (specflow Q1)** — Hook is source of truth. The installed hook (`.claude/hooks/session-worktree.sh`) has the tested deterministic creation code. Plan updates the template (`plugins/compound-workflows/templates/session-worktree.sh`) to match the hook, then adds new features (mtime, metadata dir, /do:start suggestion) on top. The hook IS the experiment that proved the design.
+4. **Hook vs template divergence (specflow Q1)** `[user-decided]` — Hook is source of truth. The installed hook (`.claude/hooks/session-worktree.sh`) has the tested deterministic creation code. Plan updates the template (`plugins/compound-workflows/templates/session-worktree.sh`) to match the hook, then adds new features (mtime, metadata dir, /do:start suggestion) on top. The hook IS the experiment that proved the design. *User: "why would the hook not be the truth?" — contradicts specflow default which assumed template is truth.*
 
-5. **Uncommitted changes during /do:work transition (specflow Q2)** — Commit-or-prompt. /do:work Phase 1.2 checks for uncommitted changes in the session worktree before merging. If found, asks user: commit (with a session-checkpoint message) or discard. NOT stash — stash lives on the worktree's branch; when the branch is deleted, stash entries become dangling objects. Commit or discard are the only safe options.
+5. **Uncommitted changes during /do:work transition (specflow Q2)** `[user-decided]` — Commit-or-prompt. /do:work Phase 1.2 checks for uncommitted changes in the session worktree before merging. If found, asks user: commit (with a session-checkpoint message) or discard. NOT stash — stash lives on the worktree's branch; when the branch is deleted, stash entries become dangling objects. Commit or discard are the only safe options. *User chose option 1 and caught the stash problem: "wouldn't stash lose the changes eventually since they're not on main?"*
 
-6. **/do:start scope (specflow Q3)** — In scope. The brainstorm designed /do:start as part of the solution. Multi-worktree and orphan cleanup flows depend on it. Deferring would leave those flows without proper implementation.
+6. **/do:start scope (specflow Q3)** `[user-decided]` — In scope. The brainstorm designed /do:start as part of the solution. Multi-worktree and orphan cleanup flows depend on it. Deferring would leave those flows without proper implementation. *User: "why wouldn't it be in scope?" — contradicts specflow default which assumed deferred.*
 
-### Specflow-resolved gaps (selected)
+### Specflow-resolved gaps (first pass)
 
-7. **Opt-out orphan cleanup (specflow G8)** — AGENTS.md instructs: "If the user says 'skip worktree' after the hook created one, remove it with `bd worktree remove`." Model handles cleanup inline.
+7. **Opt-out orphan cleanup (specflow G8)** `[specflow-default]` — AGENTS.md instructs: "If the user says 'skip worktree' after the hook created one, remove it with `bd worktree remove`." Model handles cleanup inline.
 
-8. **bd failure diagnostics (specflow G6)** — Remove stderr suppression on `bd worktree create` call. Capture stderr to variable, include first line in fallback message so model/user can diagnose.
+8. **bd failure diagnostics (specflow G6)** `[specflow-default]` — Remove stderr suppression on `bd worktree create` call. Capture stderr to variable, include first line in fallback message so model/user can diagnose.
 
-9. **Metadata cleanup lifecycle (specflow G16)** — Three cleanup points: (a) session-merge.sh removes metadata after successful merge, (b) hook GC (Step 4) removes metadata for worktrees it cleans up, (c) /do:start orphan cleanup removes stale metadata.
+9. **Metadata cleanup lifecycle (specflow G16)** `[model-resolved]` — Three cleanup points: (a) session-merge.sh removes metadata after successful merge, (b) hook GC (Step 4) removes metadata for worktrees it cleans up, (c) /do:start orphan cleanup removes stale metadata. *Specflow default specified two cleanup points; model added session-merge.sh as third.*
 
-10. **CWD after session worktree removal in /do:work (specflow G12)** — /do:work must cd to main repo root after session-merge.sh completes, before creating work worktree. Add explicit cd step.
+10. **CWD after session worktree removal in /do:work (specflow G12)** `[specflow-default]` — /do:work must cd to main repo root after session-merge.sh completes, before creating work worktree. Add explicit cd step.
+
+### Specflow-resolved gaps (second pass — all remaining)
+
+11. **No cleanup when user says "create new" (specflow G1)** `[model-resolved]` — AGENTS.md instructs: "When the user declines an existing worktree and requests a new one, offer to clean up the declined worktree (merge or remove). If the user doesn't respond, leave it — `/do:start` or next session's hook GC will handle it." Don't auto-remove because it may have uncommitted work the user wants to preserve.
+
+12. **CWD after resume unreliable (specflow G2)** `[model-resolved]` — Already handled by existing mechanisms. AGENTS.md says "do not trust your memory about CWD" and the hook emits the absolute path. The structural risk (model ignores hook) is the same as any instruction compliance issue. No additional mechanism needed.
+
+13. **PID written to wrong worktree before user confirms (specflow G3)** `[model-resolved]` — Move PID write from hook Step 3 (existing-worktree detection) to after worktree selection. For happy path (Step 7): hook writes PID after creation. For existing-worktree path: model writes PID after choosing which worktree to use (AGENTS.md instruction). PID is advisory — delayed write is acceptable.
+
+14. **Model auto-invocation of /do:start unverified (specflow G5)** `[model-resolved]` — Accept as unverified with documented fallback. AGENTS.md already covers the fallback (manual worktree management via direct `bd` commands). If auto-invocation proves unreliable after `/do:start` is implemented, strengthen AGENTS.md wording or add an explicit hook instruction.
+
+15. **No retry on name collision (specflow G7)** `[model-resolved]` — Hook retries once with a new random ID if `bd worktree create` fails with non-zero exit. Two attempts covers collision (1 in 65536 chance) without adding a retry loop. If both fail, fall through to model-creates fallback with stderr diagnostic (per item 8).
+
+16. **Pre-commit blocks every commit after opt-out (specflow G9/Q5)** `[model-resolved]` — Accept the friction. Opt-out is rare, and the model knows the user opted out — it can pass `--no-verify` on commits for the remainder of the session. Adding a session-scoped disable mechanism (temp file, env var) adds complexity for a case that almost never happens. Revisit if users complain.
+
+17. **Merge conflict during /do:work transition (specflow G11)** `[model-resolved]` — If session-merge.sh returns exit 2 (conflict) during /do:work Phase 1.2, abort the transition. /do:work continues inside the session worktree instead of creating a work worktree. Warn the user: "Session worktree had merge conflicts with main. Working inside the session worktree. Resolve conflicts via `/do:compact-prep` later." Rationale: the user invoked /do:work to start working, not to resolve merge conflicts.
+
+18. **Rename destroys uncommitted changes and loses branch history (specflow G14/G15)** `[model-resolved]` — `/do:start` rename protocol: (1) commit all uncommitted changes with a checkpoint message, (2) create new worktree from same base, (3) cherry-pick all commits from old branch onto new branch, (4) remove old worktree + metadata. Preserves both uncommitted changes and commit history. If cherry-pick conflicts, abort rename and tell the user why.
+
+19. **Existing worktree path missing uncommitted count (specflow G17/Q8)** `[model-resolved]` — Add `git -C <worktree-path> status --porcelain | wc -l` to hook Step 3's output. One extra line in the system-reminder. Helps users decide resume vs create new with better information.
+
+20. **Worktree deleted externally between sessions (specflow G18)** `[model-resolved]` — No special handling needed. Hook Step 3 finds no existing worktrees, falls through to Step 7, creates new one. Model adapts when it sees the new path in hook output. Conversation history referencing old name is cosmetic — no data loss risk.
+
+21. **Hook fires when CWD is inside a worktree (specflow G19)** `[model-resolved]` — Add guard at hook start: if `git rev-parse --show-toplevel` resolves to a worktree path (contains `.worktrees/`), skip creation and emit: "Already inside a worktree. Skipping session worktree creation." Prevents nested worktree creation.
+
+22. **Race condition between hook and model (specflow G20)** `[model-resolved]` — Accept. Single-user system, negligible practical risk. Two concurrent Claude sessions in the same repo is an unsupported configuration.
+
+23. **Mtime threshold default (specflow Q9)** `[model-resolved]` — 60 minutes, configurable via `session_worktree_stale_minutes` in `compound-workflows.local.md`. Most sessions are either < 30 min (quick task) or > 2 hours (deep work). 60 minutes bisects well. Already stated in Decision 4.
 
 ## Red Team Resolution Summary
 
