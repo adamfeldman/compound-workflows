@@ -174,7 +174,11 @@ Round 2 red team found that Item 16's `--no-verify` approach (a) contradicts the
 - If NOT inside a worktree AND no managed worktrees exist (`.worktrees/session-*` or `.worktrees/work-*`) → **allow** (no worktrees at all)
 - If NOT inside a worktree AND managed worktrees exist AND no `.opted-out` → **block** (forgot to cd)
 
-Sentinel lifecycle: model creates `.worktrees/.opted-out` when user says "skip worktree." Hook deletes it on next session start (Step 1, before any other checks). This is fully deterministic. No `--no-verify`. No model involvement in the pre-commit check itself. Round 3 red team (Gemini): without sentinel, orphans from old crashed sessions block all main commits. Round 3 red team (Opus): `work-*` worktrees must be included.
+Sentinel lifecycle: model creates `.worktrees/.opted-out` when user says "skip worktree." Hook deletes it on next session start (Step 1, before any other checks). This is fully deterministic. No `--no-verify`. No model involvement in the pre-commit check itself.
+
+**Edge case:** If a worktree directory is manually deleted but still registered in `git worktree list`, the filesystem glob misses it. The pre-commit hook should also run `git worktree list --porcelain` as a secondary check if the glob finds nothing — stale git worktree entries indicate an inconsistent state worth blocking on.
+
+Round 3 red team (Gemini): without sentinel, orphans from old crashed sessions block all main commits. Round 3 (Opus): `work-*` worktrees must be included. Round 3 (OpenAI): manually-deleted worktrees still in git registry bypass the glob check.
 
 ### Decision 11: Worktree detection via git plumbing, not path heuristic (round 2 red team)
 
@@ -183,7 +187,7 @@ Round 2 red team (all 3 providers) found that Item 21's path-contains-`.worktree
 - Misses Claude-native worktrees at `.claude/worktrees/`
 - Breaks with symlinks or renamed directories
 
-**Fix:** Use git plumbing: `if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]` — this definitively detects ANY worktree regardless of path.
+**Fix:** Use git plumbing: `if [ "$(git rev-parse --git-dir 2>/dev/null)" != "$(git rev-parse --git-common-dir 2>/dev/null)" ]` — this definitively detects ANY worktree regardless of path. Stderr suppressed so the hook doesn't leak errors if accidentally triggered outside a git repo (round 3, Gemini observation).
 
 ## Inherited Assumptions
 
@@ -258,7 +262,7 @@ Per ytlk/fyg9 framework. Unverified assumptions must be verified before implemen
 
 20. **Worktree deleted externally between sessions (specflow G18)** `[model-resolved]` — No special handling needed. Hook Step 3 finds no existing worktrees, falls through to Step 7, creates new one. Model adapts when it sees the new path in hook output. Conversation history referencing old name is cosmetic — no data loss risk.
 
-21. **Hook fires when CWD is inside a worktree (specflow G19)** `[user-decided, revised round 2]` — Add guard at hook start using git plumbing (Decision 11): `if [ "$(git rev-parse --git-dir)" != "$(git rev-parse --git-common-dir)" ]` — skip creation and emit: "Already inside a worktree. Skipping session worktree creation." Round 2 red team (all 3 providers) found the path-contains-`.worktrees/` heuristic is fragile (breaks with symlinks, misses `.claude/worktrees/`, fails if repo path itself contains `.worktrees/`). Git plumbing is definitive.
+21. **Hook fires when CWD is inside a worktree (specflow G19)** `[user-decided, revised round 2]` — Add guard at hook start using git plumbing (Decision 11): `if [ "$(git rev-parse --git-dir 2>/dev/null)" != "$(git rev-parse --git-common-dir 2>/dev/null)" ]` — skip creation and emit: "Already inside a worktree. Skipping session worktree creation." Round 2 red team (all 3 providers) found the path-contains-`.worktrees/` heuristic is fragile. Round 3 (Gemini): suppress stderr for non-git-repo edge case.
 
 22. **Cross-session cleanup race (specflow G20)** `[user-decided, revised round 2]` — **UPGRADED from MINOR to SERIOUS after reproduction.** Original resolution ("accept, negligible risk") was wrong. Reproduced in session hb4a (2026-03-16): prior session's `/do:abandon` ran `bd worktree remove --force` on session-fbbb while the current session was actively using a newly-created worktree at the same path. Uncommitted edits were lost. Root cause: abandon cleanup assumes any unknown `session-*` worktree is an orphan. **Fix: Decision 9 (combined PID + state cleanup).** All deletion paths use the same algorithm: PID alive → skip; PID dead → check uncommitted/unmerged → only delete if truly clean. Never use `--force` on `bd worktree remove`. Round 2 red team validated that PID-only and state-only each fail real scenarios; only the combined approach handles all six.
 
