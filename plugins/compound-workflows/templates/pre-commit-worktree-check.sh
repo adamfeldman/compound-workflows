@@ -37,6 +37,8 @@ while [[ "$CHECK_PATH" != "/" ]]; do
 done
 
 # ── Not in a session worktree — block the commit ─────────────────────────────
-echo "session_worktree is enabled but you're committing to the default branch." >&2
-echo "Create a session worktree first, or use --no-verify to bypass." >&2
+# This error is seen by the MODEL during git commit in Claude Code sessions.
+# The model should surface the choice to the user, not silently bypass or attempt recovery.
+echo "session_worktree is enabled but you're not in a session worktree." >&2
+echo "Ask the user: commit anyway (--no-verify) or create a worktree first?" >&2
 exit 1

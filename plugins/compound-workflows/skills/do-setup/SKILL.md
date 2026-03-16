@@ -823,6 +823,11 @@ Do not read files, run commands, or respond to the user first.
 - Name the worktree after the task if known: `session-s7qj` or `session-fix-typo`
 - User can say "stay on main" / "skip worktree" to opt out
 - If you're already in a worktree (post-compact resume), skip — you're already isolated
+- **After resume, do not trust your memory about CWD** — session exit resets CWD
+  to the repo root. Run `pwd` to verify, and `cd` into the worktree if needed.
+- If the hook reports an existing session worktree and you are resuming
+  a previous conversation, `cd` into it. If this is a fresh session,
+  ask the user whether to resume the existing worktree or create a new one.
 - If `bd worktree create` fails, warn the user and proceed on main
 - If the hook warns that bd is unavailable, skip worktree creation
 - At session end, `/do:compact-prep` merges back to the default branch

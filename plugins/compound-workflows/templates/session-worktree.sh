@@ -22,14 +22,15 @@ VALUE=$(grep -m1 '^session_worktree:' "$CONFIG" | sed 's/#.*//' | awk -F: '{prin
 
 # ── Hook self-version check ─────────────────────────────────────────────────
 # Compare installed hook version against the plugin template version.
-# If stale, warn the user and exit early so they get the update prompt.
+# If stale, prepend a warning but continue — worktree instruction is more important.
 HOOK_VERSION=$(sed -n '2s/^# session-worktree v//p' "$0")
+VERSION_WARNING=""
 TEMPLATE_PATH="$HOME/.claude/plugins/marketplaces/compound-workflows-marketplace/plugins/compound-workflows/templates/session-worktree.sh"
 if [[ -f "$TEMPLATE_PATH" ]]; then
   TEMPLATE_VERSION=$(sed -n '2s/^# session-worktree v//p' "$TEMPLATE_PATH")
   if [[ -n "$TEMPLATE_VERSION" && -n "$HOOK_VERSION" && "$HOOK_VERSION" != "$TEMPLATE_VERSION" ]]; then
-    printf '%s\n' "Session worktree hook is outdated (v${HOOK_VERSION}, current: v${TEMPLATE_VERSION}). Run /do:setup to update."
-    exit 0
+    VERSION_WARNING="Note: Session worktree hook version mismatch (installed: v${HOOK_VERSION}, plugin: v${TEMPLATE_VERSION}). Run /do:setup to update.
+"
   fi
 fi
 
@@ -73,8 +74,11 @@ fi
 # Parsing contract: Only explicit "false" disables.
 # Missing key, empty value, "true", or any other value = enabled.
 
-# ── Step 3: Check for existing session worktrees (resume detection) ─────────
-# Collect all session worktrees sorted by modification time (most recent first)
+# ── Step 3: Check for existing session worktrees ─────────────────────────────
+# If session worktrees exist, instruct the model to cd into the most recent one.
+# The model has conversation context to know if this is a resume or a fresh session:
+# - Resume: cd into it and continue working
+# - Fresh session: the worktree may be an orphan — ask the user what to do
 EXISTING_LIST=$(ls -dt .worktrees/session-* 2>/dev/null || true)
 
 if [[ -n "$EXISTING_LIST" ]]; then
@@ -90,12 +94,11 @@ if [[ -n "$EXISTING_LIST" ]]; then
     if [[ -n "$STORED_PID" ]] && kill -0 "$STORED_PID" 2>/dev/null; then
       ACTIVE_WARNING="Warning: another session may be actively using this worktree. Say 'skip worktree' to avoid conflicts."
     else
-      # Process dead — stale PID file, safe to resume
       rm -f "$PID_FILE"
     fi
   fi
 
-  OUTPUT="Session worktree exists at ${MOST_RECENT} (branch: ${MR_BRANCH}). Before doing anything else — before reading files, running commands, or responding to the user — run cd ${MOST_RECENT} to resume working in it."
+  OUTPUT="${VERSION_WARNING}MANDATORY (per AGENTS.md Session Worktree Isolation): existing session worktree at ${MOST_RECENT} (branch: ${MR_BRANCH}). Your FIRST action must be: if resuming a previous conversation, run \`cd ${MOST_RECENT}\`. If this is a new conversation, ask the user: resume this worktree or create a new one? Do NOT respond to the user before resolving this."
 
   if [[ -n "$ACTIVE_WARNING" ]]; then
     OUTPUT="${OUTPUT}
@@ -118,10 +121,10 @@ ${ACTIVE_WARNING}"
       fi
     done <<< "$EXISTING_LIST"
     OUTPUT="${OUTPUT}
-${EXISTING_COUNT} session worktrees found. Resuming most recent: ${MOST_RECENT} (branch: ${MR_BRANCH}). Others: ${OTHERS}."
+Other worktrees: ${OTHERS}."
   fi
 
-  # Write PID file for the session resuming this worktree
+  # Write PID file for the session using this worktree
   echo "$PPID" > "$MOST_RECENT/.session.pid" 2>/dev/null || true
 
   printf '%s\n' "$OUTPUT"
@@ -129,7 +132,7 @@ ${EXISTING_COUNT} session worktrees found. Resuming most recent: ${MOST_RECENT} 
 fi
 
 # ── Fresh session start: accumulate output buffer ───────────────────────────
-OUTPUT=""
+OUTPUT="${VERSION_WARNING}"
 
 # ── Step 4: GC merged session worktrees ──────────────────────────────────────
 if [[ -d ".worktrees" ]]; then
@@ -235,7 +238,8 @@ if [[ -n "$PORCELAIN" ]]; then
 fi
 
 # ── Step 7: Append instruction ──────────────────────────────────────────────
-OUTPUT="${OUTPUT}Session worktree isolation is enabled. Before doing anything else — before reading files, running commands, or responding to the user — create a session worktree: run bd worktree create .worktrees/session-<name> (pick a short descriptive name) then cd into it. If the user says 'stay on main' or 'skip worktree', skip it. If \`bd worktree create\` fails, warn the user and proceed on main."
+OUTPUT="MANDATORY (per AGENTS.md Session Worktree Isolation): your FIRST action must be \`bd worktree create .worktrees/session-<name>\` then \`cd\` into it. Do NOT respond to the user before doing this. If the user says 'stay on main' or 'skip worktree', skip it.
+${OUTPUT}"
 
 # ── Step 8: Emit and exit ──────────────────────────────────────────────────
 printf '%s\n' "$OUTPUT"
