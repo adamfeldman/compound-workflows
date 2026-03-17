@@ -142,10 +142,11 @@ Read the output as `CLAUDE_PID`. Then run session-gc.sh in single-worktree **dry
 bash ${CLAUDE_SKILL_DIR}/../../scripts/session-gc.sh <worktree-name> --caller-pid <CLAUDE_PID> --dry-run
 ```
 
-Parse the output line for this worktree:
-- **`REMOVABLE <name>`:** No other sessions active, worktree is safe to transition. Proceed to Step 1.2-C.
+Parse the output line for this worktree. **Only PID liveness matters here** — state checks (unmerged, uncommitted, untracked) are handled by do-work's own steps (1.2-A and 1.2-C), so state-related SKIPs are safe to proceed through:
+- **`REMOVABLE <name>`:** No other sessions active and worktree is fully clean. Proceed to Step 1.2-C.
 - **`SKIPPED <name> another-session-active:PID=<val>`:** Another session is active. **Block** with message: "Another session (PID <val>) is using this worktree. Cannot transition to work worktree. Working inside session worktree instead." Set `IN_SESSION_WORKTREE=true`, skip remaining transition steps, continue to Phase 1.2.1 (Create QA Hook Sentinel).
 - **`SKIPPED <name> gc-lock-busy`:** Another GC is running. Retry once after 2 seconds. If still busy, fall back to working inside session worktree.
+- **`SKIPPED <name> <any-other-reason>`:** (e.g., `unmerged-commits`, `uncommitted-tracked-changes`, `untracked-files-present`, `git-check-failed:*`). No concurrent session detected — the worktree has state issues that do-work handles separately. **Proceed** to Step 1.2-C.
 
 **PID mismatch handling:** If own PID (`pid.<CLAUDE_PID>`) does not exist in `.worktrees/.metadata/<worktree-name>/`:
 - Warn: "PID mismatch — session PID not found in metadata. This may indicate $PPID inconsistency. Proceeding with full liveness checks (safe). If ALL PIDs are dead, transition will continue."
