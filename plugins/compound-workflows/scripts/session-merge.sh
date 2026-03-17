@@ -221,8 +221,11 @@ if [[ -n "$worktree_path" ]]; then
   fi
 fi
 
-# Delete the branch: -d first (safe, requires merge), -D fallback
-git branch -d "$BRANCH" 2>/dev/null || git branch -D "$BRANCH" 2>/dev/null || true
+# Delete the branch: -d only (safe, requires merge). No -D fallback — if -d fails
+# after a successful merge, something unexpected happened and the user should know.
+if ! git branch -d "$BRANCH" 2>/dev/null; then
+  echo "Warning: could not delete branch '$BRANCH' with -d (safe delete). Branch may not be fully merged. Investigate with: git log main..$BRANCH --oneline" >&2
+fi
 
 echo "Merged and cleaned up worktree branch: $BRANCH" >&2
 exit 0

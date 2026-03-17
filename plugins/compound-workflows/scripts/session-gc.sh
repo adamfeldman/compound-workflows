@@ -178,6 +178,19 @@ cleanup_worktree() {
     # Dead old PID — will be cleaned up on DELETE path
   fi
 
+  # Re-compute TOCTOU baseline AFTER dead-PID pruning (C1 fix: initial count included
+  # dead PIDs that Step 2 deleted, so the Step 4 comparison was broken — a new session
+  # writing 1 PID while 3 dead PIDs were pruned would go undetected: 1 > 3 = false)
+  pid_count_initial=0
+  if [[ -d "$meta_dir" ]]; then
+    while IFS= read -r _; do
+      pid_count_initial=$(( pid_count_initial + 1 ))
+    done < <(find "$meta_dir" -maxdepth 1 -name 'pid.*' -type f 2>/dev/null || true)
+  fi
+  if [[ -f "$old_pid_file" ]]; then
+    pid_count_initial=$(( pid_count_initial + 1 ))
+  fi
+
   # ── Step 3: State checks (only if no other live PIDs) ──────────────────
   # Ordered by most-actionable-first
 

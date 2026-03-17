@@ -144,7 +144,7 @@ bash ${CLAUDE_SKILL_DIR}/../../scripts/session-gc.sh <worktree-name> --caller-pi
 
 Parse the output line for this worktree:
 - **`REMOVED <name>`:** Not expected in this context (we're inside the worktree). Treat as error, fall back to working inside session worktree.
-- **`SKIPPED <name> live_pids`:** Another session is active. **Block** with message: "Another session is using this worktree. Cannot transition to work worktree. Working inside session worktree instead." Set `IN_SESSION_WORKTREE=true`, skip remaining transition steps, continue to Phase 1.2.1 (Create QA Hook Sentinel).
+- **`SKIPPED <name> another-session-active:PID=<val>`:** Another session is active. **Block** with message: "Another session (PID <val>) is using this worktree. Cannot transition to work worktree. Working inside session worktree instead." Set `IN_SESSION_WORKTREE=true`, skip remaining transition steps, continue to Phase 1.2.1 (Create QA Hook Sentinel).
 
 **PID mismatch handling:** If own PID (`pid.<CLAUDE_PID>`) does not exist in `.worktrees/.metadata/<worktree-name>/`:
 - Warn: "PID mismatch — session PID not found in metadata. This may indicate $PPID inconsistency. Proceeding with full liveness checks (safe). If ALL PIDs are dead, transition will continue."
