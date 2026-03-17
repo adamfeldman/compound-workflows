@@ -37,10 +37,10 @@ DO NOT return your full analysis in your response. The file IS the output.
 
 ## Directory Convention
 
-All workflow outputs go under `.workflows/` in the project root:
+All workflow outputs go under `$WORKFLOWS_ROOT` — the `.workflows/` directory at the **main repo root** (not the current worktree). Skills that call `init-values.sh` receive this path as the `WORKFLOWS_ROOT` output key. Skills that don't call `init-values.sh` should resolve it via `git worktree list --porcelain | head -1 | sed 's/^worktree //'` and append `/.workflows`. This ensures artifacts survive worktree lifecycle transitions and are shared across sessions.
 
 ```
-.workflows/
+$WORKFLOWS_ROOT/
 ├── brainstorm-research/<topic-stem>/
 │   ├── repo-research.md
 │   ├── context-research.md
@@ -105,7 +105,7 @@ Use lowercase, hyphens, 3-6 words max.
 **DO NOT use TaskOutput** to retrieve full agent results. Instead, poll for file existence:
 
 ```bash
-ls .workflows/<workflow-type>/<topic-stem>/agents/
+ls $WORKFLOWS_ROOT/<workflow-type>/<topic-stem>/agents/
 ```
 
 Compare the files present against the expected list. When all expected files exist, the batch is complete.
@@ -126,7 +126,7 @@ If an agent hasn't produced output after 3 minutes:
 3. **Recovery** — if context compacts, disk files survive
 4. **Iteration** — deepen-plan supports multiple runs, each in its own `run-N/` directory
 
-The `.workflows/` directory should be added to `.gitignore` (it's working state, not source code) unless the team wants to version-control research outputs.
+The `$WORKFLOWS_ROOT` directory should be added to `.gitignore` (it's working state, not source code) unless the team wants to version-control research outputs.
 
 ## Batch Dispatch Pattern
 
@@ -150,7 +150,7 @@ Focus on: similar features, established patterns, project conventions.
 Read the codebase, not just file names.
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE findings to: .workflows/plan-research/<topic-stem>/agents/repo-research.md
+Write your COMPLETE findings to: $WORKFLOWS_ROOT/plan-research/<topic-stem>/agents/repo-research.md
 After writing the file, return ONLY a 2-3 sentence summary.
 "
 ```

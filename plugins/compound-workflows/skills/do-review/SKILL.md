@@ -30,7 +30,7 @@ Perform exhaustive code reviews using multi-agent analysis. All agent outputs ar
 Derive a short topic stem from the review target: use branch name for branches (e.g., `feat-user-dashboard-redesign`), `pr-NNN` for PRs, or filename stem (strip date prefix and type suffix) for document reviews (e.g., `reporting-strategy` from a brainstorm doc).
 
 ```bash
-mkdir -p .workflows/code-review/<topic-stem>/agents
+mkdir -p $WORKFLOWS_ROOT/code-review/<topic-stem>/agents
 ```
 
 ### 2.1 Stats Capture Setup
@@ -41,7 +41,9 @@ Initialize per-dispatch stats collection. This runs once at command start; all d
 bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh review <topic-stem>
 ```
 
-Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+Read the output. Track the values PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+
+**All `.workflows/` paths in this skill use `$WORKFLOWS_ROOT` (the main repo root's `.workflows/` directory), NOT relative `.workflows/`.** This ensures artifacts survive worktree lifecycle transitions and are shared across sessions.
 
 **Config check:** Read `compound-workflows.local.md` and check the `stats_capture` key. If the value is `false`, skip all stats capture for this run (do not read the schema file, do not call `capture-stats.sh`). If the key is missing or any other value, proceed with stats capture.
 
@@ -61,7 +63,7 @@ Launch ALL review agents in parallel with `run_in_background: true`. Each agent 
 
 ```
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE findings to: .workflows/code-review/<topic-stem>/agents/<agent-name>.md
+Write your COMPLETE findings to: $WORKFLOWS_ROOT/code-review/<topic-stem>/agents/<agent-name>.md
 Structure with: ## Summary, ## Critical Findings, ## Recommendations, ## Details
 After writing the file, return ONLY a 2-3 sentence summary.
 DO NOT return your full analysis in your response.
@@ -94,7 +96,7 @@ Task agent-native-reviewer (run_in_background: true): "You are an agent-native r
 **DO NOT call TaskOutput.** Instead, poll for file existence:
 
 ```bash
-ls .workflows/code-review/<topic-stem>/agents/
+ls $WORKFLOWS_ROOT/code-review/<topic-stem>/agents/
 ```
 
 Compare against expected agent files. When all files exist (or after 3 minutes for stragglers), proceed.
@@ -140,7 +142,7 @@ If validate-stats.sh reports a mismatch, warn with the names of missing agents â
 Read all agent output files from disk:
 
 ```bash
-ls .workflows/code-review/<topic-stem>/agents/*.md
+ls $WORKFLOWS_ROOT/code-review/<topic-stem>/agents/*.md
 # Then Read tool on each file
 ```
 
@@ -196,7 +198,7 @@ Present to user:
 
 ### 8. Retain Review Outputs
 
-**Do NOT delete review outputs.** The review directory at `.workflows/code-review/<topic-stem>/` is retained for traceability and learning. Prior review findings can inform future reviews and help identify recurring patterns.
+**Do NOT delete review outputs.** The review directory at `$WORKFLOWS_ROOT/code-review/<topic-stem>/` is retained for traceability and learning. Prior review findings can inform future reviews and help identify recurring patterns.
 
 ### 9. Optional End-to-End Testing
 

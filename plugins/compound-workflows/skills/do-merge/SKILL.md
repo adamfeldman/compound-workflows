@@ -41,22 +41,43 @@ warn: "Cannot merge from inside a worktree. Exit the worktree first." Stop.
 
 To check: `git rev-parse --show-toplevel` should NOT contain `.worktrees/session-`.
 
-### 4. Run merge script
+### 4. Derive session name
 
-    bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <branch>
+Extract the session worktree name from the branch. For session worktrees, the branch name
+IS the worktree name (e.g., branch `session-hb4a` = worktree `.worktrees/session-hb4a`).
+Store this for metadata cleanup in Step 5.
 
-Replace `<branch>` with the selected branch name from Step 2.
+### 5. Run merge script
 
-### 5. Handle result
+Capture the Claude PID for concurrent-session safety, then run the merge:
 
-- **Exit 0 (success):** Announce "Merged and cleaned up." Done.
+    # In a separate Bash call first:
+    echo $PPID
+    # Read the output as <claude-pid>
+
+    CALLER_PID=<claude-pid> bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <branch>
+
+Replace `<branch>` with the selected branch name from Step 2 and `<claude-pid>` with the PID captured above.
+
+### 6. Handle result
+
+- **Exit 0 (success):** Announce "Merged and cleaned up." Done. (Metadata cleanup is handled by the script.)
 - **Exit 2 (conflict):** Read conflicted files, auto-resolve additive markdown
   (e.g., both sides appended to the same file — keep both additions).
   Present resolution summary to the user. AskUserQuestion with choices:
   Accept / Review / Abort.
   If accepted: `git add .` then `git commit --no-edit` to finalize the merge.
+  Then clean up session metadata:
+  `rm -rf .worktrees/.metadata/<session-name>` (where `<session-name>` is from Step 4).
   If aborted: `git merge --abort` and announce "Worktree preserved. Run `/do:merge` to retry."
+  Skip metadata cleanup — the worktree still exists and may be resumed.
 - **Exit 3 (retry exhaustion):** Announce "Another session is currently merging. Try again shortly."
 - **Exit 4 (dirty main):** Announce "Main has uncommitted changes. Commit or stash them,
   then run `/do:merge` again."
+- **Exit 5 (file overlap):** Warn the user about overlapping files (the script lists them on stderr).
+  Do NOT auto-resolve — file overlap means both the worktree and the default branch modified the
+  same files. Skip metadata cleanup (the merge did not complete). Offer two choices:
+  1. Re-run with `--skip-overlap`: `CALLER_PID=<claude-pid> bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <branch> --skip-overlap`
+     (lets git attempt the merge; may still result in conflicts handled by exit 2)
+  2. Abort (no action needed — worktree and branch are preserved)
 - **Exit 1 (other error):** Show the error output from the script.

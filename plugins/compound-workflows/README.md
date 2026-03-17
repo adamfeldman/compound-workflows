@@ -1,6 +1,6 @@
 # compound-workflows
 
-Self-contained compound engineering workflows for Claude Code. 26 agents, 30 skills, and 8 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
+Self-contained compound engineering workflows for Claude Code. 26 agents, 31 skills, and 9 commands with disk-persisted agent outputs, beads/TodoWrite task tracking, multi-model red-team challenges, and a subagent dispatch architecture.
 
 - [What This Adds](#what-this-adds)
 - [Installation](#installation)
@@ -29,7 +29,7 @@ Self-contained compound engineering workflows for Claude Code. 26 agents, 30 ski
 | Stats collection | Automatic per-dispatch data — learn which steps are slow, which estimates are wrong, and where quota goes |
 | Bundled agents | 26 specialized agents (research, review, workflow) |
 | Session isolation | Concurrent sessions get isolated git worktrees — no cross-contaminated commits |
-| Bundled skills | 30 reusable patterns, workflow skills, and reference materials |
+| Bundled skills | 31 reusable patterns, workflow skills, and reference materials |
 
 ## Installation
 
@@ -57,6 +57,7 @@ Then run setup to detect your environment:
 | `/do:compound` | Document solved problems to build institutional knowledge |
 | `/do:compact-prep` | Pre-compaction checklist — save memory, compound, commit, queue resume task |
 | `/do:abandon` | Session-end capture without resumption — memory, compound, commit, push |
+| `/do:start` | Interactive session worktree management — resume, cleanup, rename, status |
 | `/do:merge` | Retry deferred worktree merges — resolve conflicts, merge session branch to default |
 | `/compound-workflows:recover` | Recover context from dead/exhausted sessions — parse JSONL logs, cross-reference state |
 | `/compound-workflows:classify-stats` | Classify collected stats entries with complexity and output-type labels |

@@ -174,7 +174,7 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
 - Git remote: `origin` at `github.com/adamfeldman/compound-workflows.git`
 - Only commit files you changed in the current session. If untracked or modified files from prior sessions are present, offer to commit them separately (they may have been left behind) — the goal is a clean working tree at session end
 - **Group commits by logical change, not by file or session** — changes that share a single "why" belong together. Different motivations get separate commits, even if they touch the same file. When in doubt, split. Don't split mechanically — two changes that only make sense together should stay in one commit.
-- **Suggest squash before push** — when multiple commits on the same topic accumulate during a session, suggest squashing to the user before pushing. Never auto-squash. Wait for the user to say the change is done before committing — don't commit mid-iteration while still refining.
+- **Prefer `--no-ff` merge over squash** — when multiple commits on the same topic accumulate during a session, merge with `git merge --no-ff` to preserve the full commit history while keeping main clean (single merge commit). Never auto-squash or auto-merge. Wait for the user to say the change is done before merging — don't merge mid-iteration while still refining.
 - Do not use auto memory (`~/.claude/projects/.../memory/`) — use repo-level memory instead: `memory/` (committed, project knowledge) + `.claude/memory/` (gitignored, private preferences)
 - **Always add `--estimate` when creating beads** — estimate in minutes. See `.claude/memory/estimation-heuristics.md` for per-phase timing data, origin-specific correction factors, and calibration guidance.
 - **Show estimates when listing beads** — when the user asks to see open beads, include the estimate alongside each bead for context (e.g., `nn3 P1 90m — Evaluate red team step in plan`).
@@ -188,26 +188,41 @@ When sources conflict, prefer higher-tier documents. Higher tiers have more revi
 
 ## Session Worktree Isolation
 
-**At session start, before doing anything else, create a session worktree.**
-Run `bd worktree create .worktrees/session-<name>` and `cd` into it.
-Do not read files, run commands, or respond to the user first.
+**The SessionStart hook creates a session worktree automatically.** Your first action must be
+`cd <path>` using the absolute path from the hook output. Do not read files, run commands, or
+respond to the user before cd'ing into the worktree.
 
-- Name the worktree after the task if known: `session-s7qj` or `session-fix-typo`
-- User can say "stay on main" / "skip worktree" to opt out
+- The hook creates `.worktrees/session-<id>` and writes a PID file for concurrent-session protection
+- If the hook reports existing worktrees and suggests `/do:start`, auto-invoke `/do:start` —
+  the user can say "skip" to bypass
+- **If the hook emits a MANDATORY to invoke `/do:start` for unresolved issues** (GC-surviving
+  worktrees with uncommitted/unmerged/untracked files), you MUST invoke `/do:start` after cd'ing
+  into your worktree. Do not skip this — the user needs to decide what to do with orphan worktrees
+  that have unsaved work. `/do:start` will prompt the user for each issue.
+- If the hook didn't fire (not registered, bd unavailable, or settings misconfigured), create a
+  worktree manually: `bd worktree create .worktrees/session-<name>` and `cd` into it
+- If `/do:start` is unavailable (plugin not installed), manage worktrees manually via direct
+  `bd` commands
+- User can say "stay on main" / "skip worktree" to opt out — first capture your Claude PID
+  (`echo $PPID` in a separate Bash call), then: remove the hook-created worktree
+  with `bd worktree remove`, clean up the hook-written PID
+  (`rm -f .worktrees/.metadata/<hook-worktree-name>/pid.<captured-pid>`),
+  and create the `.worktrees/.opted-out` sentinel: `touch .worktrees/.opted-out`
+- **After resume, do not trust your memory about CWD** — session exit resets CWD to the repo
+  root. Run `pwd` to verify, and `cd` into the worktree if needed.
 - If you're already in a worktree (post-compact resume), skip — you're already isolated
-- **After resume, do not trust your memory about CWD** — session exit resets CWD
-  to the repo root. Run `pwd` to verify, and `cd` into the worktree if needed.
-- If the hook reports an existing session worktree and you are resuming
-  a previous conversation, `cd` into it. If this is a fresh session,
-  ask the user whether to resume the existing worktree or create a new one.
+- If you pick a different worktree than the hook recommended, clean up the stale PID:
+  `rm -f .worktrees/.metadata/<hook-recommended-name>/pid.<your-claude-pid>`
 - If `bd worktree create` fails, warn the user and proceed on main
-- If the hook warns that bd is unavailable, skip worktree creation
 - At session end, `/do:compact-prep` merges back to the default branch
-- Any git operations before creating the worktree happen on the default branch
-- Before committing, if session_worktree is enabled and you're NOT in a worktree,
+- Before committing, if session_worktree is enabled and you're NOT in a worktree
+  and `.worktrees/.opted-out` does NOT exist,
   warn the user: "You're committing to main without worktree isolation. Continue?"
+  (Skip warning if `.worktrees/.opted-out` exists — user explicitly opted out this session.)
 
-**Beads database (.beads/) is shared across all sessions.** Worktree isolation covers git state only. Bead operations are concurrency-safe at the SQL level (Dolt) but not coordination-safe at the business logic level.
+**Beads database (.beads/) is shared across all sessions.** Worktree isolation covers git state
+only. Bead operations are concurrency-safe at the SQL level (Dolt) but not coordination-safe
+at the business logic level.
 
 ## Bash Generation Rules
 

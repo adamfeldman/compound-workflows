@@ -39,8 +39,10 @@ Assess whether this is a **code solution** or **analytical/strategic finding**:
 
 Derive a short topic stem from the problem or finding being compounded (e.g., `redis-cache-invalidation` or `api-versioning-strategy`). Use lowercase, hyphens, 3-6 words max.
 
+**Resolve main root for .workflows/ paths:** Run `git worktree list --porcelain | head -1 | sed 's/^worktree //'` to get the main repo root. Set `WORKFLOWS_ROOT=<main-root>/.workflows`. All `.workflows/` paths in this skill use `$WORKFLOWS_ROOT`, NOT relative `.workflows/`. This ensures artifacts survive worktree lifecycle transitions and are shared across sessions.
+
 ```bash
-mkdir -p .workflows/compound-research/<topic-stem>/agents
+mkdir -p $WORKFLOWS_ROOT/compound-research/<topic-stem>/agents
 ```
 
 Launch 5 subagents in parallel with `run_in_background: true`:
@@ -53,7 +55,7 @@ Validate against schema categories: build-errors, test-failures, runtime-errors,
 performance-issues, database-issues, security-issues, ui-bugs, integration-issues, logic-errors.
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write YAML frontmatter skeleton to: .workflows/compound-research/<topic-stem>/agents/context.md
+Write YAML frontmatter skeleton to: $WORKFLOWS_ROOT/compound-research/<topic-stem>/agents/context.md
 Return ONLY a 2-3 sentence summary.
 "
 ```
@@ -64,7 +66,7 @@ Task general-purpose (run_in_background: true): "
 You are a solution extractor specializing in distilling actionable knowledge from problem-solving sessions. Extract the key solution, evidence chain, alternatives considered and why they were rejected, and the decision rationale.
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write findings to: .workflows/compound-research/<topic-stem>/agents/solution.md
+Write findings to: $WORKFLOWS_ROOT/compound-research/<topic-stem>/agents/solution.md
 Return ONLY a 2-3 sentence summary.
 "
 ```
@@ -75,7 +77,7 @@ Task general-purpose (run_in_background: true): "
 You are a documentation researcher specializing in connecting new findings to existing institutional knowledge. Find related brainstorms, plans, solutions, and prior analyses. Map how this finding connects to existing knowledge.
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write findings to: .workflows/compound-research/<topic-stem>/agents/related-docs.md
+Write findings to: $WORKFLOWS_ROOT/compound-research/<topic-stem>/agents/related-docs.md
 Return ONLY a 2-3 sentence summary.
 "
 ```
@@ -86,7 +88,7 @@ Task general-purpose (run_in_background: true): "
 You are a prevention strategist specializing in root cause analysis and recurrence prevention. Identify: How could this have been caught earlier? What systemic changes would prevent recurrence? What monitoring or tests should be added?
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write findings to: .workflows/compound-research/<topic-stem>/agents/prevention.md
+Write findings to: $WORKFLOWS_ROOT/compound-research/<topic-stem>/agents/prevention.md
 Return ONLY a 2-3 sentence summary.
 "
 ```
@@ -97,7 +99,7 @@ Task general-purpose (run_in_background: true): "
 You are a knowledge classifier specializing in taxonomizing technical findings for future retrieval. Classify the problem type and determine the best category directory for the solution document.
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write findings to: .workflows/compound-research/<topic-stem>/agents/category.md
+Write findings to: $WORKFLOWS_ROOT/compound-research/<topic-stem>/agents/category.md
 Return ONLY a 2-3 sentence summary.
 "
 ```
@@ -118,7 +120,7 @@ When in analytical/strategic mode, the same 5 agents run but with adapted focus:
 
 After all Phase 1 agents complete:
 
-1. Read all files from `.workflows/compound-research/<topic-stem>/agents/`
+1. Read all files from `$WORKFLOWS_ROOT/compound-research/<topic-stem>/agents/`
 2. Assemble complete markdown file from the pieces
 3. Validate YAML frontmatter against schema. Include traceability fields:
    ```yaml
@@ -137,19 +139,19 @@ Based on problem type, optionally run specialized review agents:
 Task performance-oracle (run_in_background: true): "You are a performance specialist. Review the solution for performance implications, scalability concerns, and optimization opportunities.
 Read the solution doc at: docs/solutions/[category]/[filename].md
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write findings to: .workflows/compound-research/<topic-stem>/agents/perf-review.md
+Write findings to: $WORKFLOWS_ROOT/compound-research/<topic-stem>/agents/perf-review.md
 Return ONLY a 2-3 sentence summary."
 
 Task security-sentinel (run_in_background: true): "You are a security reviewer. Review the solution for security implications, vulnerability exposure, and hardening opportunities.
 Read the solution doc at: docs/solutions/[category]/[filename].md
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write findings to: .workflows/compound-research/<topic-stem>/agents/security-review.md
+Write findings to: $WORKFLOWS_ROOT/compound-research/<topic-stem>/agents/security-review.md
 Return ONLY a 2-3 sentence summary."
 
 Task data-integrity-guardian (run_in_background: true): "You are a data integrity specialist. Review the solution for data consistency, migration safety, and schema implications.
 Read the solution doc at: docs/solutions/[category]/[filename].md
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write findings to: .workflows/compound-research/<topic-stem>/agents/data-review.md
+Write findings to: $WORKFLOWS_ROOT/compound-research/<topic-stem>/agents/data-review.md
 Return ONLY a 2-3 sentence summary."
 ```
 
@@ -157,7 +159,7 @@ Run only the agents relevant to the problem type. Read output files and incorpor
 
 ### Retain Research
 
-**Do NOT delete research outputs.** The research directory at `.workflows/compound-research/<topic-stem>/` is retained for traceability and learning.
+**Do NOT delete research outputs.** The research directory at `$WORKFLOWS_ROOT/compound-research/<topic-stem>/` is retained for traceability and learning.
 
 ## What It Captures
 

@@ -6,7 +6,7 @@ disable-model-invocation: false
 
 # Classify Stats — Post-Hoc Complexity and Output Type Classification
 
-Reads unclassified stats entries from `.workflows/stats/*.yaml`, dispatches a classifier subagent to propose `complexity` and `output_type` labels, presents proposals in batch table format for user confirmation, then rewrites YAML files in place with classification fields added.
+Reads unclassified stats entries from `$WORKFLOWS_ROOT/stats/*.yaml`, dispatches a classifier subagent to propose `complexity` and `output_type` labels, presents proposals in batch table format for user confirmation, then rewrites YAML files in place with classification fields added.
 
 ## Phase 1: Config Check and Entry Discovery
 
@@ -20,14 +20,14 @@ Read `compound-workflows.local.md` and check the `stats_classify` key.
 ### Step 1.2: Discover Stats Files
 
 ```bash
-ls .workflows/stats/*.yaml 2>/dev/null
+ls $WORKFLOWS_ROOT/stats/*.yaml 2>/dev/null
 ```
 
-If no files found: report "No stats files found in `.workflows/stats/`." and stop.
+If no files found: report "No stats files found in `$WORKFLOWS_ROOT/stats/`." and stop.
 
 ### Step 1.3: Read and Filter Entries
 
-Read all `.workflows/stats/*.yaml` files. For each multi-document YAML file, parse individual entries separated by `---` document markers.
+Read all `$WORKFLOWS_ROOT/stats/*.yaml` files. For each multi-document YAML file, parse individual entries separated by `---` document markers.
 
 **Exclude** entries with `type: ccusage-snapshot` — these are cost snapshots from compact-prep, not agent dispatch records.
 
@@ -57,7 +57,9 @@ This is informational only — classification proceeds on whatever entries exist
 
 ### Step 2.1: Resolve Plugin Root
 
-Run `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh classify-stats`. Read the output and track REPO_ROOT, PLUGIN_ROOT, DATE, and RUN_ID values.
+Run `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh classify-stats`. Read the output and track REPO_ROOT, PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, DATE, and RUN_ID values.
+
+**All `.workflows/` paths in this skill use `$WORKFLOWS_ROOT` (the main repo root's `.workflows/` directory), NOT relative `.workflows/`.**
 
 ### Step 2.2: Prepare Classification Input
 
@@ -94,12 +96,12 @@ Your task: propose `complexity` and `output_type` labels for each unclassified s
 
 ## Input Layer 2: Artifacts
 
-For each entry, skim (do not deep-read) the corresponding artifacts in `.workflows/` using the `stem` field to locate them. The actual agent output reveals what work was done:
-- `.workflows/brainstorm-research/<stem>/` — brainstorm artifacts
-- `.workflows/plan-research/<stem>/` — plan artifacts
-- `.workflows/deepen-plan-research/<stem>/` — deepen-plan artifacts
-- `.workflows/reviews/` — review artifacts
-- `.workflows/work/` — work artifacts (if present)
+For each entry, skim (do not deep-read) the corresponding artifacts in `$WORKFLOWS_ROOT/` using the `stem` field to locate them. The actual agent output reveals what work was done:
+- `$WORKFLOWS_ROOT/brainstorm-research/<stem>/` — brainstorm artifacts
+- `$WORKFLOWS_ROOT/plan-research/<stem>/` — plan artifacts
+- `$WORKFLOWS_ROOT/deepen-plan-research/<stem>/` — deepen-plan artifacts
+- `$WORKFLOWS_ROOT/reviews/` — review artifacts
+- `$WORKFLOWS_ROOT/work/` — work artifacts (if present)
 
 Look at file names and skim first ~20 lines of each artifact to understand what the agent produced. Do not read entire files.
 
@@ -144,7 +146,7 @@ Entry N:
 - Reasoning: <1 sentence explaining the classification>
 
 === OUTPUT INSTRUCTIONS (MANDATORY) ===
-Write your COMPLETE classification to: .workflows/stats/classify-proposals-<DATE>-<RUN_ID>.md
+Write your COMPLETE classification to: $WORKFLOWS_ROOT/stats/classify-proposals-<DATE>-<RUN_ID>.md
 After writing the file, return ONLY a 2-3 sentence summary of how many entries you classified and the distribution across complexity tiers.
 DO NOT return your full classification in your response.
 "
@@ -155,10 +157,10 @@ DO NOT return your full classification in your response.
 After the classifier subagent completes, read the proposals from disk:
 
 ```bash
-ls .workflows/stats/classify-proposals-<DATE>-<RUN_ID>.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+ls $WORKFLOWS_ROOT/stats/classify-proposals-<DATE>-<RUN_ID>.md 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
 ```
 
-Read `.workflows/stats/classify-proposals-<DATE>-<RUN_ID>.md` using the Read tool. Parse the structured classification proposals.
+Read `$WORKFLOWS_ROOT/stats/classify-proposals-<DATE>-<RUN_ID>.md` using the Read tool. Parse the structured classification proposals.
 
 ## Phase 3: User Confirmation
 
@@ -208,7 +210,7 @@ For each stats file that has entries to classify:
 ### Step 4.2: Cleanup
 
 ```bash
-rm -f .workflows/stats/classify-proposals-<DATE>-<RUN_ID>.md
+rm -f $WORKFLOWS_ROOT/stats/classify-proposals-<DATE>-<RUN_ID>.md
 ```
 
 Remove the temporary proposals file after successful classification.
