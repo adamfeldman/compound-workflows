@@ -98,22 +98,150 @@ Parse the output: find the worktree entry whose path matches the current working
 
 **Why not `bd worktree info`:** `bd worktree info` detects bd-managed worktrees but doesn't distinguish session worktrees from `/do:work` worktrees. The `session-` prefix in the worktree path is the distinguishing signal — path-based detection with prefix matching is correct.
 
-**If CWD is inside a session worktree (`.worktrees/session-*`):**
-- **Skip:** `bd worktree create` and `cd` into worktree — already in one. Do NOT create a nested worktree.
-- **Keep:** `.work-in-progress.d` sentinel setup in the session worktree's `.workflows/` directory (Phase 1.2.1)
-- **Keep:** Branch detection for informational purposes — report current branch name
-- Announce: "Already in session worktree — working directly here (no nested worktree)."
-- Set `IN_SESSION_WORKTREE=true` (tracked in orchestrator context for Phase 2.2 safe-commit.sh decision)
-- Continue to Phase 1.2.1 (Create QA Hook Sentinel)
+**If CWD is inside a session worktree (`.worktrees/session-*`):** trigger the session-to-work transition (see below). Set `IN_SESSION_WORKTREE=true` (tracked in orchestrator context for Phase 2.2 safe-commit.sh decision).
 
-**If CWD is NOT inside a session worktree**, proceed with the normal worktree detection below.
+**If CWD is NOT inside a session worktree**, skip the transition and proceed to Normal Worktree Detection below.
+
+#### Session-to-Work Transition
+
+When `/do:work` launches inside a session worktree, it transitions the session work to the default branch and creates a dedicated work worktree. This separates the session lifecycle (ephemeral, user-driven) from the work lifecycle (plan-driven, subagent-dispatched). If any transition step fails, the safe fallback is to work inside the session worktree directly.
+
+**Step 1.2-A — Check uncommitted and untracked files:**
+
+Check for uncommitted tracked changes and untracked files before attempting the merge transition. This is a data-safety gate — AskUserQuestion is intentional here (user-decided, overrides "automate, don't ask" for data-safety reasons).
+
+Check tracked changes:
+```bash
+git status --porcelain --untracked-files=no
+```
+
+Check untracked files:
+```bash
+git ls-files --others --exclude-standard
+```
+
+- **If tracked changes exist:** Use **AskUserQuestion** — "Session worktree has N uncommitted changes. Commit with checkpoint message, or discard?"
+  - Commit: `git add -u && git commit -m "session checkpoint before /do:work transition"`
+  - Discard: `git checkout -- .`
+- **If untracked files exist:** Use **AskUserQuestion** — "Session worktree has N untracked files (list first 5). Stage them before transition? They will be lost otherwise."
+  - Stage: `git add <files> && git commit -m "session checkpoint: stage untracked files before /do:work transition"`
+  - Skip: proceed (user accepts loss)
+
+**Step 1.2-B — PID liveness check via session-gc.sh (CQ2 fix):**
+
+Verify no other session is using this worktree before merging it away.
+
+Capture the Claude PID:
+```bash
+echo $PPID
+```
+
+Read the output as `CLAUDE_PID`. Then run session-gc.sh in single-worktree mode:
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/../../scripts/session-gc.sh <worktree-name> --caller-pid <CLAUDE_PID>
+```
+
+Parse the output line for this worktree:
+- **`REMOVED <name>`:** Not expected in this context (we're inside the worktree). Treat as error, fall back to working inside session worktree.
+- **`SKIPPED <name> live_pids`:** Another session is active. **Block** with message: "Another session is using this worktree. Cannot transition to work worktree. Working inside session worktree instead." Set `IN_SESSION_WORKTREE=true`, skip remaining transition steps, continue to Phase 1.2.1 (Create QA Hook Sentinel).
+
+**PID mismatch handling:** If own PID (`pid.<CLAUDE_PID>`) does not exist in `.worktrees/.metadata/<worktree-name>/`:
+- Warn: "PID mismatch — session PID not found in metadata. This may indicate $PPID inconsistency. Proceeding with full liveness checks (safe). If ALL PIDs are dead, transition will continue."
+- Pass `--caller-pid 0` to session-gc.sh (no self-exclusion — all PIDs are checked for liveness).
+- If session-gc.sh reports live PIDs: check if those PIDs are Claude processes:
+  ```bash
+  ps -p <PID> -o args=
+  ```
+  If `args` output contains `claude` (case-insensitive): **block** — genuine concurrent session.
+  If none are Claude processes: Use **AskUserQuestion** — "PID check found live processes but none are Claude sessions. These are likely recycled PIDs. Force transition? (stale PID files will be cleaned.)"
+  - If user confirms: prune all PID files in `.worktrees/.metadata/<worktree-name>/` and re-run session-gc.sh.
+  - If user declines: **block**, fall back to working inside session worktree.
+- If all PIDs dead: proceed to Step 1.2-C.
+
+**If no other live PIDs (normal path):** proceed to Step 1.2-C.
+
+**Step 1.2-C — Merge session worktree to default branch:**
+
+Navigate to the main repo root and merge the session branch.
+
+Extract the main repo root path:
+```bash
+git worktree list --porcelain
+```
+
+Read the first `worktree` line as the main repo root path. Then `cd` into it.
+
+Extract the session branch name:
+```bash
+git branch --show-current
+```
+
+Read the output as `SESSION_BRANCH`. Then run the merge:
+
+```bash
+CALLER_PID=<CLAUDE_PID> bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <SESSION_BRANCH>
+```
+
+Handle ALL exit codes:
+
+- **Exit 0 (success):** Continue to Step 1.2-D.
+- **Exit 2 (conflict):** Create work worktree from default branch directly, leave session worktree as-is. Warn: "Session worktree <session-name> has merge conflicts with the default branch. Work worktree created from default branch. Resolve <session-name> separately via `/do:start`." Skip to Step 1.2-E (create work worktree from default branch, not from session).
+- **Exit 3 (retry exhaustion):** Fall back to working inside session worktree. Warn: "session-merge.sh exhausted retries (index.lock contention). Working inside session worktree." Set `IN_SESSION_WORKTREE=true`, continue to Phase 1.2.1.
+- **Exit 4 (dirty main):** Fall back to working inside session worktree. Warn: "Default branch has uncommitted changes. Working inside session worktree." Set `IN_SESSION_WORKTREE=true`, continue to Phase 1.2.1.
+- **Exit 5 (file overlap):** Fall back to working inside session worktree. Warn: "File overlap detected between session and default branch. Working inside session worktree." Set `IN_SESSION_WORKTREE=true`, continue to Phase 1.2.1.
+- **Exit 1 (other error):** Fall back to working inside session worktree. Warn with the error output. Set `IN_SESSION_WORKTREE=true`, continue to Phase 1.2.1.
+
+**Step 1.2-D — Remove session worktree (defensive):**
+
+session-merge.sh (Step 2 in the plan) is the primary owner of worktree removal and metadata cleanup on exit 0. This step is purely defensive — it catches cases where session-merge.sh's cleanup was incomplete.
+
+Check if the worktree still exists:
+```bash
+ls -d .worktrees/<session-name>
+```
+
+If the worktree still exists: `bd worktree remove .worktrees/<session-name>` (NO `--force`). If removal fails: warn and continue — do not block work.
+
+If the worktree was already removed by session-merge.sh: no-op.
+
+Check if metadata still exists:
+```bash
+ls -d .worktrees/.metadata/<session-name>
+```
+
+If metadata exists: `rm -rf .worktrees/.metadata/<session-name>`. If already removed: no-op.
+
+Continue to Step 1.2-E.
+
+**Step 1.2-E — Create work worktree:**
+
+Create a dedicated work worktree for subagent dispatch:
+
+```bash
+bd worktree create .worktrees/work-<task-name>
+cd .worktrees/work-<task-name>
+```
+
+Create the QA hook sentinel in the work worktree (fresh worktree has no `.workflows/`):
+```bash
+mkdir -p .workflows/.work-in-progress.d
+```
+Then create the `$RUN_ID` sentinel file:
+```bash
+date +%s > .workflows/.work-in-progress.d/$RUN_ID
+```
+
+Set `IN_BD_WORKTREE=true`. Continue to Phase 1.3 (skip Phase 1.2.1 — sentinel already created above).
 
 **Worktree state summary (for safe-commit.sh decision in Phase 2.2):**
-- `IN_SESSION_WORKTREE=true` → set when CWD is in `.worktrees/session-*`
-- `IN_BD_WORKTREE=true` → set when already in `.worktrees/` OR after `bd worktree create`
+- `IN_SESSION_WORKTREE=true` → set when transition failed and working inside `.worktrees/session-*`
+- `IN_BD_WORKTREE=true` → set when transition succeeded and working in `.worktrees/work-*`, OR already in `.worktrees/` non-session, OR after `bd worktree create` in normal path
 - Both unset → not in any worktree (opt-out or TodoWrite mode) → use safe-commit.sh
 
 #### Normal Worktree Detection
+
+**If CWD was inside a session worktree**, the transition flow above already handled worktree setup. Do NOT enter this section — the transition either created a work worktree (Step 1.2-E) or fell back to working in the session worktree. In either case, proceed to Phase 1.2.1 or Phase 1.3 as directed above.
 
 Check current branch and worktree state. The STEM value from init-values.sh output contains the auto-detected branch name (slugified). For branch display, run `git branch --show-current` as a separate command:
 
