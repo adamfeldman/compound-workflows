@@ -29,7 +29,7 @@ agents/
     └── plan-checks/  # 4 shell scripts + 1 agent-format .md file (check modules, not standalone agents)
 
 commands/
-└── compound/ # Thin aliases redirecting to /do:* skills (8 commands, backwards compat)
+└── compound/ # Thin aliases redirecting to /do:* skills (9 commands, backwards compat)
 
 scripts/
 ├── append-snapshot.sh       # Atomic append of ccusage snapshot YAML documents — hides heredoc from heuristic inspector
@@ -39,7 +39,9 @@ scripts/
 ├── validate-stats.sh        # Diagnostic stats entry count validation — replaces inline ENTRY_COUNT=$(grep -c ...) blocks
 ├── migrate-stats-keys.sh    # Heuristic-safe config key migration — appends stats_capture/stats_classify to local config
 ├── safe-commit.sh           # Worktree-safe git add+commit — uses temporary GIT_INDEX_FILE when not in a worktree
+├── session-gc.sh            # Session worktree garbage collection — PID liveness + state checks, removes only safe-to-delete worktrees
 ├── session-merge.sh         # Merge session worktree branch back to default branch with retry loop and conflict detection
+├── write-session-pid.sh     # Write PID file for concurrent session detection — called by SessionStart hook
 ├── plugin-qa/               # 9 bash scripts + lib.sh — serves both the QA command and the PostToolUse hook
 └── version-check.sh         # 3-way version comparison (source vs installed vs release) — NOT in plugin-qa/ (makes network calls)
 
@@ -62,6 +64,7 @@ skills/
 ├── do-plan/                 # Workflow: transform ideas into implementation plans
 ├── do-review/               # Workflow: multi-agent code review with disk-persisted findings
 ├── do-setup/                # Workflow: detect environment, configure directories (disable-model-invocation)
+├── do-start/                # Workflow: interactive session worktree management — resume, cleanup, rename, status
 ├── do-work/                 # Workflow: execute plans via subagent dispatch with tracking
 ├── agent-browser/           # Browser automation for agents
 ├── agent-native-architecture/ # Architecture patterns reference (15 files)
@@ -236,7 +239,7 @@ If the depth assumption ever breaks (e.g., nested skill directories), the valida
 
 - **Workflow skills (`do-*`):** `bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh <cmd>` for init-values.sh
 - **Utility skills with scripts:** `${CLAUDE_SKILL_DIR}/scripts/<script>` for co-located scripts (e.g., git-worktree, resolve-pr-parallel)
-- **Commands:** Commands do NOT get `${CLAUDE_SKILL_DIR}`. The 8 commands in `commands/compound/` are thin aliases only.
+- **Commands:** Commands do NOT get `${CLAUDE_SKILL_DIR}`. The 9 commands in `commands/compound/` are thin aliases only.
 
 ## Command Robustness Principles
 

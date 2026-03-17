@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.0] - 2026-03-17
+
+### Added
+- **Session worktrees created automatically at session start** — SessionStart hook now deterministically creates worktrees (100% reliable vs ~75% model compliance with instructions)
+- **New `/do:start` command for session worktree management** — resume orphaned worktrees, clean up stale ones, rename sessions, check status — all interactively
+- **Session-to-work worktree transition** — `/do:work` Phase 1.2 detects session worktrees and transitions to a purpose-named work worktree, preserving the session lifecycle separation
+- **Combined PID + state cleanup** — `session-gc.sh` prevents concurrent sessions from deleting each other's worktrees by checking PID liveness before removal
+- **`.workflows/` artifacts write to main repo root** — survives worktree lifecycle transitions so research and stats persist across session→work→merge
+
+### Changed
+- Pre-commit hook uses git plumbing (`git rev-parse`) for worktree detection instead of path heuristics
+- SessionStart hook delegates PID tracking to `write-session-pid.sh` script
+- AGENTS.md session worktree section rewritten for hook-first flow with `/do:start` fallback
+
 ## [3.3.0] - 2026-03-15
 
 ### Fixed

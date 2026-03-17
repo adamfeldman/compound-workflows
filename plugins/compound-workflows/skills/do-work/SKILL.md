@@ -121,10 +121,10 @@ git ls-files --others --exclude-standard
 ```
 
 - **If tracked changes exist:** Use **AskUserQuestion** — "Session worktree has N uncommitted changes. Commit with checkpoint message, or discard?"
-  - Commit: `git add -u && git commit -m "session checkpoint before /do:work transition"`
+  - Commit: Write message to `.workflows/scratch/<session-id>-checkpoint-msg.txt` via the Write tool, then `git add -u && git commit -F .workflows/scratch/<session-id>-checkpoint-msg.txt` (message: "session checkpoint before /do:work transition")
   - Discard: `git checkout -- .`
 - **If untracked files exist:** Use **AskUserQuestion** — "Session worktree has N untracked files (list first 5). Stage them before transition? They will be lost otherwise."
-  - Stage: `git add <files> && git commit -m "session checkpoint: stage untracked files before /do:work transition"`
+  - Stage: Write message to `.workflows/scratch/<session-id>-checkpoint-msg.txt` via the Write tool, then `git add <files> && git commit -F .workflows/scratch/<session-id>-checkpoint-msg.txt` (message: "session checkpoint: stage untracked files before /do:work transition")
   - Skip: proceed (user accepts loss)
 
 **Step 1.2-B — PID liveness check via session-gc.sh (CQ2 fix):**

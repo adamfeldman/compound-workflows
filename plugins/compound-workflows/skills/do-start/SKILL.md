@@ -248,10 +248,13 @@ Offer to stage: `git add <files>`
 
 Commit all uncommitted changes (including any just-staged files):
 
+Write checkpoint message to `.workflows/scratch/<session-id>-checkpoint-msg.txt` via the Write tool, then:
 ```bash
 git add -u
-git commit -m "session checkpoint before /do:start rename to <new-name>"
+git commit -F .workflows/scratch/<session-id>-checkpoint-msg.txt
 ```
+
+Message: `session checkpoint before /do:start rename to <new-name>`
 
 If nothing to commit (clean tree), skip the commit.
 
