@@ -65,7 +65,9 @@ Additional specflow resolutions incorporated:
 
 **Problem:** `.workflows/` is gitignored and per-worktree. When worktrees are removed (GC, `/do:work` transition, compact-prep merge), all `.workflows/` content is silently destroyed — research artifacts, agent outputs, stats, synthesis files. This contradicts the plugin's "diagnosable AI mistakes" design philosophy and creates dead reference links in plans and solutions. [specflow P1-25/3/13, deepen-plan run 1]
 
-**Fix:** All skills must write `.workflows/` to the **main repo root**, not the current worktree. Implementation:
+**Same class of problem affects `.claude/memory/`:** When a skill writes to `.claude/memory/` from inside a worktree using an absolute path to the main repo root, the worktree's git index doesn't see the change. If `.claude/memory/` is committed (per-repo choice — not always gitignored), the worktree branch merges to main without the memory update, potentially overwriting it. Even when gitignored, the model may try to `git add` the file and fail confusingly. Compact-prep Step 1 (memory writes) must detect worktree context and write to the correct location. [user-identified during deepen-plan run 1 compact-prep]
+
+**Fix:** All skills must write shared state directories to the **main repo root**, not the current worktree. This applies to both `.workflows/` and `.claude/memory/`. Implementation:
 1. `init-values.sh` adds `compute_main_root()` using `git worktree list --porcelain | head -1 | sed 's/^worktree //'`. New output key: `WORKFLOWS_ROOT=<main-root>/.workflows`. Existing `STATS_FILE` and all `.workflows/`-referencing keys switch from `$(compute_repo_root)` to `$(compute_main_root)`. `REPO_ROOT` continues using `compute_repo_root()` for non-`.workflows/` purposes. [specflow pass 2, NEW-4]
 2. All skills use `$WORKFLOWS_ROOT/<command>/...` instead of relative `.workflows/<command>/...`
 3. Since `.workflows/` is at the main repo root (shared across all worktrees), artifacts survive worktree lifecycle transitions
@@ -80,6 +82,9 @@ Additional specflow resolutions incorporated:
 - [ ] Audit all skills for `.workflows/` write paths — update to use `$WORKFLOWS_ROOT`
 - [ ] Add concurrency safety: include `RUN_ID` in all `.workflows/` write paths to prevent collision when two sessions run the same command/stem/date. Stats files already use date+command+stem — add RUN_ID as a suffix or namespace within the file. [red-team--opus A1: shared-mutable-state concurrency]
 - [ ] Verify `.work-in-progress.d/` exception works correctly (per-worktree, not `$WORKFLOWS_ROOT`)
+- [ ] Add `MAIN_ROOT` output key to `init-values.sh` (parent of `WORKFLOWS_ROOT`) for `.claude/memory/` path resolution
+- [ ] Update compact-prep Step 1 (memory writes): when `in_worktree`, use `$MAIN_ROOT/.claude/memory/` and `$MAIN_ROOT/memory/` instead of relative paths. For committed `memory/` files, stage changes in worktree via `git -C $MAIN_ROOT add` (not CWD-relative)
+- [ ] Test: memory writes from worktree land in correct location for both gitignored and committed memory dirs
 - [ ] Test: two concurrent sessions writing to `$WORKFLOWS_ROOT` — no file collisions
 
 **Safety net:** session-gc.sh should also check for `.workflows/` content in worktrees before deletion. If present (legacy path or bug), SKIP + WARN: "worktree contains .workflows/ artifacts that should have been written to main repo root." This catches regressions.
