@@ -206,7 +206,7 @@ For fallback agents, set descriptions from hardcoded defaults:
 - `learnings-researcher`: "Learnings researcher mining institutional knowledge from prior solutions"
 - `git-history-analyzer`: "Git history analyzer examining commit patterns and change frequency"
 
-For fallback agents, set `model` to `"sonnet"` for research agents (`best-practices-researcher`, `repo-research-analyst`, `context-researcher`, `framework-docs-researcher`, `learnings-researcher`, `git-history-analyzer`) and `"inherit"` for review agents. Set `source` to `"fallback"`.
+For fallback agents, set `model` to `"sonnet"` for research agents (`best-practices-researcher`, `repo-research-analyst`, `context-researcher`, `framework-docs-researcher`, `learnings-researcher`) and `"inherit"` for review agents and `git-history-analyzer` (which uses `inherit` per its agent definition). Set `source` to `"fallback"`.
 
 If both invariant agents (`security-sentinel` AND `architecture-strategist`) are missing AND the total roster is < 5, treat as total failure — replace with the full fallback list (19 agents).
 
