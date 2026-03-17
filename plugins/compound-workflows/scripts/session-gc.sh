@@ -201,12 +201,19 @@ cleanup_worktree() {
   # Check old-format PID too
   if [[ -n "$old_pid" ]]; then
     if [[ "$old_pid" == "$caller_pid" ]] && [[ "$caller_pid" != "0" ]]; then
-      : # Self — skip
+      # Self — skip liveness check but prune the old-format file (CQ2: self-exclusion
+      # means we don't block on our own PID, but the file is still untracked and would
+      # block git worktree remove in step 4)
+      rm -f "$old_pid_file"
     elif kill -0 "$old_pid" 2>/dev/null; then
       echo "SKIPPED $wt_name another-session-active:PID=$old_pid"
       return 0
+    else
+      # Dead old PID — prune immediately (consistent with new-format pruning above).
+      # Without this, the dead .session.pid file blocks step 3c (untracked check) and
+      # prevents worktree removal even though the PID is dead and the branch is merged.
+      rm -f "$old_pid_file"
     fi
-    # Dead old PID — will be cleaned up on DELETE path
   fi
 
   # Re-compute TOCTOU baseline AFTER dead-PID pruning (C1 fix: initial count included
