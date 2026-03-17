@@ -42,7 +42,9 @@ Run init-values.sh to get shared values:
 bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh compact-prep
 ```
 
-Read the output and track these values for use throughout: PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE. If init-values.sh fails or any critical value is empty, warn the user and stop.
+Read the output and track these values for use throughout: PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE. If init-values.sh fails or any critical value is empty, warn the user and stop.
+
+**All `.workflows/` paths in this skill use `$WORKFLOWS_ROOT` (the main repo root's `.workflows/` directory), NOT relative `.workflows/`.** This ensures artifacts survive worktree lifecycle transitions and are shared across sessions.
 
 ### Generate Run ID
 
@@ -298,7 +300,13 @@ Execute approved actions in **strict dependency order**. Do not reorder. Per-ste
 
 **Skip if:** user selected "Skip memory updates" OR no memory updates were identified.
 
-Read existing memory files, apply the updates identified in Check A, and write directly to `memory/` using the **Read tool** and **Edit tool** (or **Write tool** for new files). Create parent directories as needed.
+**Path resolution for worktree context:** When `in_worktree` is true, memory writes must target the main repo root so they survive worktree deletion:
+- **Gitignored memory** (`.claude/memory/`): write to `$MAIN_ROOT/.claude/memory/` using absolute paths
+- **Committed memory** (`memory/`): write to `$MAIN_ROOT/memory/` using absolute paths, then stage with `git -C $MAIN_ROOT add memory/<file>` (not CWD-relative)
+
+When `in_worktree` is false, use relative `memory/` and `.claude/memory/` paths as before.
+
+Read existing memory files, apply the updates identified in Check A, and write using the **Read tool** and **Edit tool** (or **Write tool** for new files). Create parent directories as needed.
 
 Tell the user what was updated (1-2 sentences per update, not a wall of text).
 
@@ -312,13 +320,13 @@ Re-run `git status` to get a **fresh file set** — do NOT use stale Check C res
 Ensure the run directory exists for commit message files:
 
 ```bash
-mkdir -p .workflows/compact-prep/<run-id>/
+mkdir -p $WORKFLOWS_ROOT/compact-prep/<run-id>/
 ```
 
 **Commit tool selection:** When `in_worktree` is false (session not in a worktree — opt-out or not applicable), use `bash ${CLAUDE_SKILL_DIR}/../../scripts/safe-commit.sh` instead of raw `git commit` for staging isolation. When `in_worktree` is true, use raw `git commit` as normal (the worktree already provides index isolation).
 
-- If **auto-commit** (`compact_auto_commit: true`): suggest a commit message and execute without prompting. Use the **Write tool** to write the message to `.workflows/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and commit (using `safe-commit.sh` or `git commit -F` per the commit tool selection above).
-- If **manual**: ask the user for a message or suggest one. Use the **Write tool** to write the agreed message to `.workflows/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and commit (using `safe-commit.sh` or `git commit -F` per the commit tool selection above).
+- If **auto-commit** (`compact_auto_commit: true`): suggest a commit message and execute without prompting. Use the **Write tool** to write the message to `$WORKFLOWS_ROOT/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and commit (using `safe-commit.sh` or `git commit -F` per the commit tool selection above).
+- If **manual**: ask the user for a message or suggest one. Use the **Write tool** to write the agreed message to `$WORKFLOWS_ROOT/compact-prep/<run-id>/commit-msg.txt`, then run `git add` for modified/new files and commit (using `safe-commit.sh` or `git commit -F` per the commit tool selection above).
 - If no uncommitted changes exist at this point: no-op, proceed silently.
 
 ### Step 3: Run Compound
@@ -326,10 +334,10 @@ mkdir -p .workflows/compact-prep/<run-id>/
 **Skip if:** user selected "Skip compound" OR compound was not worthy.
 
 Before pausing:
-1. Use the **Write tool** to write batch state to `.workflows/compact-prep/<run-id>.json` with: `{ "run_id": "<run-id>", "abandon_mode": <bool>, "approved_actions": [...], "skipped_actions": [...], "current_step": 3, "completed_steps": [<list>], "config": { <5 config keys> }, "timestamp": "<timestamp>" }`
+1. Use the **Write tool** to write batch state to `$WORKFLOWS_ROOT/compact-prep/<run-id>.json` with: `{ "run_id": "<run-id>", "abandon_mode": <bool>, "approved_actions": [...], "skipped_actions": [...], "current_step": 3, "completed_steps": [<list>], "config": { <5 config keys> }, "timestamp": "<timestamp>" }`
 2. Tell the user: "Running /do:compound now. Resume compact-prep after compound completes."
 3. Pause — the user runs `/do:compound` separately.
-5. On resume: read state file from `.workflows/compact-prep/<run-id>.json`, continue at Step 4.
+5. On resume: read state file from `$WORKFLOWS_ROOT/compact-prep/<run-id>.json`, continue at Step 4.
 
 ### Step 4: Commit Compound Docs
 
@@ -340,7 +348,7 @@ Check `git status` for new files from compound.
 **Commit tool selection:** Same as Step 2 — when `in_worktree` is false, use `bash ${CLAUDE_SKILL_DIR}/../../scripts/safe-commit.sh` instead of raw `git commit`. When `in_worktree` is true, use raw `git commit`.
 
 - If **no new files** (compound ran but produced nothing): no-op, proceed silently. Do NOT trigger retry/skip/abort.
-- If **new files** and auto-commit: commit automatically with a suggested message (e.g., "docs: compound solution -- [topic]"). Use the **Write tool** to write the message to `.workflows/compact-prep/<run-id>/commit-msg-compound.txt`, then run `git add` for the new files and commit (using `safe-commit.sh` or `git commit -F` per the commit tool selection above).
+- If **new files** and auto-commit: commit automatically with a suggested message (e.g., "docs: compound solution -- [topic]"). Use the **Write tool** to write the message to `$WORKFLOWS_ROOT/compact-prep/<run-id>/commit-msg-compound.txt`, then run `git add` for the new files and commit (using `safe-commit.sh` or `git commit -F` per the commit tool selection above).
 - If **new files** and manual: commit with a suggested or user-provided message using the same Write-then-commit-F and commit tool selection pattern.
 
 ### Step 4.5: Session Worktree Merge

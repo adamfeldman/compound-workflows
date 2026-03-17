@@ -7,11 +7,11 @@
 # Model parses by matching line prefix (e.g., "the line starting with PLUGIN_ROOT=").
 #
 # Supported commands:
-#   brainstorm, plan, deepen-plan, review  -> PLUGIN_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL[, NOTE]
-#   work                                   -> PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR, CACHED_MODEL[, NOTE]
-#   compact-prep                           -> PLUGIN_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE
+#   brainstorm, plan, deepen-plan, review  -> PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL[, NOTE]
+#   work                                   -> PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR, CACHED_MODEL[, NOTE]
+#   compact-prep                           -> PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, VERSION_CHECK, DATE, DATE_COMPACT, TIMESTAMP, SNAPSHOT_FILE
 #   setup                                  -> PLUGIN_ROOT, VERSION_CHECK
-#   plugin-changes-qa, classify-stats      -> REPO_ROOT, PLUGIN_ROOT, DATE, RUN_ID
+#   plugin-changes-qa, classify-stats      -> REPO_ROOT, PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, DATE, RUN_ID
 #   version                                -> VERSION_CHECK
 #
 # Exit codes:
@@ -79,6 +79,14 @@ compute_run_id() {
 compute_repo_root() {
   git rev-parse --show-toplevel 2>/dev/null || pwd
 }
+
+compute_main_root() {
+  # Returns the main worktree root (the primary checkout), even when running
+  # inside a linked worktree. Used for .workflows/ and .claude/memory/ paths
+  # that must be shared across all worktrees.
+  git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //'
+}
+
 
 resolve_version_check() {
   local vc="$PLUGIN_ROOT/scripts/version-check.sh"
@@ -157,7 +165,9 @@ case "$CMD" in
     STEM="$(sanitize_stem "$STEM_ARG")"
     DATE_VAL="$(compute_date)"
     RUN_ID_VAL="$(compute_run_id)"
-    STATS_FILE_VAL="$(compute_repo_root)/.workflows/stats/${DATE_VAL}-${CMD}-${STEM}.yaml"
+    MAIN_ROOT_VAL="$(compute_main_root)"
+    WORKFLOWS_ROOT_VAL="${MAIN_ROOT_VAL}/.workflows"
+    STATS_FILE_VAL="${WORKFLOWS_ROOT_VAL}/stats/${DATE_VAL}-${CMD}-${STEM}-${RUN_ID_VAL}.yaml"
     mkdir -p "$(dirname "$STATS_FILE_VAL")"
 
     validate_plugin_root
@@ -166,6 +176,8 @@ case "$CMD" in
     validate_stats_file "$STATS_FILE_VAL"
 
     echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+    echo "MAIN_ROOT=$MAIN_ROOT_VAL"
+    echo "WORKFLOWS_ROOT=$WORKFLOWS_ROOT_VAL"
     echo "RUN_ID=$RUN_ID_VAL"
     echo "DATE=$DATE_VAL"
     echo "STATS_FILE=$STATS_FILE_VAL"
@@ -186,7 +198,9 @@ case "$CMD" in
     fi
     DATE_VAL="$(compute_date)"
     RUN_ID_VAL="$(compute_run_id)"
-    STATS_FILE_VAL="$(compute_repo_root)/.workflows/stats/${DATE_VAL}-work-${STEM}.yaml"
+    MAIN_ROOT_VAL="$(compute_main_root)"
+    WORKFLOWS_ROOT_VAL="${MAIN_ROOT_VAL}/.workflows"
+    STATS_FILE_VAL="${WORKFLOWS_ROOT_VAL}/stats/${DATE_VAL}-work-${STEM}-${RUN_ID_VAL}.yaml"
     mkdir -p "$(dirname "$STATS_FILE_VAL")"
     WORKTREE_MGR_VAL="$(resolve_worktree_mgr)"
 
@@ -196,6 +210,8 @@ case "$CMD" in
     validate_stats_file "$STATS_FILE_VAL"
 
     echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+    echo "MAIN_ROOT=$MAIN_ROOT_VAL"
+    echo "WORKFLOWS_ROOT=$WORKFLOWS_ROOT_VAL"
     echo "RUN_ID=$RUN_ID_VAL"
     echo "DATE=$DATE_VAL"
     echo "STEM=$STEM"
@@ -215,13 +231,17 @@ case "$CMD" in
     DATE_COMPACT_VAL="$(compute_date_compact)"
     TIMESTAMP_VAL="$(compute_timestamp)"
     VERSION_CHECK_VAL="$(resolve_version_check)"
-    SNAPSHOT_FILE_VAL=".workflows/stats/${DATE_VAL}-ccusage-snapshot.yaml"
+    MAIN_ROOT_VAL="$(compute_main_root)"
+    WORKFLOWS_ROOT_VAL="${MAIN_ROOT_VAL}/.workflows"
+    SNAPSHOT_FILE_VAL="${WORKFLOWS_ROOT_VAL}/stats/${DATE_VAL}-ccusage-snapshot.yaml"
     mkdir -p "$(dirname "$SNAPSHOT_FILE_VAL")"
 
     validate_plugin_root
     validate_date "$DATE_VAL"
 
     echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+    echo "MAIN_ROOT=$MAIN_ROOT_VAL"
+    echo "WORKFLOWS_ROOT=$WORKFLOWS_ROOT_VAL"
     echo "VERSION_CHECK=$VERSION_CHECK_VAL"
     echo "DATE=$DATE_VAL"
     echo "DATE_COMPACT=$DATE_COMPACT_VAL"
@@ -240,6 +260,8 @@ case "$CMD" in
 
   plugin-changes-qa|classify-stats)
     REPO_ROOT_VAL="$(compute_repo_root)"
+    MAIN_ROOT_VAL="$(compute_main_root)"
+    WORKFLOWS_ROOT_VAL="${MAIN_ROOT_VAL}/.workflows"
     DATE_VAL="$(compute_date)"
     RUN_ID_VAL="$(compute_run_id)"
 
@@ -249,6 +271,8 @@ case "$CMD" in
 
     echo "REPO_ROOT=$REPO_ROOT_VAL"
     echo "PLUGIN_ROOT=$PLUGIN_ROOT"
+    echo "MAIN_ROOT=$MAIN_ROOT_VAL"
+    echo "WORKFLOWS_ROOT=$WORKFLOWS_ROOT_VAL"
     echo "DATE=$DATE_VAL"
     echo "RUN_ID=$RUN_ID_VAL"
     ;;

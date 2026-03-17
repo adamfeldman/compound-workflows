@@ -35,6 +35,14 @@ which bd 2>/dev/null && echo "BEADS=available" || echo "BEADS=not_available"
 
 Note beads availability for Phase 3.
 
+### Step 0.2a: Resolve main root for .workflows/ paths
+
+```bash
+git worktree list --porcelain | head -1 | sed 's/^worktree //'
+```
+
+Set `WORKFLOWS_ROOT=<main-root>/.workflows`. All `.workflows/` paths in this skill use `$WORKFLOWS_ROOT`, NOT relative `.workflows/`. This ensures artifacts are found at the correct location regardless of whether you are in a worktree or the main checkout.
+
 ### Step 0.3: Route by argument
 
 If `<session_id>` is non-empty, skip to **Phase 2** using that session ID to locate the `.jsonl` file at `$SESSION_DIR/<session_id>.jsonl`. If the file does not exist, tell the user: "No session log found for session ID `<session_id>`." Then stop.
@@ -217,7 +225,7 @@ Check each recovery source to build a picture of the project state at recovery t
 ### Step 3.1: .workflows/ artifacts
 
 ```bash
-ls -lt .workflows/brainstorm-research/ .workflows/plan-research/ .workflows/deepen-plan/ .workflows/compound-research/ .workflows/code-review/ .workflows/work-review/ .workflows/recover/ 2>/dev/null
+ls -lt $WORKFLOWS_ROOT/brainstorm-research/ $WORKFLOWS_ROOT/plan-research/ $WORKFLOWS_ROOT/deepen-plan/ $WORKFLOWS_ROOT/compound-research/ $WORKFLOWS_ROOT/code-review/ $WORKFLOWS_ROOT/work-review/ $WORKFLOWS_ROOT/recover/ 2>/dev/null
 ```
 
 For directories modified within the dead session's time range (from Phase 2 timestamps), note:
@@ -225,7 +233,7 @@ For directories modified within the dead session's time range (from Phase 2 time
 - Whether a manifest.json exists (for deepen-plan) and its `status` field
 - Most recently modified files
 
-If no `.workflows/` directory exists, note "No .workflows/ directory found" and skip.
+If `$WORKFLOWS_ROOT` does not exist, note "No .workflows/ directory found at $WORKFLOWS_ROOT" and skip.
 
 ### Step 3.2: Beads state
 
@@ -264,10 +272,10 @@ Check if the session log contains `compact_boundary` entries with activity both 
 
 ## Phase 4: Write Recovery Manifest
 
-Write three files to `.workflows/recover/<session-id>/`. Create the directory if it does not exist. Overwrite if prior recovery exists (recovery is idempotent — external state may have changed).
+Write three files to `$WORKFLOWS_ROOT/recover/<session-id>/`. Create the directory if it does not exist. Overwrite if prior recovery exists (recovery is idempotent — external state may have changed).
 
 ```bash
-mkdir -p .workflows/recover/<session-id>
+mkdir -p $WORKFLOWS_ROOT/recover/<session-id>
 ```
 
 ### File 1: `summary.md`
@@ -309,7 +317,7 @@ Keep this to 3-5 sentences — enough to orient a new session.]
 - **Beads:** [N in_progress issues, M open issues | not available]
 - **Git:** [uncommitted changes summary | clean working tree]
 - **Stashes:** [list | none]
-- **.workflows/:** [active artifacts found with types | none | no directory]
+- **$WORKFLOWS_ROOT/:** [active artifacts found with types | none | no directory]
 - **Plans:** [active plans with unchecked items | none found]
 
 ## Recommended Next Step
@@ -321,7 +329,7 @@ To resume, run: /do:[command] [arguments]
 [If the command does not have built-in recovery: note the user starts fresh with recovery context available on disk.]"
 
 [If interactive work (no command):]
-"Continue working on [topic summary]. Recovery context is available at .workflows/recover/<session-id>/."
+"Continue working on [topic summary]. Recovery context is available at $WORKFLOWS_ROOT/recover/<session-id>/."
 
 [If clean — no interrupted work detected:]
 "No interrupted work detected. The session appears to have ended normally."
@@ -397,10 +405,10 @@ Captured at recovery time — reflects current state, not session-time state.
 ### Stashes
 [git stash list output, or "No stashes."]
 
-## .workflows/ Artifacts
+## $WORKFLOWS_ROOT/ Artifacts
 
 [Recently modified directories and their contents from Phase 3.1, or:]
-"No .workflows/ directory found."
+"No .workflows/ directory found at $WORKFLOWS_ROOT."
 
 ## Active Plans
 
@@ -416,7 +424,7 @@ Present the content of `summary.md` directly to the user. Do not just say "file 
 
 ### Step 5.2: Note recovery manifest location
 
-Tell the user: "Full recovery manifest written to `.workflows/recover/<session-id>/` (summary.md, session-extract.md, state-snapshot.md)."
+Tell the user: "Full recovery manifest written to `$WORKFLOWS_ROOT/recover/<session-id>/` (summary.md, session-extract.md, state-snapshot.md)."
 
 ### Step 5.3: Offer next steps
 
@@ -430,7 +438,7 @@ Tell the user: "The session was running `/do:[command]` [with arguments if detec
 
 Note whether the command supports auto-recovery:
 - `/do:deepen-plan` — detects interrupted manifests and resumes automatically
-- Other commands — the user starts fresh, but recovery context is available on disk at `.workflows/recover/<session-id>/`
+- Other commands — the user starts fresh, but recovery context is available on disk at `$WORKFLOWS_ROOT/recover/<session-id>/`
 
 Use **AskUserQuestion**: "What would you like to do?"
 - **Run the command above to resume** — output the exact command string for the user to copy-paste (commands cannot invoke other commands programmatically)
@@ -585,7 +593,7 @@ Handle these throughout execution:
 - **Session from different branch**: Note the `gitBranch` field from the JSONL in the summary: "Note: This session was on branch `[branch]`, which differs from the current branch `[current]`."
 - **Session from different working directory**: Note the `cwd` field if it differs from current `pwd`: "Note: This session's working directory was `[cwd]`, which differs from the current directory."
 - **Beads unavailable**: Skip beads checks entirely. Note "Beads: not available" in the state snapshot. No error.
-- **No `.workflows/` directory**: Skip artifact checks. Note "No .workflows/ directory found" in the state snapshot. No error.
+- **No `$WORKFLOWS_ROOT` directory**: Skip artifact checks. Note "No .workflows/ directory found at $WORKFLOWS_ROOT" in the state snapshot. No error.
 - **Malformed JSONL line**: Skip the line with a brief warning ("Skipped N malformed lines during parsing"). Continue parsing remaining lines.
 - **Multiple commands in one session**: Detect the LAST active command (most relevant for recovery). Note prior commands as completed context in the session extract.
 - **Session still active in another terminal**: No reliable detection mechanism. This is a known limitation. If the user notices stale data, they should close the other session first. Document this in the summary if the session's last entry is very recent (within the last few minutes).
@@ -597,5 +605,5 @@ Handle these throughout execution:
 - **Present the summary, don't just write it.** The user needs to see the recovery context immediately, not hunt for it in files.
 - **Commands cannot invoke other commands.** When offering to resume a compound command, output the exact command string for the user to copy-paste. Do not attempt programmatic invocation.
 - **Record the why, not just the what.** When extracting decisions, preserve the user's stated reasoning — it's more valuable than the choice itself.
-- **Degrade gracefully.** Missing beads, missing .workflows/, missing plan files — these are all acceptable states. Skip with a note, never error.
+- **Degrade gracefully.** Missing beads, missing $WORKFLOWS_ROOT/, missing plan files — these are all acceptable states. Skip with a note, never error.
 - **Recovery is idempotent.** Running recover on the same session twice overwrites the prior manifest with fresh external state. This is intentional.

@@ -70,7 +70,9 @@ If no stem is known yet (ad-hoc work, no plan file), run without stem:
 bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh work
 ```
 
-Read the output. Track the values PLUGIN_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+Read the output. Track the values PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, RUN_ID, DATE, STEM, STATS_FILE, WORKTREE_MGR, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+
+**All `.workflows/` paths in this skill use `$WORKFLOWS_ROOT` (the main repo root's `.workflows/` directory), NOT relative `.workflows/`.** Exception: `.workflows/.work-in-progress.d/` remains relative (per-worktree) — see Phase 1.2.1.
 
 **Config check:** Read `compound-workflows.local.md` and check the `stats_capture` key. If the value is `false`, skip all stats capture for this run (do not read the schema file, do not call `capture-stats.sh`). If the key is missing or any other value, proceed with stats capture.
 
@@ -303,7 +305,7 @@ You are executing one step of a larger work plan. Your job is to implement ONLY 
    - Are strategies consistent across layers? (error handling, retry alignment)
    Skip if trivial (leaf-node change, no callbacks, no state persistence).
 8. Run tests to verify your changes work
-9. Stage and commit your changes: only stage files you directly created or edited — do NOT stage regenerated outputs, build artifacts, or files modified as a side effect of running scripts. Use the commit message suggested in the task description (or write an appropriate conventional commit message). Use the **Write tool** to write the message to `.workflows/scratch/commit-msg-<TASK_ID>.txt`, then run `git commit -F .workflows/scratch/commit-msg-<TASK_ID>.txt`.
+9. Stage and commit your changes: only stage files you directly created or edited — do NOT stage regenerated outputs, build artifacts, or files modified as a side effect of running scripts. Use the commit message suggested in the task description (or write an appropriate conventional commit message). Use the **Write tool** to write the message to `$WORKFLOWS_ROOT/scratch/commit-msg-<TASK_ID>.txt`, then run `git commit -F $WORKFLOWS_ROOT/scratch/commit-msg-<TASK_ID>.txt`.
 10. Do NOT push to remote — the orchestrator handles that
 11. Do NOT create PRs
 12. Do NOT modify beads issues (bd commands) — the orchestrator handles that
@@ -422,7 +424,7 @@ After all issues are closed (or all TodoWrite tasks completed):
 
 3. **Optional: Dispatch reviewer subagent** for complex changes:
    ```
-   mkdir -p .workflows/work-review/<RUN_ID>/
+   mkdir -p $WORKFLOWS_ROOT/work-review/<RUN_ID>/
 
    Task code-simplicity-reviewer (run_in_background: true): "You are a code simplicity reviewer. Check for unnecessary complexity, YAGNI violations, and over-engineering.
 
@@ -430,7 +432,7 @@ After all issues are closed (or all TodoWrite tasks completed):
    Run: git diff [base-branch]...HEAD
 
    === OUTPUT INSTRUCTIONS (MANDATORY) ===
-   Write your COMPLETE findings to: .workflows/work-review/<RUN_ID>/code-simplicity.md
+   Write your COMPLETE findings to: $WORKFLOWS_ROOT/work-review/<RUN_ID>/code-simplicity.md
    After writing the file, return ONLY a 2-3 sentence summary.
    "
    ```
@@ -445,9 +447,9 @@ After all issues are closed (or all TodoWrite tasks completed):
    ```bash
    git add <files>
    ```
-   Use the **Write tool** to write the commit message to `.workflows/scratch/commit-msg-<RUN_ID>.txt` (use the tracked RUN_ID value). Then run:
+   Use the **Write tool** to write the commit message to `$WORKFLOWS_ROOT/scratch/commit-msg-<RUN_ID>.txt` (use the tracked RUN_ID value). Then run:
    ```bash
-   git commit -F .workflows/scratch/commit-msg-<RUN_ID>.txt
+   git commit -F $WORKFLOWS_ROOT/scratch/commit-msg-<RUN_ID>.txt
    ```
 
 2. **Clear QA hook sentinel** (re-enable PostToolUse QA enforcement):
@@ -458,9 +460,9 @@ After all issues are closed (or all TodoWrite tasks completed):
    ```bash
    git push -u origin [branch-name]
    ```
-   Use the **Write tool** to write the PR body to `.workflows/scratch/pr-body-<RUN_ID>.txt` (use the tracked RUN_ID value). Include Summary, Testing, and Implementation Notes sections. Then run:
+   Use the **Write tool** to write the PR body to `$WORKFLOWS_ROOT/scratch/pr-body-<RUN_ID>.txt` (use the tracked RUN_ID value). Include Summary, Testing, and Implementation Notes sections. Then run:
    ```bash
-   gh pr create --title "[Description]" --body-file .workflows/scratch/pr-body-<RUN_ID>.txt
+   gh pr create --title "[Description]" --body-file $WORKFLOWS_ROOT/scratch/pr-body-<RUN_ID>.txt
    ```
 
    > **Post-merge reminder:** After the PR is merged, run `/compound-workflows:version` or `/do:compact-prep` to check for missing GitHub releases. Do not create releases automatically — the user decides when to cut a release.
