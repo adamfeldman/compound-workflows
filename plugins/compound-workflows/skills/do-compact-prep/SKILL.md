@@ -357,15 +357,32 @@ Check `git status` for new files from compound.
 
 This step merges the worktree branch back to the default branch and cleans up the worktree.
 
-#### Gate: Check for uncommitted changes
+#### Gate: Pre-merge state checks
 
-Before proceeding with the merge, check if the worktree has uncommitted changes:
+Before proceeding with the merge, run three state checks on the session worktree:
 
+**Check 1 — Tracked changes:**
 ```bash
-git -C <worktree-path> status --porcelain
+git -C <worktree-path> status --porcelain --untracked-files=no
 ```
 
-Behavior depends on mode and whether the user skipped the commit step (Step 2):
+**Check 2 — Untracked files:**
+```bash
+git -C <worktree-path> ls-files --others --exclude-standard
+```
+
+**Check 3 — `.workflows/` artifacts:** Check for plugin-specific `.workflows/` content in the worktree (safety net for legacy paths or regressions — artifacts should have been written to main repo root via `$WORKFLOWS_ROOT`):
+```bash
+ls <worktree-path>/.workflows/stats <worktree-path>/.workflows/brainstorm-research <worktree-path>/.workflows/plan-research <worktree-path>/.workflows/compact-prep <worktree-path>/.workflows/work <worktree-path>/.workflows/deepen-plan <worktree-path>/.workflows/compound-research
+```
+
+**Handling results:**
+
+- **Tracked changes (Check 1):** Already handled by compact-prep's commit step (Step 2). No additional action — behavior unchanged from previous gate logic (see mode-dependent handling below).
+- **Untracked files (Check 2) or `.workflows/` artifacts (Check 3):** If either found, warn user via AskUserQuestion: "Worktree has N untracked files and/or .workflows/ artifacts that will be lost when the worktree is removed. Continue with merge?" If the user declines, skip the merge (worktree preserved, summary shows "deferred").
+- **Abandon mode exception:** In abandon mode, note findings in the summary but proceed without prompting — abandon auto-proceeds.
+
+**Tracked changes mode-dependent handling** (unchanged from prior behavior):
 
 - **(a) Regular mode, user did not skip commit:** Uncommitted changes shouldn't exist at this point (Step 2 already committed). If any are found, warn ("Unexpected: N uncommitted changes in worktree after commit step") and proceed with the merge.
 - **(b) Regular mode, user skipped commit:** Warn via AskUserQuestion: "Worktree has N uncommitted changes that will NOT be included in the merge. Continue?" If the user declines, skip the merge (worktree preserved, summary shows "deferred").
@@ -383,19 +400,27 @@ Capture these values before exiting the worktree:
 
 Extract the main repo path from the `git worktree list --porcelain` output already obtained in the Detect Worktree Status initialization step (first line — strip the `worktree ` prefix). Then run `cd <extracted-path>` via the Bash tool (CWD persists between Bash calls). Do NOT combine with `awk`/`sed` in a pipe — triggers permission prompt. Do NOT combine `cd` with any other command (`cd && echo > file`) — after `cd <main-repo-path>`, all subsequent writes must use absolute paths in separate Bash calls.
 
-#### 4.5.3: Run merge script
+#### 4.5.3: Capture Claude PID and run merge script
+
+Before calling the merge script, capture the Claude PID for self-exclusion in GC liveness checks:
 
 ```bash
-bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <worktree-branch-name>
+echo $PPID
+```
+
+Read the output as `CLAUDE_PID`. Then run the merge script with `CALLER_PID` set:
+
+```bash
+CALLER_PID=<CLAUDE_PID> bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <worktree-branch-name>
 ```
 
 #### 4.5.4: Handle merge script result
 
-- **Exit 0 (success):** Announce "Session worktree merged and cleaned up." Proceed to Step 5.
+- **Exit 0 (success):** Clean up session metadata: `rm -rf .worktrees/.metadata/<session-name>` (where `<session-name>` is extracted from the worktree path, e.g., `session-abc1`). Announce "Session worktree merged and cleaned up." Proceed to Step 5.
 
 - **Exit 2 (conflict):** Claude reads conflicted files, auto-resolves (keep both sides for additive markdown, attempt semantic merge for others). Present resolution summary: "Resolved N conflicts: [file: resolution summary]."
   - **Normal mode:** AskUserQuestion: "Accept merge resolutions?" Options: "Accept" / "Review specific files" / "Abort merge (keep worktree)". If accepted: `git add` resolved files + `git commit --no-edit`. If aborted: run `git merge --abort` to clean up mid-merge state, then verify abort succeeded: run `git rev-parse --git-dir` to get the git directory path, then in a separate Bash call run `ls <git-dir>/MERGE_HEAD` — if the file still exists, the abort failed. If still present, warn user. Warn that worktree branch is unmerged.
-  - **Abandon mode:** Auto-proceed — `git add` all conflicted files after auto-resolution and `git commit --no-edit`. Git's conflict markers are the safety net; if auto-resolution fails (unresolvable conflict), run `git merge --abort`, verify abort succeeded: run `git rev-parse --git-dir` to get the git directory path, then in a separate Bash call run `ls <git-dir>/MERGE_HEAD` — if the file still exists, the abort failed (if still present, warn user), preserve worktree branch, warn: "Merge conflict during abandon — worktree preserved. Run `/do:merge` to resolve later." Do NOT block with AskUserQuestion during abandon.
+  - **Abandon mode:** Auto-proceed — `git add` all conflicted files after auto-resolution and `git commit --no-edit`. After successful commit, clean up session metadata: `rm -rf .worktrees/.metadata/<session-name>`. Git's conflict markers are the safety net; if auto-resolution fails (unresolvable conflict), run `git merge --abort`, verify abort succeeded: run `git rev-parse --git-dir` to get the git directory path, then in a separate Bash call run `ls <git-dir>/MERGE_HEAD` — if the file still exists, the abort failed (if still present, warn user), preserve worktree branch, warn: "Merge conflict during abandon — worktree preserved. Run `/do:merge` to resolve later." Do NOT block with AskUserQuestion during abandon.
 
 - **Exit 3 (retry exhaustion):** Warn: "Could not merge — another session is merging. Worktree branch `<name>` is unmerged. Merge manually or run `/do:merge`."
 

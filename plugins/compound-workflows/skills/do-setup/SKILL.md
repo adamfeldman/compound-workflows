@@ -662,7 +662,7 @@ Three scenarios for `.git/hooks/pre-commit`:
    ```bash
    grep -q 'session_worktree' .git/hooks/pre-commit && echo "WORKTREE_CHECK=present" || echo "WORKTREE_CHECK=missing"
    ```
-   If present, skip. Record: `PRECOMMIT_HOOK_STATUS=already_present`
+   If present, check version for v1-to-v2 upgrade detection. Run `sed -n '2s/^# pre-commit-worktree-check v//p' .git/hooks/pre-commit` to read the installed version, and `sed -n '2s/^# pre-commit-worktree-check v//p' <PRECOMMIT_TEMPLATE>` for the template version. If the installed version is older than the template version (or no version header found — v1 had no version comment), replace the pre-commit hook with the template. Record: `PRECOMMIT_HOOK_STATUS=updated` (from v$INSTALLED to v$TEMPLATE). If versions match, skip. Record: `PRECOMMIT_HOOK_STATUS=already_present`
 
 3. **Existing pre-commit hook WITHOUT the worktree check** — append the check to the existing hook, separated by a comment marker:
    ```bash
@@ -745,6 +745,8 @@ compact_push: true
 # Session worktree isolation (concurrent session safety)
 # Set to false to disable worktree-per-session — sessions work directly on main
 session_worktree: true
+# Minutes before a worktree is considered stale for GC purposes (default: 60)
+session_worktree_stale_minutes: 60
 ```
 
 Fill in based on detected environment. Red team provider preferences are NOT stored — they're detected at runtime each session (CLI availability varies by machine and may change). Stats toggles default to `true` — capture and classification are enabled unless explicitly disabled.
@@ -803,39 +805,60 @@ When you detect session-end language ("done for today", "wrapping up for the day
 
 **Gate:** Only add this block if `session_worktree` in `compound-workflows.local.md` is NOT `false`. If the key is missing (not yet configured), include the block (default is `true`).
 
-**v1→v2 migration:** Check if the AGENTS.md contains `## Session Worktree Isolation`. If the heading exists, check whether any of the next 5 non-empty lines contain `EnterWorktree` (this distinguishes v1 blocks from v2 or user-written sections). If v1 detected:
-1. Replace the entire section (from `## Session Worktree Isolation` up to but not including the next `##` heading) with the v2 canonical text below.
-2. Note `v1→v2 updated` in the setup summary report (Step 9, Worktree line).
+**Version detection chain:** Check if the AGENTS.md contains `## Session Worktree Isolation`. If the heading exists, determine which version is installed by checking the next 5-10 non-empty lines after the heading:
 
-**Idempotent (v2):** If `## Session Worktree Isolation` exists but does NOT contain `EnterWorktree` in the next 5 non-empty lines, it is already v2 (or user-customized). Skip injection.
+1. **v1 marker:** Contains `EnterWorktree` — v1 block (uses EnterWorktree tool, pre-bd era)
+2. **v2 marker:** Contains `bd worktree create` — v2 block (model creates worktree via bd)
+3. **v3 marker:** Contains `hook creates a session worktree automatically` — v3 block (hook creates worktree deterministically)
+4. **else:** User-customized section — skip with warning: "Session Worktree Isolation section appears to be user-customized. Skipping update."
 
-**Fresh install:** If `## Session Worktree Isolation` is not present at all, append the v2 block after the routing section (after the Session-End Detection suppression rules).
+**Migration behavior:**
+- **v1 or v2 detected:** Replace the entire section (from `## Session Worktree Isolation` up to but not including the next `##` heading) with the v3 canonical text below. Note version transition in the setup summary report (Step 9, Worktree line): `v1→v3 updated` or `v2→v3 updated`.
+- **v3 detected:** Already current. Skip injection. Record: `already_present`.
+- **User-customized:** Skip with warning. Record: `skipped (user-customized)`.
 
-**v2 canonical text:**
+**Fresh install:** If `## Session Worktree Isolation` is not present at all, append the v3 block after the routing section (after the Session-End Detection suppression rules).
+
+**v3 canonical text:**
 
 ```markdown
 ## Session Worktree Isolation
 
-**At session start, before doing anything else, create a session worktree.**
-Run `bd worktree create .worktrees/session-<name>` and `cd` into it.
-Do not read files, run commands, or respond to the user first.
+**The SessionStart hook creates a session worktree automatically.** Your first action must be
+`cd <path>` using the absolute path from the hook output. Do not read files, run commands, or
+respond to the user before cd'ing into the worktree.
 
-- Name the worktree after the task if known: `session-s7qj` or `session-fix-typo`
-- User can say "stay on main" / "skip worktree" to opt out
+- The hook creates `.worktrees/session-<id>` and writes a PID file for concurrent-session protection
+- If the hook reports existing worktrees and suggests `/do:start`, auto-invoke `/do:start` —
+  the user can say "skip" to bypass
+- **If the hook emits a MANDATORY to invoke `/do:start` for unresolved issues** (GC-surviving
+  worktrees with uncommitted/unmerged/untracked files), you MUST invoke `/do:start` after cd'ing
+  into your worktree. Do not skip this — the user needs to decide what to do with orphan worktrees
+  that have unsaved work. `/do:start` will prompt the user for each issue.
+- If the hook didn't fire (not registered, bd unavailable, or settings misconfigured), create a
+  worktree manually: `bd worktree create .worktrees/session-<name>` and `cd` into it
+- If `/do:start` is unavailable (plugin not installed), manage worktrees manually via direct
+  `bd` commands
+- User can say "stay on main" / "skip worktree" to opt out — first capture your Claude PID
+  (`echo $PPID` in a separate Bash call), then: remove the hook-created worktree
+  with `bd worktree remove`, clean up the hook-written PID
+  (`rm -f .worktrees/.metadata/<hook-worktree-name>/pid.<captured-pid>`),
+  and create the `.worktrees/.opted-out` sentinel: `touch .worktrees/.opted-out`
+- **After resume, do not trust your memory about CWD** — session exit resets CWD to the repo
+  root. Run `pwd` to verify, and `cd` into the worktree if needed.
 - If you're already in a worktree (post-compact resume), skip — you're already isolated
-- **After resume, do not trust your memory about CWD** — session exit resets CWD
-  to the repo root. Run `pwd` to verify, and `cd` into the worktree if needed.
-- If the hook reports an existing session worktree and you are resuming
-  a previous conversation, `cd` into it. If this is a fresh session,
-  ask the user whether to resume the existing worktree or create a new one.
+- If you pick a different worktree than the hook recommended, clean up the stale PID:
+  `rm -f .worktrees/.metadata/<hook-recommended-name>/pid.<your-claude-pid>`
 - If `bd worktree create` fails, warn the user and proceed on main
-- If the hook warns that bd is unavailable, skip worktree creation
 - At session end, `/do:compact-prep` merges back to the default branch
-- Any git operations before creating the worktree happen on the default branch
-- Before committing, if session_worktree is enabled and you're NOT in a worktree,
+- Before committing, if session_worktree is enabled and you're NOT in a worktree
+  and `.worktrees/.opted-out` does NOT exist,
   warn the user: "You're committing to main without worktree isolation. Continue?"
+  (Skip warning if `.worktrees/.opted-out` exists — user explicitly opted out this session.)
 
-**Beads database (.beads/) is shared across all sessions.** Worktree isolation covers git state only. Bead operations are concurrency-safe at the SQL level (Dolt) but not coordination-safe at the business logic level.
+**Beads database (.beads/) is shared across all sessions.** Worktree isolation covers git state
+only. Bead operations are concurrency-safe at the SQL level (Dolt) but not coordination-safe
+at the business logic level.
 ```
 
 ### 8d: Migration Check
@@ -855,9 +878,9 @@ bash ${CLAUDE_SKILL_DIR}/../../scripts/migrate-stats-keys.sh
 
 Read the stdout for `STATS_KEYS_ADDED=true` status.
 
-**Config key migration:** If `compound-workflows.local.md` exists, check for each of the 6 config keys below independently and append any that are missing with their defaults. Keys may be partially present (e.g., user added some manually). Handle each key independently:
+**Config key migration:** If `compound-workflows.local.md` exists, check for each of the 7 config keys below independently and append any that are missing with their defaults. Keys may be partially present (e.g., user added some manually). Handle each key independently:
 
-**Migration procedure:** Read `compound-workflows.local.md` (create with `touch` if it does not exist). For each of the 6 config keys below, check whether the key is already present (`grep -q`). For any missing key, use the **Edit tool** to append it at the end of the file with its default value.
+**Migration procedure:** Read `compound-workflows.local.md` (create with `touch` if it does not exist). For each of the 7 config keys below, check whether the key is already present (`grep -q`). For any missing key, use the **Edit tool** to append it at the end of the file with its default value.
 
 | Key | Default |
 |-----|---------|
@@ -867,6 +890,7 @@ Read the stdout for `STATS_KEYS_ADDED=true` status.
 | `compact_compound_check` | `true` |
 | `compact_push` | `true` |
 | `session_worktree` | `true` |
+| `session_worktree_stale_minutes` | `60` |
 
 Handle each key independently — partial presence is expected during migration.
 
@@ -983,13 +1007,15 @@ Bash rules:      [enabled — rules added to CLAUDE.md | already present | skipp
                  [+ which, echo, mkdir static rules | Permissive covers these | declined]
 Worktree:        Hook: .claude/hooks/session-worktree.sh [installed | updated | current | skipped]
                  SessionStart hook: [registered | already present]
-                 AGENTS.md isolation block: [added | v1→v2 updated | already present | skipped]
-                 Pre-commit hook: [installed | already present | appended to existing | skipped]
+                 AGENTS.md isolation block: [added | v1→v3 updated | v2→v3 updated | already present | skipped (user-customized)]
+                 Pre-commit hook: [installed | updated | already present | appended to existing | skipped]
                  session_worktree: true (edit compound-workflows.local.md to disable)
+                 session_worktree_stale_minutes: 60 (GC staleness threshold)
 
 Ready to go:
   /do:brainstorm  — explore an idea
   /do:plan        — create an implementation plan
+  /do:start       — manage session worktrees (rename, switch, cleanup)
   /do:work        — execute a plan
   /do:review      — review code changes
 
