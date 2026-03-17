@@ -225,16 +225,11 @@ cleanup_worktree() {
   fi
 
   # 3d: .workflows/ artifacts (safety net for architectural fix regression)
+  # Use find instead of hard-coded list — catches new workflow directories automatically
   local wf_artifacts=""
-  local wf_dir
-  for wf_dir in stats brainstorm-research plan-research compound-research deepen-plan work compact-prep; do
-    if [[ -d "$wt_path/.workflows/$wf_dir" ]]; then
-      wf_artifacts=$(find "$wt_path/.workflows/$wf_dir" -maxdepth 0 -not -empty 2>/dev/null | head -1 || true)
-      if [[ -n "$wf_artifacts" ]]; then
-        break
-      fi
-    fi
-  done
+  if [[ -d "$wt_path/.workflows" ]]; then
+    wf_artifacts=$(find "$wt_path/.workflows" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -1 || true)
+  fi
   if [[ -n "$wf_artifacts" ]]; then
     echo "SKIPPED $wt_name workflows-artifacts-present"
     return 0
@@ -339,7 +334,7 @@ done
 total=${#worktrees_to_process[@]}
 if (( total > MAX_WORKTREES )); then
   remaining=$(( total - MAX_WORKTREES ))
-  echo "SKIPPED $remaining additional worktrees not scanned (GC cap $MAX_WORKTREES). Run /do:start cleanup for full sweep." >&2
+  echo "SKIPPED $remaining additional worktrees not scanned (GC cap $MAX_WORKTREES). Run /do:start cleanup for full sweep."
 fi
 
 exit 0

@@ -84,7 +84,14 @@ compute_main_root() {
   # Returns the main worktree root (the primary checkout), even when running
   # inside a linked worktree. Used for .workflows/ and .claude/memory/ paths
   # that must be shared across all worktrees.
-  git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //'
+  # Fallback to compute_repo_root if git worktree list fails (prevents /.workflows catastrophe).
+  local result
+  result=$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //')
+  if [[ -n "$result" ]]; then
+    echo "$result"
+  else
+    compute_repo_root
+  fi
 }
 
 

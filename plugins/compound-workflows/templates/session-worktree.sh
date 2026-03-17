@@ -46,6 +46,21 @@ flush_debug() {
 # Ensure debug log is flushed on any exit path
 trap flush_debug EXIT
 
+sweep_orphan_metadata() {
+  if [[ -d ".worktrees/.metadata" ]]; then
+    debug_log "Sweeping orphan metadata"
+    for meta_dir in .worktrees/.metadata/session-*/; do
+      [[ -d "$meta_dir" ]] || continue
+      local meta_name
+      meta_name=$(basename "$meta_dir")
+      if [[ ! -d ".worktrees/$meta_name" ]]; then
+        rm -rf "$meta_dir"
+        debug_log "Removed orphan metadata for $meta_name"
+      fi
+    done
+  fi
+}
+
 debug_log "Hook start. PID=$$, PPID=$PPID, CWD=$(pwd)"
 
 # ── Helper: cross-platform stat mtime ─────────────────────────────────────────
@@ -207,18 +222,7 @@ if [[ -n "$EXISTING_LIST" ]]; then
     done <<< "$GC_RAW"
   fi
 
-  # Orphan metadata sweep
-  if [[ -d ".worktrees/.metadata" ]]; then
-    debug_log "Hook-8: Sweeping orphan metadata"
-    for meta_dir in .worktrees/.metadata/session-*/; do
-      [[ -d "$meta_dir" ]] || continue
-      meta_name=$(basename "$meta_dir")
-      if [[ ! -d ".worktrees/$meta_name" ]]; then
-        rm -rf "$meta_dir"
-        debug_log "Hook-8: Removed orphan metadata for $meta_name"
-      fi
-    done
-  fi
+  sweep_orphan_metadata
 
   debug_log "Hook-8: GC complete"
 
@@ -358,17 +362,7 @@ else
   debug_log "Hook-7: No existing worktrees"
 
   # ── Hook-8: Orphan metadata sweep (no worktrees case) ─────────────────────
-  if [[ -d ".worktrees/.metadata" ]]; then
-    debug_log "Hook-8: Sweeping orphan metadata (no worktrees case)"
-    for meta_dir in .worktrees/.metadata/session-*/; do
-      [[ -d "$meta_dir" ]] || continue
-      meta_name=$(basename "$meta_dir")
-      if [[ ! -d ".worktrees/$meta_name" ]]; then
-        rm -rf "$meta_dir"
-        debug_log "Hook-8: Removed orphan metadata for $meta_name"
-      fi
-    done
-  fi
+  sweep_orphan_metadata
 
   # Fall through to Hook-9 (happy path)
 fi

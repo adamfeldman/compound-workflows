@@ -72,7 +72,7 @@ if [[ ${#managed_worktrees[@]} -eq 0 ]]; then
 fi
 
 # ── Step 7: Managed worktrees found on disk — block the commit ───────────────
-worktree_list=$(printf '%s' "${managed_worktrees[*]}" | tr ' ' ', ' | sed 's/,/, /g')
+worktree_list=$(IFS=', '; echo "${managed_worktrees[*]}")
 first_worktree="${managed_worktrees[0]}"
 
 {
