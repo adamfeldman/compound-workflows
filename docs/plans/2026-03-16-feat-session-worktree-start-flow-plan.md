@@ -80,7 +80,7 @@ Additional specflow resolutions incorporated:
 - [ ] Add `WORKFLOWS_ROOT` output key to `init-values.sh`
 - [ ] Update `STATS_FILE` to use `compute_main_root()` instead of `compute_repo_root()`
 - [ ] Audit all skills for `.workflows/` write paths — update to use `$WORKFLOWS_ROOT`
-- [ ] Add concurrency safety: include `RUN_ID` in all `.workflows/` write paths to prevent collision when two sessions run the same command/stem/date. Stats files already use date+command+stem — add RUN_ID as a suffix or namespace within the file. [red-team--opus A1: shared-mutable-state concurrency]
+- [ ] Add concurrency safety: `init-values.sh` generates `RUN_ID` (8-char hex via `openssl rand -hex 4`) and exports it. Skills use `$WORKFLOWS_ROOT/<command>/<stem>/run-<N>/` where N is auto-incremented (consistent with existing deepen-plan `run-1`, `run-2` pattern). Stats files include RUN_ID in the filename: `<date>-<command>-<stem>-<RUN_ID>.yaml`. This is the same `$RUN_ID` concept used in `.work-in-progress.d/$RUN_ID`. [red-team--opus A1: shared-mutable-state concurrency, readiness consolidator]
 - [ ] Verify `.work-in-progress.d/` exception works correctly (per-worktree, not `$WORKFLOWS_ROOT`)
 - [ ] Add `MAIN_ROOT` output key to `init-values.sh` (parent of `WORKFLOWS_ROOT`) for `.claude/memory/` path resolution
 - [ ] Update compact-prep Step 1 (memory writes): when `in_worktree`, use `$MAIN_ROOT/.claude/memory/` and `$MAIN_ROOT/memory/` instead of relative paths. For committed `memory/` files, stage changes in worktree via `git -C $MAIN_ROOT add` (not CWD-relative)
@@ -135,16 +135,20 @@ Usage: write-session-pid.sh <worktree-name> <pid>
 - Use process substitution (`while IFS= read; done < <(grep ... || true)`) in session-gc.sh for loops that accumulate state from grep output. [learnings-researcher]
 
 **Implementation Details:**
-- session-gc.sh exit codes: 0 = completed (0 or more worktrees removed), 1 = error. Per-worktree results via stdout lines (one line per worktree: `REMOVED <name>`, `SKIPPED <name> <reason>`, `ERROR <name> <detail>`). [pattern-recognition-specialist]
-- session-gc.sh should accept `caller_pid` as an argument (default 0) so `/do:work` can pass its own PID for the self-exclusion path. [architecture-strategist]
+- **session-gc.sh CLI interface:** [readiness consolidator, pattern-recognition-specialist, architecture-strategist]
+  ```
+  Usage: session-gc.sh [<worktree-name>] [--caller-pid <PID>] [--max <N>] [--skip-untracked]
+  ```
+  When `<worktree-name>` is provided, operate on that single worktree (used by `/do:work` Step 1.2.2). When omitted, glob `.worktrees/session-*` and process up to `--max` (default 5, oldest first). `--caller-pid` (default 0) enables CQ2 self-exclusion. `--skip-untracked` bypasses the untracked files check (used by `/do:start cleanup` after user acknowledgment). Exit codes: 0 = completed (0 or more worktrees removed), 1 = error. Stdout: one line per worktree: `REMOVED <name>`, `SKIPPED <name> <reason>`, `ERROR <name> <detail>`.
 - Pass `DEFAULT_BRANCH` as env var from hook to session-gc.sh to avoid redundant `git symbolic-ref` call (~15ms saved). [performance-oracle]
 
 ### Step 2: Update `session-merge.sh` and `/do:merge` — metadata cleanup
 
 **Files:** `plugins/compound-workflows/scripts/session-merge.sh`, `plugins/compound-workflows/skills/do-merge/SKILL.md`
 
-**session-merge.sh** — after successful merge (exit 0 path), before final cleanup:
+**session-merge.sh** — after successful merge (exit 0 path), before worktree removal:
 
+- [ ] **PID liveness gate:** Before removing the worktree, call `session-gc.sh <session-name> --caller-pid <caller-pid>` in single-worktree mode. If session-gc.sh returns SKIP ("another session active"), abort removal and warn: "Cannot remove worktree — another session (PID <PID>) is active." This enforces the "ALL deletion paths must use Decision 9" mandate. [scenario walkthrough critical gap 1: session-merge.sh bypassed Decision 9]
 - [ ] Extract session worktree name from the branch being merged
 - [ ] `rm -rf .worktrees/.metadata/<session-name>` after worktree removal succeeds
 - [ ] Add comment explaining why (Decision 9 metadata lifecycle)
@@ -162,8 +166,9 @@ Usage: write-session-pid.sh <worktree-name> <pid>
 - Change `git worktree remove` to `bd worktree remove` in session-merge.sh — current script (line 157) uses `git worktree remove` but the plan mandates `bd worktree remove (NO --force)` for all deletion paths. `bd worktree remove` includes additional safety checks (uncommitted, unpushed, stashes). Add `git worktree remove` as fallback if bd unavailable: `bd worktree remove "$worktree_path" 2>/dev/null || git worktree remove "$worktree_path" 2>/dev/null || true`. [repo-research-analyst, data-integrity-guardian, data-migration-expert, pattern-recognition-specialist]
 
 **Recommendations:**
-- `/do:merge` is missing an exit 5 (file overlap) handler — add for consistency with `/do:compact-prep` which handles all 5 exit codes. Low risk since exit 5 is rare. [repo-research-analyst]
+- `/do:merge` is missing an exit 5 (file overlap) handler — add for consistency with `/do:compact-prep` which handles all 5 exit codes. Low risk since exit 5 is rare. [repo-research-analyst] **Spec: Exit 5 (file overlap): warn user about overlapping files, do not auto-resolve. Skip metadata cleanup (merge did not complete). Offer: re-run with `--skip-overlap` or abort.** [readiness consolidator]
 - Redundant metadata cleanup between session-merge.sh and its callers (compact-prep, /do:work Step 1.2.4) is intentional belt-and-suspenders — document as such, not a bug. [pattern-recognition-specialist]
+- **MERGE_HEAD crash detection (promoted to implementation item):** session-merge.sh should check for `MERGE_HEAD` at entry (before attempting merge). If present, a previous merge was interrupted. Emit specific warning: "Interrupted merge detected (MERGE_HEAD exists). Run `git merge --abort` to clean up, or `git merge --continue` to complete." Exit 1 with actionable message instead of attempting a new merge on top of stale state. [scenario walkthrough moderate gap 4]
 
 ### Step 3: Rewrite SessionStart hook template
 
@@ -180,9 +185,9 @@ This is the largest change. The hook moves from "instruct model to create" to "c
 5. **Hook-5: bd availability check** — if `bd` unavailable, warn and exit 0.
 6. **Hook-6: Feature disabled path** — if `session_worktree: false`, run GC (Hook-8) then exit 0.
 7. **Hook-7: Existing worktree scan** — `ls -dt .worktrees/session-*` (sorted by mtime, newest first)
-   - If existing worktrees found → **existing-worktree path** (Hook-7a)
+   - If existing worktrees found → run Hook-8 GC first, then **re-scan** (`ls -dt .worktrees/session-*`). If survivors remain → **existing-worktree path** (Hook-7a) using the post-GC survivor list. If no survivors (GC cleaned all) → **happy path** (Hook-9). This ordering prevents Hook-7a from recommending a worktree that Hook-8 subsequently deletes. [scenario walkthrough critical gap 2: Hook-7a/Hook-8 race]
    - If no existing worktrees → **happy path** (Hook-9)
-8. **Hook-8: GC merged worktrees** — loop `.worktrees/session-*` (max 5, oldest first — cap enforced to bound hook latency at ~1s worst case [red-team--openai]), apply Decision 9 combined algorithm:
+8. **Hook-8: GC merged worktrees** — reverse Hook-7's scan order (oldest first) and process up to 5 worktrees. If more than 5 exist, report remaining count in hook output: "N additional worktrees not scanned (GC cap). Run `/do:start cleanup` for full sweep." Cap enforced to bound hook latency at ~1s worst case. [red-team--openai, readiness consolidator] Apply Decision 9 combined algorithm via `session-gc.sh --max 5 --caller-pid $PPID`:
    - Glob `.worktrees/.metadata/<name>/pid.*`
    - `kill -0 $(cat file)` for each — if ANY alive → skip worktree
    - If all dead: prune dead PID files (`rm` each dead `pid.*` file)
@@ -210,7 +215,7 @@ This is the largest change. The hook moves from "instruct model to create" to "c
   - PID liveness: glob `.worktrees/.metadata/<name>/pid.*`, `kill -0` each
   - Uncommitted count: `git -C <path> status --porcelain --untracked-files=no | wc -l`
   - Unmerged count: `git log <default>..<branch> --oneline | wc -l`
-- Call `write-session-pid.sh <most-recent-name> $PPID` (write PID to recommended worktree — safe-side behavior per brainstorm Q13)
+- Call `write-session-pid.sh <most-recent-name> $PPID` (write PID to recommended worktree — safe-side behavior per brainstorm Q13). Note: PID is written before user choice is known. If user picks a different worktree or opts out, cleanup is needed — see AGENTS.md opt-out path (Step 7b) and `/do:start` different-worktree path. [readiness consolidator: acknowledged tension, cleanup responsibility documented in both paths]
 - **1 recent worktree** (< stale threshold): emit resume suggestion with context
 - **1 stale worktree** (≥ stale threshold): emit create-new suggestion, mention orphan
 - **Multiple worktrees**: list all with stats
@@ -375,7 +380,7 @@ argument-hint: "[cleanup|rename <name>|status]"
 
 **Rename subcommand:**
 - Guard: must be inside a session worktree (specflow S2). Check git plumbing (Decision 11). If not in session worktree → error and exit.
-- Guard: check for active `/do:work` — if `.workflows/.work-in-progress.d/` contains any sentinel files, block rename: "Work execution is in progress (run ID: <id>). Complete or abort /do:work before renaming." [specflow P0-12: rename during active /do:work causes data loss in subagent outputs]
+- Guard: check for active `/do:work` — if `.workflows/.work-in-progress.d/` contains any sentinel files, check each sentinel's mtime. If ALL sentinels are older than `session_worktree_stale_minutes` (default 60), treat as stale from a crashed `/do:work`: "Stale /do:work sentinel found (<age> minutes old, run ID: <id>). No active /do:work detected. Cleaning up and proceeding with rename." Auto-clean stale sentinels and proceed. If any sentinel is fresh (< stale threshold), block: "Work execution is in progress (run ID: <id>). Complete or abort /do:work before renaming. To abort: `rm .workflows/.work-in-progress.d/<id>` (verify no subagents are running first)." [scenario walkthrough moderate gap: escape hatch for crash recovery] [specflow P0-12: rename during active /do:work causes data loss; specflow pass 3 NEW-P3-3: stale sentinel crash recovery]
 - Check for untracked files: `git ls-files --others --exclude-standard` [red-team--gemini, red-team--opus]. If any exist, warn: "N untracked files will be lost during rename. Stage them first?" Offer to `git add <files>` before proceeding.
 - Commit all uncommitted changes (including any just-staged untracked files): `git add -u && git commit -m "session checkpoint before /do:start rename to <new-name>"`
 - `git branch -m <old-name> <new-name>` (preserves commit hashes). Note: `git worktree move` was investigated and rejected — it leaves `.git/worktrees/` internal metadata with the old name (brainstorm Assumption 12, verified 2026-03-16). Remove+recreate is the correct approach. [red-team--opus A4, traceability fix]
@@ -407,7 +412,7 @@ argument-hint: "[cleanup|rename <name>|status]"
 - Rename partial failure: if `bd worktree create` fails after old worktree removal, session is stranded. Add recovery path: emit "Worktree recreation failed. Your work is safe on branch <new-name>. Recover with: bd worktree create .worktrees/<new-name>." [data-integrity-guardian, frontend-races-reviewer, architecture-strategist]
 
 **Recommendations:**
-- `/do:start` interactive mode has no non-interactive equivalent for the single-worktree case. Consider `/do:start auto` subcommand: 1 fresh worktree + same PID = resume silently; 1 stale + dead PID = create new; multiple = fall through to interactive. Avoids unnecessary AskUserQuestion on every resumed session. [agent-native-reviewer]
+- `/do:start` interactive mode has no non-interactive equivalent for the single-worktree case. Consider `/do:start auto` subcommand: 1 fresh worktree + same PID = resume silently; 1 stale + dead PID = create new; multiple = fall through to interactive. Avoids unnecessary AskUserQuestion on every resumed session. [agent-native-reviewer] **Disposition: Deferred to post-v1.** Interactive mode is always appropriate in v1 — the user must confirm worktree choice. [readiness consolidator]
 - Hook-7a phantom PID on opt-out: when user says "skip" after hook wrote PID to the recommended worktree, no cleanup guidance exists for the PID. Add to AGENTS.md opt-out path: `rm -f .worktrees/.metadata/<hook-recommended-name>/pid.<your-claude-pid>`. [data-integrity-guardian]
 - Cleanup subcommand should call `session-gc.sh` via `${CLAUDE_SKILL_DIR}/../../scripts/session-gc.sh` path convention. [repo-research-analyst]
 - `/do:start` should NOT have `disable-model-invocation: true` — it is interactive, not reference-only. Correct by omission but verify during implementation. [pattern-recognition-specialist]
@@ -427,6 +432,7 @@ Replace current Phase 1.2 (work inside session worktree) with transition flow (D
 **Detection:** Same git plumbing check (Decision 11). If CWD path resolves to a session worktree → trigger transition.
 
 **Step 1.2.1 — Check uncommitted and untracked files:** [red-team--gemini, red-team--openai, red-team--opus]
+Note: AskUserQuestion is intentional here (user-decided, overrides "automate, don't ask" principle for data-safety reasons — see Review Findings below).
 - Check tracked changes: `git status --porcelain --untracked-files=no`
 - Check untracked files: `git ls-files --others --exclude-standard`
 - If tracked changes exist: AskUserQuestion — "Session worktree has N uncommitted changes. Commit with checkpoint message, or discard?"
@@ -438,7 +444,7 @@ Replace current Phase 1.2 (work inside session worktree) with transition flow (D
 
 **Step 1.2.2 — PID liveness check via session-gc.sh (CQ2 fix):**
 - Capture Claude PID: `echo $PPID` in a Bash call
-- Call `session-gc.sh <worktree-name> <claude-pid>` in single-worktree mode. The script handles CQ2 self-exclusion, backward compat for old PID format, PID age heuristic, and process-name verification. [specflow P1-20: centralize instead of reimplementing inline]
+- Call `session-gc.sh <worktree-name> --caller-pid <claude-pid>` in single-worktree mode. The script handles CQ2 self-exclusion, backward compat for old PID format, PID age heuristic, and process-name verification. [specflow P1-20: centralize instead of reimplementing inline, readiness verify: match CLI interface spec]
 - If session-gc.sh returns SKIP ("another session active") → **block** with message: "Another session (PID NNN) is using this worktree. Cannot transition. Working inside session worktree."
 - If own PID missing (pid.<claude-pid> does not exist in metadata): warn "PID mismatch — session PID not found in metadata. This may indicate $PPID inconsistency. Continuing with full liveness checks." Pass `caller_pid=0` to the cleanup algorithm (no self-exclusion — all PIDs are checked for liveness). If any PID alive → check if those PIDs are Claude processes via `ps -p <PID> -o args=` piped through `grep -qi claude` (uses full command line — catches `node /path/to/claude-code/...` when `comm=` would only return `node`). [specflow pass 2, NEW-2]. If none are Claude processes → present AskUserQuestion: "PID check found live processes but none are Claude sessions. These are likely recycled PIDs. Force transition? (stale PID files will be cleaned.)" If user confirms → prune all PID files and re-run cleanup. If user declines → block. If any ARE Claude processes → block (genuine concurrent session). [specflow P0-16: PID mismatch dead-end escape hatch]. If all dead → proceed to merge.
 - If no other live PIDs: proceed to merge
@@ -465,7 +471,7 @@ Replace current Phase 1.2 (work inside session worktree) with transition flow (D
 **Step 1.2.5 — Create work worktree:**
 - `bd worktree create .worktrees/work-<task-name>`
 - `cd` into work worktree
-- Create `.workflows/.work-in-progress.d/$RUN_ID` sentinel (fresh — `.workflows/` is per-worktree, gitignored)
+- `mkdir -p .workflows/.work-in-progress.d/` then create `$RUN_ID` sentinel (fresh work worktree has no `.workflows/` — must create first) [readiness consolidator]
 - Continue to Phase 1.3
 
 - [ ] Rewrite Phase 1.2 section in SKILL.md
@@ -530,10 +536,11 @@ respond to the user before cd'ing into the worktree.
   worktree manually: `bd worktree create .worktrees/session-<name>` and `cd` into it
 - If `/do:start` is unavailable (plugin not installed), manage worktrees manually via direct
   `bd` commands
-- User can say "stay on main" / "skip worktree" to opt out — remove the hook-created worktree
+- User can say "stay on main" / "skip worktree" to opt out — first capture your Claude PID
+  (`echo $PPID` in a separate Bash call), then: remove the hook-created worktree
   with `bd worktree remove`, clean up the hook-written PID
-  (`rm -f .worktrees/.metadata/<hook-worktree-name>/pid.<your-claude-pid>`),
-  and create the `.worktrees/.opted-out` sentinel: `touch .worktrees/.opted-out`
+  (`rm -f .worktrees/.metadata/<hook-worktree-name>/pid.<captured-pid>`),
+  and create the `.worktrees/.opted-out` sentinel: `touch .worktrees/.opted-out` [specflow pass 3, NEW-P3-5: explicit $PPID capture aligns with CQ1]
 - **After resume, do not trust your memory about CWD** — session exit resets CWD to the repo
   root. Run `pwd` to verify, and `cd` into the worktree if needed.
 - If you're already in a worktree (post-compact resume), skip — you're already isolated
@@ -541,8 +548,10 @@ respond to the user before cd'ing into the worktree.
   `rm -f .worktrees/.metadata/<hook-recommended-name>/pid.<your-claude-pid>`
 - If `bd worktree create` fails, warn the user and proceed on main
 - At session end, `/do:compact-prep` merges back to the default branch
-- Before committing, if session_worktree is enabled and you're NOT in a worktree,
+- Before committing, if session_worktree is enabled and you're NOT in a worktree
+  and `.worktrees/.opted-out` does NOT exist,
   warn the user: "You're committing to main without worktree isolation. Continue?"
+  (Skip warning if `.worktrees/.opted-out` exists — user explicitly opted out this session.) [scenario walkthrough minor gap 7]
 
 **Beads database (.beads/) is shared across all sessions.** Worktree isolation covers git state
 only. Bead operations are concurrency-safe at the SQL level (Dolt) but not coordination-safe
@@ -558,8 +567,9 @@ at the business logic level.
 
 - [ ] **Hook installation step:** Find the step that copies `session-worktree.sh` template to `.claude/hooks/` (search for `session-worktree` in the file). Update to use new v3.0.0 template. Version comparison triggers reinstall.
 - [ ] **Pre-commit hook installation step:** Find the step that installs `pre-commit-worktree-check.sh` (search for `pre-commit` in the file). Update template to v2.0.0. Same three installation scenarios (no existing, existing with check, existing without check).
-- [ ] **AGENTS.md injection step:** Find the step that writes the `Session Worktree Isolation` block into AGENTS.md (search for `Session Worktree Isolation` in the file). Update injection text to match Step 8's replacement text.
+- [ ] **AGENTS.md injection step:** Find the step that writes the `Session Worktree Isolation` block into AGENTS.md (search for `Session Worktree Isolation` in the file). Update injection text to match Step 7b's replacement text.
 - [ ] **New config key:** Add `session_worktree_stale_minutes: 60` to `compound-workflows.local.md` template (Decision 4).
+- [ ] **Ensure `session_worktree: true`** is set in `compound-workflows.local.md` during setup. Hook-1 reads this key and silently exits if missing — without it, the hook does nothing. (Pre-existing setup behavior, but must be verified in scope of this plan.) [scenario walkthrough minor gap 5]
 - [ ] Register `/do:start` in setup's skill inventory display (informational — skills auto-register via plugin.json).
 
 #### Review Findings (Step 7)
@@ -600,10 +610,17 @@ at the business logic level.
 The combined PID + state cleanup algorithm, with CQ1 and CQ2 fixes applied. ALL deletion paths (hook GC, `/do:start`, `/do:work`, abandon) MUST use this algorithm.
 
 ```
-cleanup_worktree(worktree_name, caller_pid):
-  0. Acquire GC lock: mkdir .worktrees/.gc-lock 2>/dev/null || return SKIP ("another GC in progress")
-     [red-team--openai: TOCTOU mitigation via atomic mkdir]
+session-gc.sh entry point (script scope, outside per-worktree loop): [readiness consolidator: lock is per-invocation, not per-worktree]
+  0. Stale lock recovery: if .worktrees/.gc-lock exists AND mtime >60s, rmdir it (stale from prior crash — 6x safety margin over ~10s worst-case GC) [specflow pass 3, NEW-P3-1]
+     Acquire GC lock: mkdir .worktrees/.gc-lock 2>/dev/null || exit 0 ("another GC in progress")
+     trap 'rmdir .worktrees/.gc-lock 2>/dev/null' EXIT  (covers all exit paths — normal, error, signal)
+     [red-team--openai: TOCTOU mitigation via atomic mkdir; 12/19 agents flagged stale lock risk]
+  For each worktree (single if <worktree-name> provided, else glob .worktrees/session-* up to --max):
+    cleanup_worktree(worktree_name, caller_pid)
+
+cleanup_worktree(worktree_name, caller_pid):  (assumes GC lock is held by caller)
   1. Glob: .worktrees/.metadata/<worktree_name>/pid.*
+  1b. Backward compat: if .worktrees/<worktree_name>/.session.pid exists, read PID, add to liveness check set alongside new-format PIDs. On DELETE path (step 4), also rm -f the old file. Do NOT convert to new format in place. [data-migration-expert, readiness consolidator]
   2. For each pid file:
      a. Read PID from file
      b. If PID == caller_pid: mark as "self" (skip liveness check for this one)
@@ -618,18 +635,22 @@ cleanup_worktree(worktree_name, caller_pid):
         - If output: RETURN SKIP + WARN ("uncommitted tracked changes")
      c. git -C <worktree> ls-files --others --exclude-standard | head -1
         - If output: RETURN SKIP + WARN ("untracked files present — requires user acknowledgment")
-        - Note: In hook context (non-interactive), SKIP is the only option. In /do:start cleanup (interactive), the caller presents the untracked files and asks user to acknowledge before re-running with force.
+        - Note: In hook context (non-interactive), SKIP is the only option. In /do:start cleanup (interactive), the caller presents the untracked files and asks user to acknowledge before re-running with `--skip-untracked`. When `--skip-untracked` is set, this check (3c) is bypassed entirely. [readiness verify]
      d. Check for plugin-specific .workflows/ content (not arbitrary gitignored files):
         `ls .worktrees/<worktree_name>/.workflows/{stats,brainstorm-research,plan-research,compound-research,deepen-plan,work,compact-prep} 2>/dev/null | head -1`
         - If output: RETURN SKIP + WARN (".workflows/ artifacts present — should have been written to main repo root")
         - Note: Safety net for the architectural fix. Only fires on regressions. Check last. Scoped to known plugin directories to avoid false positives from unrelated gitignored content in `.workflows/`. [red-team--opus C3]
+     d2. Check for .claude/memory/ content written to worktree instead of main root:
+        `ls .worktrees/<worktree_name>/.claude/memory/ 2>/dev/null | head -1`
+        - If output: RETURN SKIP + WARN (".claude/memory/ files present — should have been written to main repo root")
+        - Note: Same defense-in-depth pattern as step 3d. Catches regressions where compact-prep Step 1 writes memory to the worktree instead of using $MAIN_ROOT. [specflow pass 3, NEW-P3-2]
      e. All clean: RETURN DELETE
   4. On DELETE:
      - TOCTOU re-check: `ls .worktrees/.metadata/<worktree_name>/pid.* 2>/dev/null | wc -l` — if PID count increased since step 2, a new session claimed this worktree between check and delete. Abort deletion, RETURN SKIP ("new session claimed worktree during GC"). [specflow pass 2, NEW-8]
      - bd worktree remove .worktrees/<worktree_name>  (NO --force)
      - git branch -d <branch_name> 2>/dev/null || true  (safe delete — GC already verified branch is merged; -d fails harmlessly if tracking mismatch)
      - rm -rf .worktrees/.metadata/<worktree_name>
-  5. Release GC lock: rmdir .worktrees/.gc-lock
+     (GC lock released automatically by trap EXIT — no explicit rmdir needed) [specflow pass 3, NEW-P3-1]
 ```
 
 **Self-removal exception (CQ2 fix):** Step 2b — own PID is skipped in liveness check but other PIDs are still checked. This closes the concurrent-session hole while allowing `/do:work` and compact-prep to remove their own worktrees.
@@ -642,9 +663,11 @@ cleanup_worktree(worktree_name, caller_pid):
 1. `git log <default>..<branch> --oneline` — unmerged commits (cheapest check, most common SKIP reason — check first)
 2. `git status --porcelain --untracked-files=no` — tracked changes
 3. `git ls-files --others --exclude-standard | head -1` — untracked non-ignored files
-4. `ls <worktree>/.workflows/ 2>/dev/null | head -1` — gitignored .workflows/ artifacts (safety net — check last, only fires on regressions)
+4. `ls <worktree>/.workflows/{stats,brainstorm-research,plan-research,compound-research,deepen-plan,work,compact-prep} 2>/dev/null | head -1` — gitignored .workflows/ artifacts, scoped to known plugin directories (safety net — check last, only fires on regressions) [red-team--opus C3, specflow pass 3 NEW-P3-4]
 
-All four checks run in this order. First non-empty result → SKIP + WARN with the specific reason. Most-actionable reasons first so users see the primary issue, not a secondary safety-net warning.
+5. `ls <worktree>/.claude/memory/ 2>/dev/null | head -1` — gitignored .claude/memory/ artifacts (same defense-in-depth as check 4) [specflow pass 3 NEW-P3-2, readiness consolidator]
+
+All five checks run in this order. First non-empty result → SKIP + WARN with the specific reason. Most-actionable reasons first so users see the primary issue, not a secondary safety-net warning.
 
 ### Review Findings
 
@@ -710,7 +733,9 @@ Either:
 ```
 Step 0 ($PPID validation) ── DONE (validated during planning)
   ↓
-Step 1 (write-session-pid.sh + session-gc.sh)
+Step -1 (.workflows/ root resolution — init-values.sh: $WORKFLOWS_ROOT, $MAIN_ROOT, compute_main_root())
+  ↓
+Step 1 (write-session-pid.sh + session-gc.sh) — Step -1 must complete first (all subsequent steps assume $WORKFLOWS_ROOT is available)
   ↓
 Step 2 (session-merge.sh + /do:merge) ────────────────────┐
   ↓                                                        │
@@ -733,10 +758,18 @@ Steps 3+4 can run in parallel. Step 7 waits for Steps 3, 4, and 5. Step 8 is alw
 
 ## Work Readiness Notes
 
+- **Implementation spike gate after Steps -1 and 1.** `/do:work` should execute Steps -1 and 1 first as a validation spike. After both complete, run these integration checks before proceeding to Steps 2+:
+  1. `init-values.sh` emits `WORKFLOWS_ROOT` and `MAIN_ROOT` pointing to main repo root (test from inside a worktree)
+  2. `session-gc.sh` runs in both modes: single-worktree (`session-gc.sh <name> --caller-pid <pid>`) and multi-worktree (bare `session-gc.sh --max 5`)
+  3. `session-gc.sh` stdout matches format: `REMOVED|SKIPPED|ERROR <name> [<reason>]`
+  4. `write-session-pid.sh` creates PID file at correct path, `session-gc.sh` reads it
+  5. Stale lock recovery works (create `.gc-lock`, wait 61s or mock mtime, verify recovery)
+  6. `--skip-untracked` bypasses step 3c
+  If any check fails, fix before proceeding — Steps 2-8 all depend on these foundations. This is the highest-value validation point: a spec gap here ripples through everything.
 - **Steps 3 and 5 are the largest** (hook rewrite ~200+ lines, /do:start skill ~150+ lines). Consider splitting each into sub-steps during `/do:work` setup.
 - **Steps 2 and 7 are very small** (1-3 line additions each). Could be combined with adjacent steps.
-- **Step 9 (/do:setup) modifies an already-large skill file.** Surgical edits to specific step numbers — provide exact section references to the subagent.
-- **Learnings note:** Subagents cannot write to `.claude/hooks/` — hook installation steps in Step 9 must be validated carefully. The `/do:setup` skill handles hook installation in the main orchestrator context (already correct).
+- **Step 7c (/do:setup) modifies an already-large skill file.** Surgical edits to specific step numbers — provide exact section references to the subagent.
+- **Learnings note:** Subagents cannot write to `.claude/hooks/` — hook installation steps in Step 7c must be validated carefully. The `/do:setup` skill handles hook installation in the main orchestrator context (already correct).
 - **Learnings note:** Deepen-plan recommended for this scope (6+ files across infrastructure boundaries). Run before `/do:work`.
 
 ## Sources
