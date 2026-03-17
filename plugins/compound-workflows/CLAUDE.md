@@ -119,6 +119,7 @@ All 26 agents with their categories, skill references, and model configuration.
 | red-team-relay | workflow | do:brainstorm, do:deepen-plan, do:plan | sonnet |
 | plan-consolidator | workflow | do:plan, do:deepen-plan | inherit |
 | plan-readiness-reviewer | workflow | do:plan, do:deepen-plan | inherit |
+| semantic-checks | workflow (plan-checks) | do:plan, do:deepen-plan | inherit |
 | spec-flow-analyzer | workflow | do:plan | inherit |
 
 **Model column key:** `haiku` = cost-optimized for well-scoped tasks (Haiku model). `sonnet` = balanced cost/quality for research and relay tasks (Sonnet model). `inherit` = uses the default model from the calling context. Override in agent YAML frontmatter if needed.

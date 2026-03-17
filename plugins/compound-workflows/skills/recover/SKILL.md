@@ -11,7 +11,7 @@ Recovers context from a dead or exhausted Claude Code session by reading its JSO
 
 ## Input
 
-<session_id> $ARGUMENTS </session_id>
+<session_id> #$ARGUMENTS </session_id>
 
 ## Phase 0: Environment Detection
 

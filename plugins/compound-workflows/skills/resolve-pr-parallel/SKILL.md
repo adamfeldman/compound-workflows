@@ -1,5 +1,5 @@
 ---
-name: resolve_pr_parallel
+name: resolve-pr-parallel
 description: Resolve PR review comments in parallel
 argument-hint: "[optional: PR number or current PR]"
 disable-model-invocation: true

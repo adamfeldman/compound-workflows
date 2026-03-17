@@ -23,7 +23,7 @@ fi
 
 If version-check.sh is not found, tell the user: "version-check.sh not found. The compound-workflows plugin may not be installed or is an older version without version checking." Then stop.
 
-## Step 3: Present Results
+## Step 2: Present Results
 
 Present the script's output to the user. If the script reports any actionable items (STALE or UNRELEASED), highlight them clearly and show the exact commands to run.
 
