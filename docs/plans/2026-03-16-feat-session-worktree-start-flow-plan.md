@@ -772,6 +772,18 @@ Steps 3+4 can run in parallel. Step 7 waits for Steps 3, 4, and 5. Step 8 is alw
 - **Learnings note:** Subagents cannot write to `.claude/hooks/` — hook installation steps in Step 7c must be validated carefully. The `/do:setup` skill handles hook installation in the main orchestrator context (already correct).
 - **Learnings note:** Deepen-plan recommended for this scope (6+ files across infrastructure boundaries). Run before `/do:work`.
 
+### Known Development Workarounds
+
+These bugs affect the development process itself (working in worktrees while implementing this plan). They were hit repeatedly during the deepen-plan sessions and will affect `/do:work` subagents.
+
+1. **session-merge.sh exit 4 from untracked files.** `git status --porcelain` (without `--untracked-files=no`) treats any untracked file as "dirty main." The untracked `.claude/hooks/session-worktree.sh` triggers this every time. **Workaround:** Before running session-merge.sh (in compact-prep Step 4.5), move untracked files to `/tmp`, merge, then restore. Hit in both dp4a and dp4a-2 sessions. **Proper fix:** session-merge.sh should use `git status --porcelain --untracked-files=no` for its dirty-main check — this is a bug in the current script, not a design issue. Step 2 (session-merge.sh updates) should include this fix.
+
+2. **ExitWorktree is a no-op on bd-created worktrees.** `ExitWorktree` only works on worktrees entered via `EnterWorktree`. Session worktrees are created via `bd worktree create`. **Workaround:** Extract main repo path from `git worktree list --porcelain` (first entry, strip `worktree ` prefix), then `cd <path>`. This is already documented in compact-prep's fallback path but worth knowing.
+
+3. **`.workflows/` artifacts lost during worktree merge (before Step -1).** Until Step -1 is implemented, gitignored `.workflows/` content inside worktrees is destroyed when the worktree is merged and removed. **Workaround:** Before compact-prep merge, manually copy `.workflows/` from worktree to main repo root: `cp -R .worktrees/<name>/.workflows/* .workflows/`. Step -1 eliminates this by ensuring artifacts are written to main root from the start. **Critical: implement Step -1 first.**
+
+4. **Memory edits at main repo root don't appear in worktree git status.** Committed files (like `memory/project.md`) exist in both the main working tree and each worktree. Editing via absolute path to main root modifies the main copy, not the worktree's. The change won't show in the worktree's `git status`. **Workaround:** Always edit the worktree's copy (CWD-relative path or worktree absolute path). The main root copy will receive the change when the worktree branch is merged.
+
 ## Sources
 
 - **Origin brainstorm:** `docs/brainstorms/2026-03-15-session-worktree-start-flow-brainstorm.md` — 11 Decisions (D1: deterministic hook, D2: random naming, D3: mtime freshness, D4: smart heuristic, D5: /do:start scope, D6: auto-invoke, D7: metadata outside worktree, D8: /do:work transition, D9: combined PID+state cleanup, D10: pre-commit reality check, D11: git plumbing detection), 23 Resolved Questions, 12 Inherited Assumptions (3 verified, 1 falsified)
