@@ -10,9 +10,11 @@
 #   --caller-pid <PID>   PID to skip in liveness checks (self-exclusion, CQ2 fix). Default: 0.
 #   --max <N>            Maximum worktrees to process per invocation. Default: 5.
 #   --skip-untracked     Bypass the untracked files check (used after user acknowledgment).
+#   --dry-run            Check liveness and state without deleting (liveness probe mode).
 #
 # Stdout: one line per worktree:
-#   REMOVED <name>
+#   REMOVED <name>          (worktree was deleted)
+#   REMOVABLE <name>        (dry-run: worktree would be deleted)
 #   SKIPPED <name> <reason>
 #   ERROR <name> <detail>
 #
@@ -30,6 +32,7 @@ WORKTREE_NAME=""
 CALLER_PID=0
 MAX_WORKTREES=5
 SKIP_UNTRACKED=false
+DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -53,6 +56,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_UNTRACKED=true
       shift
       ;;
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
     -*)
       echo "Error: unknown option: $1" >&2
       exit 1
@@ -67,6 +74,27 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# ── Validate arguments ───────────────────────────────────────────────────────
+# Prevent path traversal via worktree name (F2 fix)
+if [[ -n "$WORKTREE_NAME" ]]; then
+  if [[ "$WORKTREE_NAME" == *"/"* ]] || [[ "$WORKTREE_NAME" == *".."* ]]; then
+    echo "Error: invalid worktree name (path separators not allowed): $WORKTREE_NAME" >&2
+    exit 1
+  fi
+fi
+
+# Validate --caller-pid is numeric (F9 fix)
+if ! [[ "$CALLER_PID" =~ ^[0-9]+$ ]]; then
+  echo "Error: --caller-pid must be a non-negative integer, got: $CALLER_PID" >&2
+  exit 1
+fi
+
+# Validate --max is a positive integer (F9 fix)
+if ! [[ "$MAX_WORKTREES" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Error: --max must be a positive integer, got: $MAX_WORKTREES" >&2
+  exit 1
+fi
 
 # ── Resolve default branch ───────────────────────────────────────────────────
 if [[ -z "${DEFAULT_BRANCH:-}" ]]; then
@@ -99,7 +127,10 @@ fi
 # ── Acquire GC lock ──────────────────────────────────────────────────────────
 # mkdir is atomic — if another GC is running, this fails and we exit cleanly
 if ! mkdir "$GC_LOCK" 2>/dev/null; then
-  # Another GC in progress — exit silently
+  # Another GC in progress — emit explicit status in single-worktree mode (F7 fix)
+  if [[ -n "$WORKTREE_NAME" ]]; then
+    echo "SKIPPED $WORKTREE_NAME gc-lock-busy"
+  fi
   exit 0
 fi
 trap 'rmdir "$GC_LOCK" 2>/dev/null || true' EXIT
@@ -195,11 +226,18 @@ cleanup_worktree() {
   # Ordered by most-actionable-first
 
   # 3a: Unmerged commits (cheapest check, most common SKIP reason)
+  # Fail-closed: if git commands fail, treat as dirty (SKIP), not clean (delete).
   local branch
-  branch=$(git -C "$wt_path" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  if ! branch=$(git -C "$wt_path" rev-parse --abbrev-ref HEAD 2>/dev/null); then
+    echo "SKIPPED $wt_name git-check-failed:rev-parse"
+    return 0
+  fi
   if [[ -n "$branch" ]]; then
     local unmerged
-    unmerged=$(git log "${DEFAULT_BRANCH}..${branch}" --oneline 2>/dev/null || true)
+    if ! unmerged=$(git log "${DEFAULT_BRANCH}..${branch}" --oneline 2>/dev/null); then
+      echo "SKIPPED $wt_name git-check-failed:log"
+      return 0
+    fi
     if [[ -n "$unmerged" ]]; then
       echo "SKIPPED $wt_name unmerged-commits"
       return 0
@@ -208,7 +246,10 @@ cleanup_worktree() {
 
   # 3b: Tracked changes
   local tracked_changes
-  tracked_changes=$(git -C "$wt_path" status --porcelain --untracked-files=no 2>/dev/null || true)
+  if ! tracked_changes=$(git -C "$wt_path" status --porcelain --untracked-files=no 2>/dev/null); then
+    echo "SKIPPED $wt_name git-check-failed:status"
+    return 0
+  fi
   if [[ -n "$tracked_changes" ]]; then
     echo "SKIPPED $wt_name uncommitted-tracked-changes"
     return 0
@@ -217,7 +258,10 @@ cleanup_worktree() {
   # 3c: Untracked files (skip if --skip-untracked)
   if [[ "$SKIP_UNTRACKED" != "true" ]]; then
     local untracked
-    untracked=$(git -C "$wt_path" ls-files --others --exclude-standard 2>/dev/null | head -1 || true)
+    if ! untracked=$(git -C "$wt_path" ls-files --others --exclude-standard 2>/dev/null | head -1); then
+      echo "SKIPPED $wt_name git-check-failed:ls-files"
+      return 0
+    fi
     if [[ -n "$untracked" ]]; then
       echo "SKIPPED $wt_name untracked-files-present"
       return 0
@@ -263,6 +307,12 @@ cleanup_worktree() {
 
   if (( pid_count_now > pid_count_initial )); then
     echo "SKIPPED $wt_name new-session-claimed-during-gc"
+    return 0
+  fi
+
+  # Dry-run mode: report what would happen without actually deleting (F3 fix)
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "REMOVABLE $wt_name"
     return 0
   fi
 

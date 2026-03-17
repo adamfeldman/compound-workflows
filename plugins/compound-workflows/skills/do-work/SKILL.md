@@ -136,19 +136,20 @@ Capture the Claude PID:
 echo $PPID
 ```
 
-Read the output as `CLAUDE_PID`. Then run session-gc.sh in single-worktree mode:
+Read the output as `CLAUDE_PID`. Then run session-gc.sh in single-worktree **dry-run** mode (liveness probe only — does NOT delete):
 
 ```bash
-bash ${CLAUDE_SKILL_DIR}/../../scripts/session-gc.sh <worktree-name> --caller-pid <CLAUDE_PID>
+bash ${CLAUDE_SKILL_DIR}/../../scripts/session-gc.sh <worktree-name> --caller-pid <CLAUDE_PID> --dry-run
 ```
 
 Parse the output line for this worktree:
-- **`REMOVED <name>`:** Not expected in this context (we're inside the worktree). Treat as error, fall back to working inside session worktree.
+- **`REMOVABLE <name>`:** No other sessions active, worktree is safe to transition. Proceed to Step 1.2-C.
 - **`SKIPPED <name> another-session-active:PID=<val>`:** Another session is active. **Block** with message: "Another session (PID <val>) is using this worktree. Cannot transition to work worktree. Working inside session worktree instead." Set `IN_SESSION_WORKTREE=true`, skip remaining transition steps, continue to Phase 1.2.1 (Create QA Hook Sentinel).
+- **`SKIPPED <name> gc-lock-busy`:** Another GC is running. Retry once after 2 seconds. If still busy, fall back to working inside session worktree.
 
 **PID mismatch handling:** If own PID (`pid.<CLAUDE_PID>`) does not exist in `.worktrees/.metadata/<worktree-name>/`:
 - Warn: "PID mismatch — session PID not found in metadata. This may indicate $PPID inconsistency. Proceeding with full liveness checks (safe). If ALL PIDs are dead, transition will continue."
-- Pass `--caller-pid 0` to session-gc.sh (no self-exclusion — all PIDs are checked for liveness).
+- Pass `--caller-pid 0 --dry-run` to session-gc.sh (no self-exclusion — all PIDs are checked for liveness).
 - If session-gc.sh reports live PIDs: check if those PIDs are Claude processes:
   ```bash
   ps -p <PID> -o args=

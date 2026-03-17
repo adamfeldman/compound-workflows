@@ -127,13 +127,15 @@ Which worktree to use? (e.g., 'resume session-a7f2', 'remove session-x3k9', 'cre
 
 **Create new:**
 1. Capture Claude PID: `echo $PPID` in a separate Bash call.
-2. Generate random 4-char hex ID: `openssl rand -hex 2`
-3. `bd worktree create .worktrees/session-<id>`
-4. If bd fails, retry once with a new random ID. If both fail, report error and exit.
-5. Write PID: `bash ${CLAUDE_SKILL_DIR}/../../scripts/write-session-pid.sh session-<id> <claude-pid>`
-6. Delete opt-out sentinel if present: `rm -f .worktrees/.opted-out`
-7. `cd <absolute-path-to-new-worktree>`
-8. Report: "Created session worktree `session-<id>`. Working directory: `<absolute-path>`"
+2. Clean up hook-written PID from previously recommended worktree (F10 fix):
+   `rm -f .worktrees/.metadata/session-*/pid.<claude-pid>` (glob catches whichever worktree the hook chose).
+3. Generate random 4-char hex ID: `openssl rand -hex 2`
+4. `bd worktree create .worktrees/session-<id>`
+5. If bd fails, retry once with a new random ID. If both fail, report error and exit.
+6. Write PID: `bash ${CLAUDE_SKILL_DIR}/../../scripts/write-session-pid.sh session-<id> <claude-pid>`
+7. Delete opt-out sentinel if present: `rm -f .worktrees/.opted-out`
+8. `cd <absolute-path-to-new-worktree>`
+9. Report: "Created session worktree `session-<id>`. Working directory: `<absolute-path>`"
 
 **Skip:**
 1. Capture Claude PID: `echo $PPID` in a separate Bash call.

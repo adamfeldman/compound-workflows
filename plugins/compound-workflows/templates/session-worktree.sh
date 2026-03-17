@@ -424,8 +424,17 @@ fi
 # If PID write failed, remove worktree for safety (fail-closed)
 if [[ "$PID_WRITE_OK" != "true" ]]; then
   debug_log "Hook-9: PID write failed, removing worktree for safety"
-  bd worktree remove "$SESSION_PATH" 2>/dev/null || git worktree remove "$SESSION_PATH" 2>/dev/null || true
-  OUTPUT="${VERSION_WARNING}Warning: Worktree created but PID protection failed. Removed worktree for safety. Check .worktrees/.metadata/ permissions. Model should retry: bd worktree create .worktrees/session-<name>"
+  REMOVE_SUCCESS=false
+  if bd worktree remove "$SESSION_PATH" 2>/dev/null; then
+    REMOVE_SUCCESS=true
+  elif git worktree remove "$SESSION_PATH" 2>/dev/null; then
+    REMOVE_SUCCESS=true
+  fi
+  if [[ "$REMOVE_SUCCESS" == "true" ]]; then
+    OUTPUT="${VERSION_WARNING}Warning: Worktree created but PID protection failed. Removed worktree for safety. Check .worktrees/.metadata/ permissions. Model should retry: bd worktree create .worktrees/session-<name>"
+  else
+    OUTPUT="${VERSION_WARNING}CRITICAL: Worktree created at $SESSION_PATH but PID protection failed AND worktree removal failed. Worktree exists WITHOUT PID protection — GC may delete it. Manually add PID: bash $PLUGIN_SCRIPTS/write-session-pid.sh $SESSION_NAME \$PPID"
+  fi
   printf '%s\n' "$OUTPUT"
   exit 0
 fi
