@@ -1,7 +1,7 @@
 ---
 title: "Session Worktree Start Flow — Deterministic Hook + /do:start + Cleanup Algorithm"
 type: feat
-status: active
+status: completed
 date: 2026-03-16
 origin: docs/brainstorms/2026-03-15-session-worktree-start-flow-brainstorm.md
 bead: hb4a

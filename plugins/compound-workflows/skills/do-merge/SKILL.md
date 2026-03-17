@@ -49,9 +49,15 @@ Store this for metadata cleanup in Step 5.
 
 ### 5. Run merge script
 
-    bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <branch>
+Capture the Claude PID for concurrent-session safety, then run the merge:
 
-Replace `<branch>` with the selected branch name from Step 2.
+    # In a separate Bash call first:
+    echo $PPID
+    # Read the output as <claude-pid>
+
+    CALLER_PID=<claude-pid> bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <branch>
+
+Replace `<branch>` with the selected branch name from Step 2 and `<claude-pid>` with the PID captured above.
 
 ### 6. Handle result
 
@@ -71,7 +77,7 @@ Replace `<branch>` with the selected branch name from Step 2.
 - **Exit 5 (file overlap):** Warn the user about overlapping files (the script lists them on stderr).
   Do NOT auto-resolve — file overlap means both the worktree and the default branch modified the
   same files. Skip metadata cleanup (the merge did not complete). Offer two choices:
-  1. Re-run with `--skip-overlap`: `bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <branch> --skip-overlap`
+  1. Re-run with `--skip-overlap`: `CALLER_PID=<claude-pid> bash ${CLAUDE_SKILL_DIR}/../../scripts/session-merge.sh <branch> --skip-overlap`
      (lets git attempt the merge; may still result in conflicts handled by exit 2)
   2. Abort (no action needed — worktree and branch are preserved)
 - **Exit 1 (other error):** Show the error output from the script.
