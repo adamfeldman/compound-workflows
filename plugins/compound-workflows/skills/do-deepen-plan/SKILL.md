@@ -26,6 +26,16 @@ This command enhances an existing plan with parallel research, skill, and review
 
 Derive a short stem from the plan filename (e.g., `feat-user-dashboard-redesign` from `YYYY-MM-DD-feat-user-dashboard-redesign-plan.md`).
 
+**Initialize shared values first** (must run before any `$WORKFLOWS_ROOT` reference):
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh deepen-plan <plan-stem>
+```
+
+Read the output. Track the values PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
+
+**All `.workflows/` paths in this skill use `$WORKFLOWS_ROOT` (the main repo root's `.workflows/` directory), NOT relative `.workflows/`.** This ensures artifacts survive worktree lifecycle transitions and are shared across sessions.
+
 **Determine run number:**
 
 ```bash
@@ -40,14 +50,6 @@ If prior runs exist, increment the run number (e.g., if `run-2-manifest.json` ex
 ```bash
 mkdir -p $WORKFLOWS_ROOT/deepen-plan/<plan-stem>/agents/run-<N>
 ```
-
-```bash
-bash ${CLAUDE_SKILL_DIR}/../../scripts/init-values.sh deepen-plan <plan-stem>
-```
-
-Read the output. Track the values PLUGIN_ROOT, MAIN_ROOT, WORKFLOWS_ROOT, RUN_ID, DATE, STATS_FILE, CACHED_MODEL (and NOTE if emitted) for use in subsequent steps. If init-values.sh fails or any value is empty, warn the user and stop.
-
-**All `.workflows/` paths in this skill use `$WORKFLOWS_ROOT` (the main repo root's `.workflows/` directory), NOT relative `.workflows/`.** This ensures artifacts survive worktree lifecycle transitions and are shared across sessions.
 
 #### Phase 0a: Stats Capture Config Check
 
