@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.4.1] - 2026-03-18
+
+### Fixed
+- GC fail-closed on git errors — preserves worktrees when git commands fail instead of deleting them
+- GC `--dry-run` mode — `/do:work` liveness probes no longer risk deleting the worktree they're checking
+- Old-format `.session.pid` files pruned during liveness checks, unblocking GC of legacy worktrees
+- Path traversal, numeric validation, and lock-busy reporting hardened in `session-gc.sh`
+- `/do:work` correctly classifies all GC SKIPPED reasons (blocks on concurrent sessions, proceeds on state issues)
+- AGENTS.md: prefer `--no-ff` merge over squash (matches session-merge.sh's established pattern)
+
 ## [3.4.0] - 2026-03-17
 
 ### Added
